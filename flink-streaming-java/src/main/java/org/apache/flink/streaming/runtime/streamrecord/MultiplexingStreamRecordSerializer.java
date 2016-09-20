@@ -25,6 +25,8 @@ import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.streaming.api.watermark.Watermark;
 
 import java.io.IOException;
+import java.util.LinkedList;
+import java.util.List;
 
 import static java.util.Objects.requireNonNull;
 
@@ -131,6 +133,11 @@ public final class MultiplexingStreamRecordSerializer<T> extends TypeSerializer<
 		if (tag == TAG_REC_WITH_TIMESTAMP) {
 			// move timestamp
 			target.writeLong(source.readLong());
+			int contextSize = source.readInt();
+			target.writeInt(contextSize);
+			for(int i=0; i<contextSize; i++) {
+				target.writeLong(source.readLong());
+			}
 			typeSerializer.copy(source, target);
 		}
 		else if (tag == TAG_REC_WITHOUT_TIMESTAMP) {
@@ -138,6 +145,11 @@ public final class MultiplexingStreamRecordSerializer<T> extends TypeSerializer<
 		}
 		else if (tag == TAG_WATERMARK) {
 			target.writeLong(source.readLong());
+			int contextSize = source.readInt();
+			target.writeInt(contextSize);
+			for(int i=0; i<contextSize; i++) {
+				target.writeLong(source.readLong());
+			}
 		}
 		else {
 			throw new IOException("Corrupt stream, found tag: " + tag);
@@ -152,6 +164,10 @@ public final class MultiplexingStreamRecordSerializer<T> extends TypeSerializer<
 			if (record.hasTimestamp()) {
 				target.write(TAG_REC_WITH_TIMESTAMP);
 				target.writeLong(record.getTimestamp());
+				target.writeInt(record.getContext().size());
+				for(long contextElement : record.getContext()) {
+					target.writeLong(contextElement);
+				}
 			} else {
 				target.write(TAG_REC_WITHOUT_TIMESTAMP);
 			}
@@ -160,6 +176,10 @@ public final class MultiplexingStreamRecordSerializer<T> extends TypeSerializer<
 		else if (value.isWatermark()) {
 			target.write(TAG_WATERMARK);
 			target.writeLong(value.asWatermark().getTimestamp());
+			target.writeInt(value.asWatermark().getContext().size());
+			for(long contextElement : value.asWatermark().getContext()) {
+				target.writeLong(contextElement);
+			}
 		}
 		else {
 			throw new RuntimeException();
@@ -171,13 +191,24 @@ public final class MultiplexingStreamRecordSerializer<T> extends TypeSerializer<
 		int tag = source.readByte();
 		if (tag == TAG_REC_WITH_TIMESTAMP) {
 			long timestamp = source.readLong();
-			return new StreamRecord<T>(typeSerializer.deserialize(source), timestamp);
+			List<Long> context = new LinkedList<>();
+			int arraySize = source.readInt();
+			for(int i=0; i<arraySize; i++) {
+				context.add(source.readLong());
+			}
+			return new StreamRecord<T>(typeSerializer.deserialize(source), context, timestamp);
 		}
 		else if (tag == TAG_REC_WITHOUT_TIMESTAMP) {
 			return new StreamRecord<T>(typeSerializer.deserialize(source));
 		}
 		else if (tag == TAG_WATERMARK) {
-			return new Watermark(source.readLong());
+			long timestamp = source.readLong();
+			List<Long> context = new LinkedList<>();
+			int arraySize = source.readInt();
+			for(int i=0; i<arraySize; i++) {
+				context.add(source.readLong());
+			}
+			return new Watermark(context, timestamp);
 		}
 		else {
 			throw new IOException("Corrupt stream, found tag: " + tag);
@@ -191,7 +222,12 @@ public final class MultiplexingStreamRecordSerializer<T> extends TypeSerializer<
 			long timestamp = source.readLong();
 			T value = typeSerializer.deserialize(source);
 			StreamRecord<T> reuseRecord = reuse.asRecord();
-			reuseRecord.replace(value, timestamp);
+			List<Long> context = new LinkedList<>();
+			int arraySize = source.readInt();
+			for(int i=0; i<arraySize; i++) {
+				context.add(source.readLong());
+			}
+			reuseRecord.replace(value, context, timestamp);
 			return reuseRecord;
 		}
 		else if (tag == TAG_REC_WITHOUT_TIMESTAMP) {
@@ -201,7 +237,13 @@ public final class MultiplexingStreamRecordSerializer<T> extends TypeSerializer<
 			return reuseRecord;
 		}
 		else if (tag == TAG_WATERMARK) {
-			return new Watermark(source.readLong());
+			long timestamp = source.readLong();
+			List<Long> context = new LinkedList<>();
+			int arraySize = source.readInt();
+			for(int i=0; i<arraySize; i++) {
+				context.add(source.readLong());
+			}
+			return new Watermark(context, timestamp);
 		}
 		else {
 			throw new IOException("Corrupt stream, found tag: " + tag);

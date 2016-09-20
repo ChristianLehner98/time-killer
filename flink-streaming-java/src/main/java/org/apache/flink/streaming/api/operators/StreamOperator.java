@@ -133,6 +133,20 @@ public interface StreamOperator<OUT> extends Serializable {
 
 	void setKeyContextElement2(StreamRecord<?> record) throws Exception;
 
+	/**
+ 	 * @return the level of context of the operator (e.g. 0 for being in the top level scope,
+	 * 1 for being in a single loop, 2 for being in a doubly nested loop etc.)
+ 	 */
+	int getContextLevel();
+
+	/**
+	 * @return if this operator should add/remove nested timestamps not only for
+	 * @code{Watermark}s but also for @code{StreamRecord}s. This should return true
+	 * if the operator is situated either in a fixpoint iteration or an iteration that
+	 * contains a fixpoint iteration.
+	 */
+	boolean shouldAdaptRecordTimestamps();
+
 	ChainingStrategy getChainingStrategy();
 
 	void setChainingStrategy(ChainingStrategy strategy);

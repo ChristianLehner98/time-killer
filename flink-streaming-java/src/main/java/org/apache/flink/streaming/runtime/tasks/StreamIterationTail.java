@@ -26,6 +26,7 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.operators.Output;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.io.BlockingQueueBroker;
+import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,13 +53,13 @@ public class StreamIterationTail<IN> extends OneInputStreamTask<IN, IN> {
 		LOG.info("Iteration tail {} trying to acquire feedback queue under {}", getName(), brokerID);
 		
 		@SuppressWarnings("unchecked")
-		BlockingQueue<StreamRecord<IN>> dataChannel =
-				(BlockingQueue<StreamRecord<IN>>) BlockingQueueBroker.INSTANCE.get(brokerID);
+		BlockingQueue<StreamElement> dataChannel =
+				(BlockingQueue<StreamElement>) BlockingQueueBroker.INSTANCE.get(brokerID);
 		
 		LOG.info("Iteration tail {} acquired feedback queue {}", getName(), brokerID);
 		
 		this.headOperator = new RecordPusher<>();
-		this.headOperator.setup(this, getConfiguration(), new IterationTailOutput<>(dataChannel, iterationWaitTime));
+		this.headOperator.setup(this, getConfiguration(), new IterationTailOutput<IN>(dataChannel, iterationWaitTime));
 	}
 
 	private static class RecordPusher<IN> extends AbstractStreamOperator<IN> implements OneInputStreamOperator<IN, IN> {
@@ -72,20 +73,20 @@ public class StreamIterationTail<IN> extends OneInputStreamTask<IN, IN> {
 
 		@Override
 		public void processWatermark(Watermark mark) {
-			// ignore
+			output.emitWatermark(mark);
 		}
 	}
 
 	private static class IterationTailOutput<IN> implements Output<StreamRecord<IN>> {
 
 		@SuppressWarnings("NonSerializableFieldInSerializableClass")
-		private final BlockingQueue<StreamRecord<IN>> dataChannel;
+		private final BlockingQueue<StreamElement> dataChannel;
 		
 		private final long iterationWaitTime;
 		
 		private final boolean shouldWait;
 
-		IterationTailOutput(BlockingQueue<StreamRecord<IN>> dataChannel, long iterationWaitTime) {
+		IterationTailOutput(BlockingQueue<StreamElement> dataChannel, long iterationWaitTime) {
 			this.dataChannel = dataChannel;
 			this.iterationWaitTime = iterationWaitTime;
 			this.shouldWait =  iterationWaitTime > 0;
@@ -93,16 +94,21 @@ public class StreamIterationTail<IN> extends OneInputStreamTask<IN, IN> {
 
 		@Override
 		public void emitWatermark(Watermark mark) {
+			sendStreamElement(mark);
 		}
 
 		@Override
 		public void collect(StreamRecord<IN> record) {
+			sendStreamElement(record);
+		}
+
+		private void sendStreamElement(StreamElement element) {
 			try {
 				if (shouldWait) {
-					dataChannel.offer(record, iterationWaitTime, TimeUnit.MILLISECONDS);
+					dataChannel.offer(element, iterationWaitTime, TimeUnit.MILLISECONDS);
 				}
 				else {
-					dataChannel.put(record);
+					dataChannel.put(element);
 				}
 			} catch (InterruptedException e) {
 				throw new RuntimeException(e);

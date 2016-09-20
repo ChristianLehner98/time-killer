@@ -18,8 +18,12 @@
 
 package org.apache.flink.streaming.api.watermark;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
+
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * A Watermark tells operators that receive it that no elements with a timestamp older or equal
@@ -49,13 +53,31 @@ public final class Watermark extends StreamElement {
 	// ------------------------------------------------------------------------
 	
 	/** The timestamp of the watermark in milliseconds*/
-	private final long timestamp;
+	private long timestamp;
+	private final List<Long> context;
 
 	/**
 	 * Creates a new watermark with the given timestamp in milliseconds.
 	 */
 	public Watermark(long timestamp) {
 		this.timestamp = timestamp;
+		this.context = new LinkedList<>();
+	}
+
+	/**
+	 * Creates a new watermark from an existing one.
+	 */
+	public Watermark(Watermark watermark) {
+		this.timestamp = watermark.getTimestamp();
+		this.context = new LinkedList<>(watermark.getContext());
+	}
+
+	/**
+	 * Creates a new watermark with the given timestamp in milliseconds and a context.
+	 */
+	public Watermark(List<Long> context, long timestamp) {
+		this.timestamp = timestamp;
+		this.context = new LinkedList(context);
 	}
 
 	/**
@@ -64,22 +86,40 @@ public final class Watermark extends StreamElement {
 	public long getTimestamp() {
 		return timestamp;
 	}
+	public List<Long> getFullTimestamp() {
+		List<Long> fullTimestamp = new LinkedList<>(context);
+		fullTimestamp.add(timestamp);
+		return fullTimestamp;
+	}
+	public List<Long> getContext() {return context; }
+
+	public void addNestedTimestamp(long timestamp) {
+		this.context.add(this.timestamp);
+		this.timestamp = timestamp;
+	}
+	public void removeNestedTimestamp() {
+		if(this.context.size() > 0) {
+			this.timestamp = this.context.remove(this.context.size()-1);
+		}
+	}
 
 	// ------------------------------------------------------------------------
-	
+
 	@Override
 	public boolean equals(Object o) {
 		return this == o ||
-				o != null && o.getClass() == Watermark.class && ((Watermark) o).timestamp == this.timestamp;
+				o != null && o.getClass() == Watermark.class
+					&& ((Watermark) o).timestamp == this.timestamp
+					&& ((Watermark) o).context.equals(this.context);
 	}
 
 	@Override
 	public int hashCode() {
-		return (int) (timestamp ^ (timestamp >>> 32));
+		return (int) timestamp ^ context.hashCode();
 	}
 
 	@Override
 	public String toString() {
-		return "Watermark @ " + timestamp;
+		return "Watermark @ [" + StringUtils.join(context, ", ") + ", " + timestamp + "]";
 	}
 }

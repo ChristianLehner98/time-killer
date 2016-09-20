@@ -390,4 +390,10 @@ public abstract class AbstractStreamOperator<OUT>
 			output.close();
 		}
 	}
+
+	@Override
+	public int getContextLevel() { return 0; }
+
+	@Override
+	public boolean shouldAdaptRecordTimestamps() { return true; }
 }

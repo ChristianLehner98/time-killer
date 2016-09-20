@@ -110,7 +110,7 @@ public class OneInputStreamTaskTest extends TestLogger {
 		final OneInputStreamTaskTestHarness<String, String> testHarness = new OneInputStreamTaskTestHarness<String, String>(mapTask, BasicTypeInfo.STRING_TYPE_INFO, BasicTypeInfo.STRING_TYPE_INFO);
 
 		StreamConfig streamConfig = testHarness.getStreamConfig();
-		StreamMap<String, String> mapOperator = new StreamMap<String, String>(new TestOpenCloseMapFunction());
+		StreamMap<String, String> mapOperator = new StreamMapMock(new TestOpenCloseMapFunction());
 		streamConfig.setStreamOperator(mapOperator);
 
 		long initialTime = 0L;
@@ -147,7 +147,7 @@ public class OneInputStreamTaskTest extends TestLogger {
 		final OneInputStreamTaskTestHarness<String, String> testHarness = new OneInputStreamTaskTestHarness<String, String>(mapTask, 2, 2, BasicTypeInfo.STRING_TYPE_INFO, BasicTypeInfo.STRING_TYPE_INFO);
 
 		StreamConfig streamConfig = testHarness.getStreamConfig();
-		StreamMap<String, String> mapOperator = new StreamMap<String, String>(new IdentityMap());
+		StreamMap<String, String> mapOperator = new StreamMapMock(new IdentityMap());
 		streamConfig.setStreamOperator(mapOperator);
 
 		ConcurrentLinkedQueue<Object> expectedOutput = new ConcurrentLinkedQueue<Object>();
@@ -223,7 +223,7 @@ public class OneInputStreamTaskTest extends TestLogger {
 		final OneInputStreamTaskTestHarness<String, String> testHarness = new OneInputStreamTaskTestHarness<String, String>(mapTask, 2, 2, BasicTypeInfo.STRING_TYPE_INFO, BasicTypeInfo.STRING_TYPE_INFO);
 
 		StreamConfig streamConfig = testHarness.getStreamConfig();
-		StreamMap<String, String> mapOperator = new StreamMap<String, String>(new IdentityMap());
+		StreamMap<String, String> mapOperator = new StreamMapMock(new IdentityMap());
 		streamConfig.setStreamOperator(mapOperator);
 
 		ConcurrentLinkedQueue<Object> expectedOutput = new ConcurrentLinkedQueue<Object>();
@@ -281,7 +281,7 @@ public class OneInputStreamTaskTest extends TestLogger {
 		final OneInputStreamTaskTestHarness<String, String> testHarness = new OneInputStreamTaskTestHarness<String, String>(mapTask, 2, 2, BasicTypeInfo.STRING_TYPE_INFO, BasicTypeInfo.STRING_TYPE_INFO);
 
 		StreamConfig streamConfig = testHarness.getStreamConfig();
-		StreamMap<String, String> mapOperator = new StreamMap<String, String>(new IdentityMap());
+		StreamMap<String, String> mapOperator = new StreamMapMock(new IdentityMap());
 		streamConfig.setStreamOperator(mapOperator);
 
 		ConcurrentLinkedQueue<Object> expectedOutput = new ConcurrentLinkedQueue<Object>();
@@ -651,15 +651,30 @@ public class OneInputStreamTaskTest extends TestLogger {
 		private Integer generateOperatorState() {
 			return random.nextInt();
 		}
+
+		@Override
+		public int getContextLevel() {
+			return 0;
+		}
 	}
 
+	private static class StreamMapMock extends StreamMap<String,String> {
+		public StreamMapMock(MapFunction<String,String> mapper) {
+			super(mapper);
+		}
+
+		@Override
+		public int getContextLevel() {
+			return 0;
+		}
+	}
 
 	// This must only be used in one test, otherwise the static fields will be changed
 	// by several tests concurrently
 	private static class TestOpenCloseMapFunction extends RichMapFunction<String, String> {
 		private static final long serialVersionUID = 1L;
 
-		public static boolean openCalled = false;
+		public static boolean openCalled = false;   
 		public static boolean closeCalled = false;
 
 		@Override
