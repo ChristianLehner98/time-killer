@@ -17,16 +17,22 @@
 
 package org.apache.flink.streaming.runtime.tasks;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.io.RecordWriterOutput;
 import org.apache.flink.streaming.runtime.io.BlockingQueueBroker;
+import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationProgressStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,8 +43,10 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 
 	private volatile boolean running = true;
 
+	private StreamIterationProgressStrategy progressStrategy;
 	// ------------------------------------------------------------------------
-	
+
+
 	@Override
 	protected void run() throws Exception {
 		
@@ -53,7 +61,7 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 		final long iterationWaitTime = getConfiguration().getIterationWaitTime();
 		final boolean shouldWait = iterationWaitTime > 0;
 
-		final BlockingQueue<StreamRecord<OUT>> dataChannel = new ArrayBlockingQueue<StreamRecord<OUT>>(1);
+		final BlockingQueue<StreamElement> dataChannel = new ArrayBlockingQueue<>(1);
 
 		// offer the queue for the tail
 		BlockingQueueBroker.INSTANCE.handIn(brokerID, dataChannel);
@@ -64,21 +72,24 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 			@SuppressWarnings("unchecked")
 			RecordWriterOutput<OUT>[] outputs = (RecordWriterOutput<OUT>[]) getStreamOutputs();
 
-			// If timestamps are enabled we make sure to remove cyclic watermark dependencies
-			if (isSerializingTimestamps()) {
-				for (RecordWriterOutput<OUT> output : outputs) {
-					output.emitWatermark(new Watermark(Long.MAX_VALUE));
-				}
-			}
-
 			while (running) {
-				StreamRecord<OUT> nextRecord = shouldWait ?
+				StreamElement nextElement = shouldWait ?
 					dataChannel.poll(iterationWaitTime, TimeUnit.MILLISECONDS) :
 					dataChannel.take();
 
-				if (nextRecord != null) {
-					for (RecordWriterOutput<OUT> output : outputs) {
-						output.collect(nextRecord);
+				if (nextElement != null) {
+					if(nextElement.isWatermark()) {
+						Watermark next = progressStrategy.getNextWatermark(nextElement.asWatermark());
+						if(next != null) {
+							for (RecordWriterOutput<OUT> output : outputs) {
+								output.emitWatermark(next);
+							}
+						}
+					} else {
+						progressStrategy.observe(nextElement.asRecord());
+						for (RecordWriterOutput<OUT> output : outputs) {
+							output.collect((StreamRecord<OUT>) nextElement);
+						}
 					}
 				}
 				else {
@@ -127,5 +138,9 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 	 */
 	public static String createBrokerIdString(JobID jid, String iterationID, int subtaskIndex) {
 		return jid + "-" + iterationID + "-" + subtaskIndex;
+	}
+
+	public void setProgressStrategy(StreamIterationProgressStrategy progressStrategy) {
+		this.progressStrategy = progressStrategy;
 	}
 }
