@@ -25,6 +25,7 @@ import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.util.Collector;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * A function that processes elements of two streams and produces a single output one.
@@ -63,7 +64,7 @@ public interface CoProcessFunction<IN1, IN2, OUT> extends Function, Serializable
 	 * @throws Exception The function may throw exceptions which cause the streaming program
 	 *                   to fail and go into recovery.
 	 */
-	void processElement1(IN1 value, Context ctx, Collector<OUT> out) throws Exception;
+	void processElement1(IN1 value, Context ctx, List<Long> timeContext, Collector<OUT> out) throws Exception;
 
 	/**
 	 * This method is called for each element in the second of the connected streams.
@@ -80,7 +81,7 @@ public interface CoProcessFunction<IN1, IN2, OUT> extends Function, Serializable
 	 * @throws Exception The function may throw exceptions which cause the streaming program
 	 *                   to fail and go into recovery.
 	 */
-	void processElement2(IN2 value, Context ctx, Collector<OUT> out) throws Exception;
+	void processElement2(IN2 value, Context ctx, List<Long> timeContext, Collector<OUT> out) throws Exception;
 
 	/**
 	 * Called when a timer set using {@link TimerService} fires.
@@ -95,12 +96,12 @@ public interface CoProcessFunction<IN1, IN2, OUT> extends Function, Serializable
 	 * @throws Exception This method may throw exceptions. Throwing an exception will cause the operation
 	 *                   to fail and may trigger recovery.
 	 */
-	void onTimer(long timestamp, OnTimerContext ctx, Collector<OUT> out) throws Exception ;
+	void onTimer(List<Long> timeContext, long timestamp, OnTimerContext ctx, Collector<OUT> out) throws Exception ;
 
 	/**
-	 * Information available in an invocation of {@link #processElement1(Object, Context, Collector)}/
-	 * {@link #processElement2(Object, Context, Collector)}
-	 * or {@link #onTimer(long, OnTimerContext, Collector)}.
+	 * Information available in an invocation of {@link #processElement1(Object, Context, List, Collector)}/
+	 * {@link #processElement2(Object, Context, List, Collector)}
+	 * or {@link #onTimer(List, long, OnTimerContext, Collector)}.
 	 */
 	interface Context {
 
@@ -119,7 +120,7 @@ public interface CoProcessFunction<IN1, IN2, OUT> extends Function, Serializable
 	}
 
 	/**
-	 * Information available in an invocation of {@link #onTimer(long, OnTimerContext, Collector)}.
+	 * Information available in an invocation of {@link #onTimer(List, long, OnTimerContext, Collector)}.
 	 */
 	interface OnTimerContext extends Context {
 		/**

@@ -25,6 +25,8 @@ import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.streaming.api.watermark.Watermark;
 
 import java.io.IOException;
+import java.util.LinkedList;
+import java.util.List;
 
 import static java.util.Objects.requireNonNull;
 
@@ -134,6 +136,11 @@ public final class StreamElementSerializer<T> extends TypeSerializer<StreamEleme
 		if (tag == TAG_REC_WITH_TIMESTAMP) {
 			// move timestamp
 			target.writeLong(source.readLong());
+			int contextSize = source.readInt();
+			target.writeInt(contextSize);
+			for(int i=0; i<contextSize; i++) {
+				target.writeLong(source.readLong());
+			}
 			typeSerializer.copy(source, target);
 		}
 		else if (tag == TAG_REC_WITHOUT_TIMESTAMP) {
@@ -141,6 +148,13 @@ public final class StreamElementSerializer<T> extends TypeSerializer<StreamEleme
 		}
 		else if (tag == TAG_WATERMARK) {
 			target.writeLong(source.readLong());
+			target.writeBoolean(source.readBoolean());
+			target.writeBoolean(source.readBoolean());
+			int contextSize = source.readInt();
+			target.writeInt(contextSize);
+			for(int i=0; i<contextSize; i++) {
+				target.writeLong(source.readLong());
+			}
 		}
 		else if (tag == TAG_LATENCY_MARKER) {
 			target.writeLong(source.readLong());
@@ -159,6 +173,10 @@ public final class StreamElementSerializer<T> extends TypeSerializer<StreamEleme
 			if (record.hasTimestamp()) {
 				target.write(TAG_REC_WITH_TIMESTAMP);
 				target.writeLong(record.getTimestamp());
+				target.writeInt(record.getContext().size());
+				for(long contextElement : record.getContext()) {
+					target.writeLong(contextElement);
+				}
 			} else {
 				target.write(TAG_REC_WITHOUT_TIMESTAMP);
 			}
@@ -167,6 +185,12 @@ public final class StreamElementSerializer<T> extends TypeSerializer<StreamEleme
 		else if (value.isWatermark()) {
 			target.write(TAG_WATERMARK);
 			target.writeLong(value.asWatermark().getTimestamp());
+			target.writeBoolean(value.asWatermark().iterationDone());
+			target.writeBoolean(value.asWatermark().iterationOnly());
+			target.writeInt(value.asWatermark().getContext().size());
+			for(long contextElement : value.asWatermark().getContext()) {
+				target.writeLong(contextElement);
+			}
 		}
 		else if (value.isLatencyMarker()) {
 			target.write(TAG_LATENCY_MARKER);
@@ -184,13 +208,26 @@ public final class StreamElementSerializer<T> extends TypeSerializer<StreamEleme
 		int tag = source.readByte();
 		if (tag == TAG_REC_WITH_TIMESTAMP) {
 			long timestamp = source.readLong();
-			return new StreamRecord<T>(typeSerializer.deserialize(source), timestamp);
+			List<Long> context = new LinkedList<>();
+			int arraySize = source.readInt();
+			for(int i=0; i<arraySize; i++) {
+				context.add(source.readLong());
+			}
+			return new StreamRecord<T>(typeSerializer.deserialize(source), context, timestamp);
 		}
 		else if (tag == TAG_REC_WITHOUT_TIMESTAMP) {
 			return new StreamRecord<T>(typeSerializer.deserialize(source));
 		}
 		else if (tag == TAG_WATERMARK) {
-			return new Watermark(source.readLong());
+			long timestamp = source.readLong();
+			boolean iterationDone = source.readBoolean();
+			boolean iterationOnly = source.readBoolean();
+			List<Long> context = new LinkedList<>();
+			int arraySize = source.readInt();
+			for(int i=0; i<arraySize; i++) {
+				context.add(source.readLong());
+			}
+			return new Watermark(context, timestamp, iterationDone, iterationOnly);
 		}
 		else if (tag == TAG_LATENCY_MARKER) {
 			return new LatencyMarker(source.readLong(), source.readInt(), source.readInt());
@@ -207,7 +244,12 @@ public final class StreamElementSerializer<T> extends TypeSerializer<StreamEleme
 			long timestamp = source.readLong();
 			T value = typeSerializer.deserialize(source);
 			StreamRecord<T> reuseRecord = reuse.asRecord();
-			reuseRecord.replace(value, timestamp);
+			List<Long> context = new LinkedList<>();
+			int arraySize = source.readInt();
+			for(int i=0; i<arraySize; i++) {
+				context.add(source.readLong());
+			}
+			reuseRecord.replace(value, context, timestamp);
 			return reuseRecord;
 		}
 		else if (tag == TAG_REC_WITHOUT_TIMESTAMP) {
@@ -217,7 +259,15 @@ public final class StreamElementSerializer<T> extends TypeSerializer<StreamEleme
 			return reuseRecord;
 		}
 		else if (tag == TAG_WATERMARK) {
-			return new Watermark(source.readLong());
+			long timestamp = source.readLong();
+			boolean iterationDone = source.readBoolean();
+			boolean iterationOnly = source.readBoolean();
+			List<Long> context = new LinkedList<>();
+			int arraySize = source.readInt();
+			for(int i=0; i<arraySize; i++) {
+				context.add(source.readLong());
+			}
+			return new Watermark(context, timestamp, iterationDone, iterationOnly);
 		}
 		else if (tag == TAG_LATENCY_MARKER) {
 			return new LatencyMarker(source.readLong(), source.readInt(), source.readInt());

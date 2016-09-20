@@ -26,6 +26,7 @@ import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.operators.StreamOperator;
+import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
 import org.apache.flink.util.Preconditions;
 
 import java.io.Serializable;
@@ -73,6 +74,8 @@ public class StreamNode implements Serializable {
 	
 	private StreamScope scope;
 	
+	private StreamIterationTermination iterationTermination;
+	
 	public StreamNode(StreamExecutionEnvironment env,
 		Integer id,
 		String slotSharingGroup,
@@ -105,6 +108,14 @@ public class StreamNode implements Serializable {
 		} else {
 			outEdges.add(outEdge);
 		}
+	}
+
+	public StreamIterationTermination getIterationTermination() {
+		return iterationTermination;
+	}
+
+	public void setIterationTermination(StreamIterationTermination iterationTermination) {
+		this.iterationTermination = iterationTermination;
 	}
 
 	public List<StreamEdge> getOutEdges() {

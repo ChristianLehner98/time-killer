@@ -18,8 +18,8 @@
 
 package org.apache.flink.streaming.api.datastream;
 
-import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.annotation.Public;
+import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.api.common.functions.FoldFunction;
 import org.apache.flink.api.common.functions.Function;
 import org.apache.flink.api.common.functions.ReduceFunction;
@@ -40,7 +40,12 @@ import org.apache.flink.streaming.api.functions.windowing.FoldApplyWindowFunctio
 import org.apache.flink.streaming.api.functions.windowing.PassThroughWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.ReduceApplyWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
+import org.apache.flink.streaming.api.functions.windowing.CoWindowTerminateFunction;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.operators.WatermarkResequencializer;
+import org.apache.flink.streaming.api.operators.WindowedStreamWatermarkFiller;
+import org.apache.flink.streaming.api.transformations.OneInputTransformation;
+import org.apache.flink.streaming.api.transformations.ScopeTransformation;
 import org.apache.flink.streaming.api.windowing.assigners.MergingWindowAssigner;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
@@ -54,11 +59,15 @@ import org.apache.flink.streaming.api.windowing.windows.Window;
 import org.apache.flink.streaming.runtime.operators.windowing.AccumulatingProcessingTimeWindowOperator;
 import org.apache.flink.streaming.runtime.operators.windowing.AggregatingProcessingTimeWindowOperator;
 import org.apache.flink.streaming.runtime.operators.windowing.EvictingWindowOperator;
+import org.apache.flink.streaming.runtime.operators.windowing.WindowOperator;
 import org.apache.flink.streaming.runtime.operators.windowing.functions.InternalIterableWindowFunction;
 import org.apache.flink.streaming.runtime.operators.windowing.functions.InternalSingleValueWindowFunction;
-import org.apache.flink.streaming.runtime.operators.windowing.WindowOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.tasks.progress.FixpointIterationTermination;
+import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
+import org.apache.flink.streaming.runtime.tasks.progress.StructuredIterationTermination;
+
 
 /**
  * A {@code WindowedStream} represents a data stream where elements are grouped by
@@ -95,13 +104,13 @@ public class WindowedStream<T, K, W extends Window> {
 	private final WindowAssigner<? super T, W> windowAssigner;
 
 	/** The trigger that is used for window evaluation/emission. */
-	private Trigger<? super T, ? super W> trigger;
+	protected Trigger<? super T, ? super W> trigger;
 
 	/** The evictor that is used for evicting elements before window evaluation. */
-	private Evictor<? super T, ? super W> evictor;
+	protected Evictor<? super T, ? super W> evictor;
 
 	/** The user-specified allowed lateness. */
-	private long allowedLateness = 0L;
+	protected long allowedLateness = 0L;
 
 	@PublicEvolving
 	public WindowedStream(KeyedStream<T, K> input,
@@ -921,6 +930,85 @@ public class WindowedStream<T, K, W extends Window> {
 		return reduce(aggregator);
 	}
 
+
+	public <OUT,F,R> DataStream<OUT> iterateSyncFor(
+		int iterationCount,
+		CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun,
+		FeedbackBuilder<R> feedbackBuilder,
+		TypeInformation<R> feedbackType) throws Exception {
+		return iterateSync(
+			coWinTermFun,
+			new StructuredIterationTermination(iterationCount),
+			feedbackBuilder,
+			feedbackType);
+	}
+
+	public <OUT,F,R> DataStream<OUT> iterateSyncDelta(
+		CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun,
+		FeedbackBuilder<R> feedbackBuilder,
+		TypeInformation<R> feedbackType) throws Exception {
+		return iterateSync(
+			coWinTermFun,
+			new FixpointIterationTermination(),
+			feedbackBuilder,
+			feedbackType);
+	}
+
+	/**
+	 * Bulk synchronous iteration
+	 *
+	 * @param <OUT> The type of the iteration output (as produced by the onTermination function of
+	 *                the CoWindowTerminateFunction)
+	 * @param <R> 	The type of the feedback stream produced by the entry and step functions of
+	 *           	the CoWindowTerminateFunction
+	 * @param <F>	The type of the feedback after applying the feedbackBuilder function
+	 * @param CoWindowTerminateFunction contains entry, step and onTermination UDFs
+	 * @param StreamIterationTermination decides per iteration when it shall terminate - examples:
+	 *                                   StructuredIterationTermination ("for loop") or
+	 *                                   FixPointIterationTermination ("delta iteration")
+	 * @param FeedbackBuilder	takes a DataStream<R> and produces a KeyedStream<F,K> (same keying like
+	 *                          input windowed stream) for feedback
+	 * @param TypeInformation Type of the feedback coming out of entry/step of CoWindowTerminationFunction
+	 *                             - TODO can this be automated?
+	 * @return The output DataStream.
+	 */
+	public <OUT,F,R> DataStream<OUT> iterateSync(CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun,
+								StreamIterationTermination terminationStrategy, 
+								FeedbackBuilder<R> feedbackBuilder, 
+								TypeInformation<R> feedbackType) throws Exception {
+		// add watermark filler
+		OneInputTransformation<T, T> watermarkfiller = new OneInputTransformation<T,T>(
+			input.getTransformation(),
+			"OneWatermarkPerContext",
+			new WindowedStreamWatermarkFiller<T>(),
+			input.getTransformation().getOutputType(),
+			input.getTransformation().getParallelism()
+		);
+
+		DataStream<T> scopedStreamInput = new SingleOutputStreamOperator<T>(input.getExecutionEnvironment(),
+			new ScopeTransformation<T>(watermarkfiller, ScopeTransformation.SCOPE_TYPE.INGRESS));
+
+		WindowedStream<T,K,W> scopedWindowStream = new WindowedStream<>(
+			new KeyedStream<>(scopedStreamInput, input.getKeySelector(),
+				input.getKeyType()), getWindowAssigner());
+
+		IterativeWindowStream<T,W,F,K,R,OUT> iterativeStream = new IterativeWindowStream<>(
+			scopedWindowStream, coWinTermFun, terminationStrategy, feedbackBuilder, feedbackType, 3000);
+
+		DataStream<OUT> outStream = iterativeStream.loop();
+
+		ScopeTransformation<OUT> egressTransformation = new ScopeTransformation<>(outStream.getTransformation(), ScopeTransformation.SCOPE_TYPE.EGRESS);
+
+		OneInputTransformation<OUT,OUT> seqWatermarksOutStream = new OneInputTransformation<>(
+			egressTransformation,
+			"WatermarkResequencializer",
+			new WatermarkResequencializer<OUT>(),
+			egressTransformation.getOutputType(),
+			egressTransformation.getParallelism()
+		);
+		return new SingleOutputStreamOperator<>(outStream.environment, seqWatermarksOutStream);
+	}
+
 	// ------------------------------------------------------------------------
 	//  Utilities
 	// ------------------------------------------------------------------------
@@ -1001,6 +1089,18 @@ public class WindowedStream<T, K, W extends Window> {
 	public StreamExecutionEnvironment getExecutionEnvironment() {
 		return input.getExecutionEnvironment();
 	}
+
+	protected KeyedStream<T, K> getInput() {
+		return input;
+	}
+
+	public WindowAssigner<? super T, W> getWindowAssigner() {
+		return windowAssigner;
+	}
+
+	public Trigger<? super T, ? super W> getTrigger() { return trigger; }
+	public Evictor<? super T, ? super W> getEvictor() { return evictor; }
+	public long getAllowedLateness() { return allowedLateness; }
 
 	public TypeInformation<T> getInputType() {
 		return input.getType();

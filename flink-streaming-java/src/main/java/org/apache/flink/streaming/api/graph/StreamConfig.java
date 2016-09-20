@@ -37,6 +37,7 @@ import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.runtime.state.AbstractStateBackend;
 import org.apache.flink.streaming.runtime.tasks.StreamTaskException;
+import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
 import org.apache.flink.util.InstantiationUtil;
 
 @Internal
@@ -82,6 +83,8 @@ public class StreamConfig implements Serializable {
 	private static final String TIME_CHARACTERISTIC = "timechar";
 	
 	private static final String STREAM_SCOPE = "scopelevel";
+
+	private static final String TERMINATION_FUNCTION = "termFunction";
 	
 	// ------------------------------------------------------------------------
 	//  Default Values
@@ -187,6 +190,22 @@ public class StreamConfig implements Serializable {
 			return InstantiationUtil.readObjectFromConfig(this.config, STREAM_SCOPE, cl);
 		} catch (Exception e) {
 			throw new StreamTaskException("Could not instantiate stream scope.", e);
+		}
+	}
+	
+	public void setTerminationFunction(StreamIterationTermination terminationFunction){
+		try{
+			InstantiationUtil.writeObjectToConfig(terminationFunction, this.config, TERMINATION_FUNCTION);
+		} catch (Exception e) {
+			throw new StreamTaskException("Cannot serialize termination function", e);
+		}
+	}
+	
+	public StreamIterationTermination getTerminationFunction(ClassLoader cl){
+		try {
+			return InstantiationUtil.readObjectFromConfig(this.config, TERMINATION_FUNCTION, cl);
+		} catch (Exception e) {
+			throw new StreamTaskException("Could not instantiate stream termination function.", e);
 		}
 	}
 

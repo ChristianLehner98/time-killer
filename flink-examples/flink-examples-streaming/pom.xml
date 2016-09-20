@@ -176,6 +176,29 @@ under the License.
 						</configuration>
 					</execution>
 
+					<!-- StreamingPageRank -->
+					<execution>
+						<id>StreamingPageRank</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+						<configuration>
+							<classifier>StreamingPageRank</classifier>
+
+							<archive>
+								<manifestEntries>
+									<program-class>org.apache.flink.streaming.examples.iteration.StreamingPageRank</program-class>
+								</manifestEntries>
+							</archive>
+
+							<includes>
+								<include>org/apache/flink/streaming/examples/iteration/*.class</include>
+								<include>org/apache/flink/examples/java/graph/util/PageRankData.class</include>
+							</includes>
+						</configuration>
+					</execution>
+
 					<!-- IncrementalLearning -->
 					<execution>
 						<id>IncrementalLearning</id>
@@ -222,7 +245,7 @@ under the License.
 					</execution>
 
 					<!-- Async I/O -->
-					<execution>
+					<!--<execution>
 						<id>AsyncIO</id>
 						<phase>package</phase>
 						<goals>
@@ -241,7 +264,7 @@ under the License.
 								<include>org/apache/flink/streaming/examples/async/*.class</include>
 							</includes>
 						</configuration>
-					</execution>
+					</execution> -->
 
 					<!-- WordCountPOJO -->
 					<execution>

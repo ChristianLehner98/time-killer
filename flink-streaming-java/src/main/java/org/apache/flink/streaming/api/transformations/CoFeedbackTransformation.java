@@ -22,6 +22,8 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.graph.StreamScope;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
+import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
+import org.apache.flink.streaming.runtime.tasks.progress.StructuredIterationTermination;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -57,8 +59,16 @@ import java.util.List;
 public class CoFeedbackTransformation<F> extends StreamTransformation<F> {
 
 	private final List<StreamTransformation<F>> feedbackEdges;
+	private final StreamIterationTermination terminationStrategy;
 
 	private final Long waitTime;
+
+	public CoFeedbackTransformation(int parallelism,
+									TypeInformation<F> feedbackType,
+									Long waitTime, StreamScope scope) {
+		// TODO change this to FixpointTermination when done
+		this(parallelism, feedbackType, waitTime, scope, new StructuredIterationTermination(Long.MAX_VALUE));
+	}
 
 	/**
 	 * Creates a new {@code CoFeedbackTransformation} from the given input.
@@ -70,11 +80,13 @@ public class CoFeedbackTransformation<F> extends StreamTransformation<F> {
 	 *                          the operation will close and not receive any more feedback elements.
 	 */
 	public CoFeedbackTransformation(int parallelism,
-			TypeInformation<F> feedbackType,
-			Long waitTime, StreamScope scope) {
+									TypeInformation<F> feedbackType,
+									Long waitTime, StreamScope scope,
+									StreamIterationTermination terminationStrategy) {
 		super("CoFeedback", feedbackType, parallelism, scope);
 		this.waitTime = waitTime;
 		this.feedbackEdges = Lists.newArrayList();
+		this.terminationStrategy = terminationStrategy;
 	}
 
 	/**
@@ -121,6 +133,9 @@ public class CoFeedbackTransformation<F> extends StreamTransformation<F> {
 	public Collection<StreamTransformation<?>> getTransitivePredecessors() {
 		return Collections.<StreamTransformation<?>>singleton(this);
 	}
-	
+
+	public StreamIterationTermination getTerminationStrategy() {
+		return terminationStrategy;
+	}
 }
 

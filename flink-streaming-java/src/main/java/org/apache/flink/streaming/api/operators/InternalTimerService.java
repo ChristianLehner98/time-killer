@@ -19,6 +19,8 @@ package org.apache.flink.streaming.api.operators;
 
 import org.apache.flink.annotation.Internal;
 
+import java.util.List;
+
 /**
  * Interface for working with time and timers.
  *
@@ -34,7 +36,7 @@ public interface InternalTimerService<N> {
 	long currentProcessingTime();
 
 	/** Returns the current event-time watermark. */
-	long currentWatermark();
+	long currentWatermark(List<Long> timeContext);
 
 	/**
 	 * Registers a timer to be fired when processing time passes the given time. The namespace
@@ -51,10 +53,10 @@ public interface InternalTimerService<N> {
 	 * Registers a timer to be fired when processing time passes the given time. The namespace
 	 * you pass here will be provided when the timer fires.
 	 */
-	void registerEventTimeTimer(N namespace, long time);
+	void registerEventTimeTimer(N namespace, List<Long> timeContext, long time);
 
 	/**
 	 * Deletes the timer for the given key and namespace.
 	 */
-	void deleteEventTimeTimer(N namespace, long time);
+	void deleteEventTimeTimer(N namespace, List<Long> timeContext, long time);
 }
