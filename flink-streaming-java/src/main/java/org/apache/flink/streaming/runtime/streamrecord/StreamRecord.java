@@ -19,19 +19,26 @@ package org.apache.flink.streaming.runtime.streamrecord;
 
 import org.apache.flink.annotation.Internal;
 
+import java.io.Serializable;
+import java.util.LinkedList;
+import java.util.List;
+
 /**
  * One value in a data stream. This stores the value and an optional associated timestamp.
  * 
  * @param <T> The type encapsulated with the stream record.
  */
 @Internal
-public final class StreamRecord<T> extends StreamElement {
+public final class StreamRecord<T> extends StreamElement implements Serializable {
 	
 	/** The actual value held by this record */
 	private T value;
 	
 	/** The timestamp of the record */
 	private long timestamp;
+
+	/** The context of the record ('outer timestamp') */
+	private List<Long> context;
 
 	/** Flag whether the timestamp is actually set */
 	private boolean hasTimestamp;
@@ -41,6 +48,7 @@ public final class StreamRecord<T> extends StreamElement {
 	 */
 	public StreamRecord(T value) {
 		this.value = value;
+		this.context = new LinkedList<>();
 	}
 
 	/**
@@ -51,9 +59,21 @@ public final class StreamRecord<T> extends StreamElement {
 	 * @param timestamp The timestamp in milliseconds
 	 */
 	public StreamRecord(T value, long timestamp) {
+		this(value, new LinkedList<Long>(), timestamp);
+	}
+
+	/**
+	 * Creates a new StreamRecord wrapping the given value. The timestamp is set to the
+	 * given timestamp.
+	 *
+	 * @param value The value to wrap in this {@link StreamRecord}
+	 * @param timestamp The timestamp in milliseconds
+	 */
+	public StreamRecord(T value, List<Long> context, long timestamp) {
 		this.value = value;
 		this.timestamp = timestamp;
 		this.hasTimestamp = true;
+		this.context = new LinkedList<>(context);
 	}
 
 	// ------------------------------------------------------------------------
@@ -79,6 +99,21 @@ public final class StreamRecord<T> extends StreamElement {
 //					"Record has no timestamp. Is the time characteristic set to 'ProcessingTime', or " +
 //							"did you forget to call 'DataStream.assignTimestampsAndWatermarks(...)'?");
 		}
+	}
+	public List<Long> getFullTimestamp() {
+		if(hasTimestamp) {
+			List<Long> fullTimestamp = new LinkedList<>(context);
+			fullTimestamp.add(timestamp);
+			return fullTimestamp;
+		} else {
+			LinkedList<Long> result = new LinkedList<>();
+			result.add(Long.MIN_VALUE);
+			return result;
+		}
+	}
+
+	public List<Long> getContext() {
+		return context;
 	}
 
 	/** Checks whether this record has a timestamp.
@@ -124,10 +159,37 @@ public final class StreamRecord<T> extends StreamElement {
 		
 		return (StreamRecord<X>) this;
 	}
+
+	public <X> StreamRecord<X> replace(X value, List<Long> context, long timestamp) {
+		this.timestamp = timestamp;
+		this.context = context;
+		this.value = (T) value;
+		this.hasTimestamp = true;
+
+		return (StreamRecord<X>) this;
+	}
 	
 	public void setTimestamp(long timestamp) {
 		this.timestamp = timestamp;
 		this.hasTimestamp = true;
+	}
+
+	public void setContext(List<Long> context) {
+		this.context = context;
+	}
+
+	public void addNestedTimestamp(long timestamp) {
+		if(!hasTimestamp) {
+			setTimestamp(timestamp);
+		} else {
+			this.context.add(this.timestamp);
+			this.timestamp = timestamp;
+		}
+	}
+	public void removeNestedTimestamp() {
+		if(this.context.size() > 0) {
+			this.timestamp = this.context.remove(this.context.size()-1);
+		}
 	}
 
 	public void eraseTimestamp() {

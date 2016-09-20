@@ -131,6 +131,12 @@ public interface StreamOperator<OUT> extends Serializable {
 
 	void setKeyContextElement2(StreamRecord<?> record) throws Exception;
 
+	/**
+ 	 * @return the level of context of the operator (e.g. 0 for being in the top level scope,
+	 * 1 for being in a single loop, 2 for being in a doubly nested loop etc.)
+ 	 */
+	int getContextLevel();
+
 	ChainingStrategy getChainingStrategy();
 
 	void setChainingStrategy(ChainingStrategy strategy);

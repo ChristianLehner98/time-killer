@@ -105,7 +105,7 @@ public abstract class AbstractStreamOperator<OUT>
 	// ---------------- runtime fields ------------------
 
 	/** The task that contains this operator (and other operators in the same chain) */
-	private transient StreamTask<?, ?> container;
+	protected transient StreamTask<?, ?> container;
 	
 	protected transient StreamConfig config;
 
@@ -122,7 +122,7 @@ public abstract class AbstractStreamOperator<OUT>
 	private transient KeySelector<?, ?> stateKeySelector2;
 
 	/** Backend for keyed state. This might be empty if we're not on a keyed stream. */
-	private transient AbstractKeyedStateBackend<?> keyedStateBackend;
+	protected transient AbstractKeyedStateBackend<?> keyedStateBackend;
 
 	/** Keyed state store view on the keyed backend */
 	private transient DefaultKeyedStateStore keyedStateStore;
@@ -276,11 +276,14 @@ public abstract class AbstractStreamOperator<OUT>
 						container.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks(),
 						container.getEnvironment().getTaskInfo().getIndexOfThisSubtask());
 
-				this.keyedStateBackend = container.createKeyedStateBackend(
+				if(container.getKeyedStateBackend() == null) {
+					this.keyedStateBackend = container.createKeyedStateBackend(
 						keySerializer,
 						container.getEnvironment().getTaskInfo().getNumberOfKeyGroups(),
 						subTaskKeyGroupRange);
-
+				} else {
+					this.keyedStateBackend = container.getKeyedStateBackend();
+				}
 				this.keyedStateStore = new DefaultKeyedStateStore(keyedStateBackend, getExecutionConfig());
 			}
 
@@ -757,6 +760,9 @@ public abstract class AbstractStreamOperator<OUT>
 		}
 	}
 
+	@Override
+	public int getContextLevel() { return 0; }
+
 	// ------------------------------------------------------------------------
 	//  Watermark handling
 	// ------------------------------------------------------------------------
@@ -809,7 +815,7 @@ public abstract class AbstractStreamOperator<OUT>
 
 	public void processWatermark(Watermark mark) throws Exception {
 		for (HeapInternalTimerService<?, ?> service : timerServices.values()) {
-			service.advanceWatermark(mark.getTimestamp());
+			service.advanceWatermark(mark.getContext(), mark.getTimestamp());
 		}
 		output.emitWatermark(mark);
 	}

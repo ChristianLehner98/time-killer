@@ -35,6 +35,7 @@ import org.apache.flink.util.Collector;
 import org.apache.flink.util.TestLogger;
 import org.junit.Test;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static org.junit.Assert.assertEquals;
@@ -297,9 +298,9 @@ public class ProcessOperatorTest extends TestLogger {
 		}
 
 		@Override
-		public void processElement(Integer value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			if (timeDomain.equals(TimeDomain.EVENT_TIME)) {
-				out.collect(value + "TIME:" + ctx.timerService().currentWatermark() + " TS:" + ctx.timestamp());
+				out.collect(value + "TIME:" + ctx.timerService().currentWatermark(timeContext,) + " TS:" + ctx.timestamp());
 			} else {
 				out.collect(value + "TIME:" + ctx.timerService().currentProcessingTime() + " TS:" + ctx.timestamp());
 			}
@@ -324,10 +325,10 @@ public class ProcessOperatorTest extends TestLogger {
 		}
 
 		@Override
-		public void processElement(Integer value, Context ctx, Collector<Integer> out) throws Exception {
+		public void processElement(Integer value, Context ctx, List<Long> timeContext, Collector<Integer> out) throws Exception {
 			out.collect(value);
 			if (timeDomain.equals(TimeDomain.EVENT_TIME)) {
-				ctx.timerService().registerEventTimeTimer(ctx.timerService().currentWatermark() + 5);
+				ctx.timerService().registerEventTimeTimer(timeContext, ctx.timerService().currentWatermark(timeContext) + 5);
 			} else {
 				ctx.timerService().registerProcessingTimeTimer(ctx.timerService().currentProcessingTime() + 5);
 			}
@@ -358,11 +359,11 @@ public class ProcessOperatorTest extends TestLogger {
 		}
 
 		@Override
-		public void processElement(Integer value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT:" + value);
 			getRuntimeContext().getState(state).update(value);
 			if (timeDomain.equals(TimeDomain.EVENT_TIME)) {
-				ctx.timerService().registerEventTimeTimer(ctx.timerService().currentWatermark() + 5);
+				ctx.timerService().registerEventTimeTimer(timeContext, ctx.timerService().currentWatermark(timeContext) + 5);
 			} else {
 				ctx.timerService().registerProcessingTimeTimer(ctx.timerService().currentProcessingTime() + 5);
 			}
@@ -383,9 +384,9 @@ public class ProcessOperatorTest extends TestLogger {
 		private static final long serialVersionUID = 1L;
 
 		@Override
-		public void processElement(Integer value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			ctx.timerService().registerProcessingTimeTimer(5);
-			ctx.timerService().registerEventTimeTimer(6);
+			ctx.timerService().registerEventTimeTimer(timeContext, 6);
 		}
 
 		@Override

@@ -35,6 +35,7 @@ import org.apache.flink.util.Collector;
 import org.apache.flink.util.TestLogger;
 import org.junit.Test;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static org.junit.Assert.assertEquals;
@@ -349,17 +350,18 @@ public class CoProcessOperatorTest extends TestLogger {
 		private static final long serialVersionUID = 1L;
 
 		@Override
-		public void processElement1(Integer value, Context ctx, Collector<String> out) throws Exception {
-			out.collect(value + "WM:" + ctx.timerService().currentWatermark() + " TS:" + ctx.timestamp());
+		public void processElement1(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
+			out.collect(value + "WM:" + ctx.timerService().currentWatermark(timeContext) + " TS:" + ctx.timestamp());
 		}
 
 		@Override
-		public void processElement2(String value, Context ctx, Collector<String> out) throws Exception {
-			out.collect(value + "WM:" + ctx.timerService().currentWatermark() + " TS:" + ctx.timestamp());
+		public void processElement2(String value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
+			out.collect(value + "WM:" + ctx.timerService().currentWatermark(timeContext) + " TS:" + ctx.timestamp());
 		}
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<String> out) throws Exception {
@@ -371,19 +373,20 @@ public class CoProcessOperatorTest extends TestLogger {
 		private static final long serialVersionUID = 1L;
 
 		@Override
-		public void processElement1(Integer value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement1(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT1:" + value);
-			ctx.timerService().registerEventTimeTimer(5);
+			ctx.timerService().registerEventTimeTimer(timeContext, 5);
 		}
 
 		@Override
-		public void processElement2(String value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement2(String value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT2:" + value);
-			ctx.timerService().registerEventTimeTimer(6);
+			ctx.timerService().registerEventTimeTimer(timeContext, 6);
 		}
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<String> out) throws Exception {
@@ -401,22 +404,23 @@ public class CoProcessOperatorTest extends TestLogger {
 				new ValueStateDescriptor<>("seen-element", StringSerializer.INSTANCE, null);
 
 		@Override
-		public void processElement1(Integer value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement1(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT1:" + value);
 			getRuntimeContext().getState(state).update("" + value);
-			ctx.timerService().registerEventTimeTimer(ctx.timerService().currentWatermark() + 5);
+			ctx.timerService().registerEventTimeTimer(timeContext, ctx.timerService().currentWatermark(timeContext) + 5);
 		}
 
 		@Override
-		public void processElement2(String value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement2(String value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT2:" + value);
 			getRuntimeContext().getState(state).update(value);
-			ctx.timerService().registerEventTimeTimer(ctx.timerService().currentWatermark() + 5);
+			ctx.timerService().registerEventTimeTimer(timeContext, ctx.timerService().currentWatermark(timeContext) + 5);
 		}
 
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<String> out) throws Exception {
@@ -430,19 +434,20 @@ public class CoProcessOperatorTest extends TestLogger {
 		private static final long serialVersionUID = 1L;
 
 		@Override
-		public void processElement1(Integer value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement1(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT1:" + value);
 			ctx.timerService().registerProcessingTimeTimer(5);
 		}
 
 		@Override
-		public void processElement2(String value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement2(String value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT2:" + value);
 			ctx.timerService().registerProcessingTimeTimer(6);
 		}
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<String> out) throws Exception {
@@ -457,17 +462,18 @@ public class CoProcessOperatorTest extends TestLogger {
 		private static final long serialVersionUID = 1L;
 
 		@Override
-		public void processElement1(Integer value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement1(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect(value + "PT:" + ctx.timerService().currentProcessingTime() + " TS:" + ctx.timestamp());
 		}
 
 		@Override
-		public void processElement2(String value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement2(String value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect(value + "PT:" + ctx.timerService().currentProcessingTime() + " TS:" + ctx.timestamp());
 		}
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<String> out) throws Exception {
@@ -482,14 +488,14 @@ public class CoProcessOperatorTest extends TestLogger {
 				new ValueStateDescriptor<>("seen-element", StringSerializer.INSTANCE, null);
 
 		@Override
-		public void processElement1(Integer value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement1(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT1:" + value);
 			getRuntimeContext().getState(state).update("" + value);
 			ctx.timerService().registerProcessingTimeTimer(ctx.timerService().currentProcessingTime() + 5);
 		}
 
 		@Override
-		public void processElement2(String value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement2(String value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT2:" + value);
 			getRuntimeContext().getState(state).update(value);
 			ctx.timerService().registerProcessingTimeTimer(ctx.timerService().currentProcessingTime() + 5);
@@ -498,6 +504,7 @@ public class CoProcessOperatorTest extends TestLogger {
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<String> out) throws Exception {
@@ -511,18 +518,19 @@ public class CoProcessOperatorTest extends TestLogger {
 		private static final long serialVersionUID = 1L;
 
 		@Override
-		public void processElement1(Integer value, Context ctx, Collector<String> out) throws Exception {
-			ctx.timerService().registerEventTimeTimer(6);
+		public void processElement1(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
+			ctx.timerService().registerEventTimeTimer(timeContext, 6);
 		}
 
 		@Override
-		public void processElement2(String value, Context ctx, Collector<String> out) throws Exception {
-			ctx.timerService().registerProcessingTimeTimer(5);
+		public void processElement2(String value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
+			ctx.timerService().registerProcessingTimeTimer(timeContext, 5);
 		}
 
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<String> out) throws Exception {

@@ -20,10 +20,7 @@ package org.apache.flink.streaming.api.datastream;
 
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.annotation.Public;
-import org.apache.flink.api.common.functions.FoldFunction;
-import org.apache.flink.api.common.functions.Function;
-import org.apache.flink.api.common.functions.ReduceFunction;
-import org.apache.flink.api.common.functions.RichFunction;
+import org.apache.flink.api.common.functions.*;
 import org.apache.flink.api.common.state.FoldingStateDescriptor;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.state.ReducingStateDescriptor;
@@ -31,16 +28,19 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.Utils;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.aggregation.AggregationFunction;
 import org.apache.flink.streaming.api.functions.aggregation.ComparableAggregator;
 import org.apache.flink.streaming.api.functions.aggregation.SumAggregator;
-import org.apache.flink.streaming.api.functions.windowing.FoldApplyWindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.PassThroughWindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.ReduceApplyWindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
+import org.apache.flink.streaming.api.functions.windowing.*;
+import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
+import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.transformations.OneInputTransformation;
+import org.apache.flink.streaming.api.transformations.ScopeTransformation;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.assigners.MergingWindowAssigner;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
@@ -59,6 +59,9 @@ import org.apache.flink.streaming.runtime.operators.windowing.functions.Internal
 import org.apache.flink.streaming.runtime.operators.windowing.WindowOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+
+import java.io.Serializable;
+import java.util.*;
 
 /**
  * A {@code WindowedStream} represents a data stream where elements are grouped by
@@ -95,13 +98,13 @@ public class WindowedStream<T, K, W extends Window> {
 	private final WindowAssigner<? super T, W> windowAssigner;
 
 	/** The trigger that is used for window evaluation/emission. */
-	private Trigger<? super T, ? super W> trigger;
+	protected Trigger<? super T, ? super W> trigger;
 
 	/** The evictor that is used for evicting elements before window evaluation. */
-	private Evictor<? super T, ? super W> evictor;
+	protected Evictor<? super T, ? super W> evictor;
 
 	/** The user-specified allowed lateness. */
-	private long allowedLateness = 0L;
+	protected long allowedLateness = 0L;
 
 	@PublicEvolving
 	public WindowedStream(KeyedStream<T, K> input,
@@ -921,6 +924,98 @@ public class WindowedStream<T, K, W extends Window> {
 		return reduce(aggregator);
 	}
 
+	//TODO Maybe put superstep counter for simplicity
+
+	public <OUT,F,R> DataStream<OUT> iterateSync(CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun,
+												 FeedbackBuilder<R> feedbackBuilder,
+												 TypeInformation<R> feedbackType) throws Exception {
+		// add watermark filler
+		OneInputTransformation<T, T> watermarkfiller = new OneInputTransformation<T,T>(
+			input.getTransformation(),
+			"OneWatermarkPerContext",
+			new WindowedStreamWatermarkFiller<T>(),
+			input.getTransformation().getOutputType(),
+			input.getTransformation().getParallelism()
+		);
+
+		DataStream<T> scopedStreamInput = new SingleOutputStreamOperator<T>(input.getExecutionEnvironment(),
+			new ScopeTransformation<T>(watermarkfiller, ScopeTransformation.SCOPE_TYPE.INGRESS));
+
+		// TODO input.getExecutionEnvironment or this.getExecutionEnvironment() ??
+		// TODO is this a correct way to do this?
+		WindowedStream<T,K,W> scopedWindowStream = new WindowedStream<>(
+			new KeyedStream<>(scopedStreamInput, input.getKeySelector(),
+				input.getKeyType()), getWindowAssigner());
+
+		IterativeWindowStream<T,W,F,K,R,OUT> iterativeStream = new IterativeWindowStream<>(
+			scopedWindowStream, coWinTermFun, feedbackBuilder, feedbackType, 0);
+
+		DataStream<OUT> outStream = iterativeStream.loop();
+
+		ScopeTransformation<OUT> egressTransformation = new ScopeTransformation<>(outStream.getTransformation(), ScopeTransformation.SCOPE_TYPE.EGRESS);
+
+		// TODO add watermarkSequencializer
+
+		return new SingleOutputStreamOperator<>(outStream.environment, egressTransformation);
+	}
+
+	private static class WindowedStreamWatermarkFiller<IN>
+		extends AbstractStreamOperator<IN>
+		implements OneInputStreamOperator<IN, IN> {
+
+		private static final long serialVersionUID = 1L;
+
+		private Map<List<Long>,SortedMap<Long,List<StreamRecord<IN>>>> recordsByContext = new HashMap<>();
+		private Long sequenceID = 0L;
+
+		public WindowedStreamWatermarkFiller() {
+			chainingStrategy = ChainingStrategy.ALWAYS;
+		}
+
+		@Override
+		public void processElement(StreamRecord<IN> element) throws Exception {
+			SortedMap<Long, List<StreamRecord<IN>>> elements = getElements(element.getContext());
+
+			List<StreamRecord<IN>> elementsWithSameTimestamp = elements.get(element.getTimestamp());
+			if(elementsWithSameTimestamp == null) {
+				elementsWithSameTimestamp = new LinkedList<>();
+				elements.put(element.getTimestamp(), elementsWithSameTimestamp);
+			}
+			elementsWithSameTimestamp.add(element);
+		}
+
+		@Override
+		public void processWatermark(Watermark watermark) {
+			// use sequence IDs on "real" (not iteration only) watermarks
+			// in order to emit them again in the right order after an iteration
+			watermark.pushSequenceID(sequenceID++);
+
+			SortedMap<Long,List<StreamRecord<IN>>> elements = getElements(watermark.getContext());
+			for(Iterator<Map.Entry<Long,List<StreamRecord<IN>>>> it = elements.entrySet().iterator(); it.hasNext();) {
+				Map.Entry<Long,List<StreamRecord<IN>>> current = it.next();
+				if(current.getKey() > watermark.getTimestamp()) continue;
+
+				for(StreamRecord<IN> record : current.getValue()) {
+					output.collect(record);
+				}
+				if(current.getKey() != watermark.getTimestamp()) {
+					output.emitWatermark(new Watermark(watermark.getContext(), current.getKey(), true));
+				}
+				it.remove();
+			}
+			output.emitWatermark(watermark);
+		}
+
+		private SortedMap<Long, List<StreamRecord<IN>>> getElements(List<Long> context) {
+			SortedMap<Long, List<StreamRecord<IN>>> elements = recordsByContext.get(context);
+			if(elements == null) {
+				elements = new TreeMap<>();
+				recordsByContext.put(context, elements);
+			}
+			return elements;
+		}
+	}
+
 	// ------------------------------------------------------------------------
 	//  Utilities
 	// ------------------------------------------------------------------------
@@ -1001,6 +1096,18 @@ public class WindowedStream<T, K, W extends Window> {
 	public StreamExecutionEnvironment getExecutionEnvironment() {
 		return input.getExecutionEnvironment();
 	}
+
+	protected KeyedStream<T, K> getInput() {
+		return input;
+	}
+
+	public WindowAssigner<? super T, W> getWindowAssigner() {
+		return windowAssigner;
+	}
+
+	public Trigger<? super T, ? super W> getTrigger() { return trigger; }
+	public Evictor<? super T, ? super W> getEvictor() { return evictor; }
+	public long getAllowedLateness() { return allowedLateness; }
 
 	public TypeInformation<T> getInputType() {
 		return input.getType();

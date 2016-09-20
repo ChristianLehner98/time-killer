@@ -19,11 +19,14 @@ package org.apache.flink.streaming.api.operators;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.api.common.typeutils.base.IntSerializer;
 import org.apache.flink.api.common.typeutils.base.LongSerializer;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
 
 import java.io.IOException;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * Internal class for keeping track of in-flight timers.
@@ -34,10 +37,12 @@ import java.io.IOException;
 @Internal
 public class InternalTimer<K, N> implements Comparable<InternalTimer<K, N>> {
 	private final long timestamp;
+	private final List<Long> timeContext;
 	private final K key;
 	private final N namespace;
 
-	public InternalTimer(long timestamp, K key, N namespace) {
+	public InternalTimer(List<Long> timeContext, long timestamp, K key, N namespace) {
+		this.timeContext = timeContext;
 		this.timestamp = timestamp;
 		this.key = key;
 		this.namespace = namespace;
@@ -46,6 +51,7 @@ public class InternalTimer<K, N> implements Comparable<InternalTimer<K, N>> {
 	public long getTimestamp() {
 		return timestamp;
 	}
+	public List<Long> getTimeContext() { return timeContext; }
 
 	public K getKey() {
 		return key;
@@ -127,7 +133,7 @@ public class InternalTimer<K, N> implements Comparable<InternalTimer<K, N>> {
 
 		@Override
 		public InternalTimer<K, N> copy(InternalTimer<K, N> from) {
-			return new InternalTimer<>(from.timestamp, from.key, from.namespace);
+			return new InternalTimer<>(from.timeContext, from.timestamp, from.key, from.namespace);
 		}
 
 		@Override
@@ -146,6 +152,10 @@ public class InternalTimer<K, N> implements Comparable<InternalTimer<K, N>> {
 			keySerializer.serialize(record.key, target);
 			namespaceSerializer.serialize(record.namespace, target);
 			LongSerializer.INSTANCE.serialize(record.timestamp, target);
+			IntSerializer.INSTANCE.serialize(record.timeContext.size(), target);
+			for(long timestamp : record.timeContext) {
+				LongSerializer.INSTANCE.serialize(timestamp, target);
+			}
 		}
 
 		@Override
@@ -153,7 +163,12 @@ public class InternalTimer<K, N> implements Comparable<InternalTimer<K, N>> {
 			K key = keySerializer.deserialize(source);
 			N namespace = namespaceSerializer.deserialize(source);
 			Long timestamp = LongSerializer.INSTANCE.deserialize(source);
-			return new InternalTimer<>(timestamp, key, namespace);
+			int timeContextSize = IntSerializer.INSTANCE.deserialize(source);
+			List<Long> timeContext = new LinkedList<>();
+			for(int i=0; i<timeContextSize; i++) {
+				timeContext.add(LongSerializer.INSTANCE.deserialize(source));
+			}
+			return new InternalTimer<>(timeContext, timestamp, key, namespace);
 		}
 
 		@Override

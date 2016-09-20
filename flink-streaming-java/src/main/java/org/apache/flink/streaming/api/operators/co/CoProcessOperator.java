@@ -72,7 +72,7 @@ public class CoProcessOperator<K, IN1, IN2, OUT>
 	public void processElement1(StreamRecord<IN1> element) throws Exception {
 		collector.setTimestamp(element);
 		context.element = element;
-		userFunction.processElement1(element.getValue(), context, collector);
+		userFunction.processElement1(element.getValue(), context, element.getContext(), collector);
 		context.element = null;
 	}
 
@@ -80,26 +80,26 @@ public class CoProcessOperator<K, IN1, IN2, OUT>
 	public void processElement2(StreamRecord<IN2> element) throws Exception {
 		collector.setTimestamp(element);
 		context.element = element;
-		userFunction.processElement2(element.getValue(), context, collector);
+		userFunction.processElement2(element.getValue(), context, element.getContext(), collector);
 		context.element = null;
 	}
 
 	@Override
 	public void onEventTime(InternalTimer<K, VoidNamespace> timer) throws Exception {
-		collector.setAbsoluteTimestamp(timer.getTimestamp());
+		collector.setAbsoluteTimestamp(timer.getTimeContext(), timer.getTimestamp());
 		onTimerContext.timeDomain = TimeDomain.EVENT_TIME;
 		onTimerContext.timer = timer;
-		userFunction.onTimer(timer.getTimestamp(), onTimerContext, collector);
+		userFunction.onTimer(timer.getTimeContext(), timer.getTimestamp(), onTimerContext, collector);
 		onTimerContext.timeDomain = null;
 		onTimerContext.timer = null;
 	}
 
 	@Override
 	public void onProcessingTime(InternalTimer<K, VoidNamespace> timer) throws Exception {
-		collector.setAbsoluteTimestamp(timer.getTimestamp());
+		collector.setAbsoluteTimestamp(timer.getTimeContext(), timer.getTimestamp());
 		onTimerContext.timeDomain = TimeDomain.PROCESSING_TIME;
 		onTimerContext.timer = timer;
-		userFunction.onTimer(timer.getTimestamp(), onTimerContext, collector);
+		userFunction.onTimer(timer.getTimeContext(), timer.getTimestamp(), onTimerContext, collector);
 		onTimerContext.timeDomain = null;
 		onTimerContext.timer = null;
 	}

@@ -469,7 +469,8 @@ class DataStream[T](val stream: JavaStream[T]) {
     * The feedback partitioning is set to match the input by default.
     *
     */
-  @PublicEvolving
+  // TODO commented out because didn't compile
+/*  @PublicEvolving
   def iterate[R](loopFunction: DataStream[T] => (DataStream[T], DataStream[R])) : DataStream[R] = {
     val cleanFun = clean(loopFunction)
     val loopFun = new LoopFunction[T, R]  {
@@ -479,9 +480,7 @@ class DataStream[T](val stream: JavaStream[T]) {
       }
     }
     asScalaStream(stream.iterate(loopFun));
-  }
-  
-  
+  }*/
 
   /**
    * Initiates an iterative part of the program that creates a loop by feeding

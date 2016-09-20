@@ -35,8 +35,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.api.java.typeutils.runtime.TupleSerializer;
 import org.apache.flink.metrics.MetricGroup;
-import org.apache.flink.runtime.state.VoidNamespace;
-import org.apache.flink.runtime.state.VoidNamespaceSerializer;
+import org.apache.flink.runtime.state.*;
 import org.apache.flink.streaming.api.operators.Triggerable;
 import org.apache.flink.streaming.api.operators.AbstractUdfStreamOperator;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
@@ -53,7 +52,7 @@ import org.apache.flink.streaming.runtime.operators.windowing.functions.Internal
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
 import java.io.Serializable;
-import java.util.Collection;
+import java.util.*;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
@@ -180,13 +179,17 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	}
 
 	@Override
-	public void open() throws Exception {
+	public final void open () throws Exception {
+		open("window-timers");
+	}
+
+	public final void open(String timerServiceName) throws Exception {
 		super.open();
 
 		timestampedCollector = new TimestampedCollector<>(output);
 
 		internalTimerService =
-				getInternalTimerService("window-timers", windowSerializer, this);
+				getInternalTimerService(timerServiceName, keySerializer, windowSerializer, this);
 
 		context = new Context(null, null);
 
@@ -218,7 +221,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	@SuppressWarnings("unchecked")
 	public void processElement(StreamRecord<IN> element) throws Exception {
 		Collection<W> elementWindows = windowAssigner.assignWindows(
-			element.getValue(), element.getTimestamp(), windowAssignerContext);
+			element.getValue(), element.getContext(), element.getTimestamp(), windowAssignerContext);
 
 		final K key = (K) getKeyedStateBackend().getCurrentKey();
 
@@ -357,7 +360,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 			return;
 		}
 
-		TriggerResult triggerResult = context.onEventTime(timer.getTimestamp());
+		TriggerResult triggerResult = context.onEventTime(timer.getTimeContext(), timer.getTimestamp());
 		if (triggerResult.isFire()) {
 			fire(context.window, contents);
 		}
@@ -427,7 +430,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	 */
 	@SuppressWarnings("unchecked")
 	private void fire(W window, ACC contents) throws Exception {
-		timestampedCollector.setAbsoluteTimestamp(window.maxTimestamp());
+		timestampedCollector.setAbsoluteTimestamp(window.getTimeContext(), window.maxTimestamp());
 		userFunction.apply(context.key, context.window, contents, timestampedCollector);
 	}
 
@@ -457,7 +460,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	 * 					considered when triggering.
 	 */
 	protected boolean isLate(W window) {
-		return (windowAssigner.isEventTime() && (cleanupTime(window) <= internalTimerService.currentWatermark()));
+		return (windowAssigner.isEventTime() && (cleanupTime(window) <= internalTimerService.currentWatermark(window.getTimeContext())));
 	}
 
 	/**
@@ -468,7 +471,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	protected void registerCleanupTimer(W window) {
 		long cleanupTime = cleanupTime(window);
 		if (windowAssigner.isEventTime()) {
-			context.registerEventTimeTimer(cleanupTime);
+			context.registerEventTimeTimer(window.getTimeContext(), cleanupTime);
 		} else {
 			context.registerProcessingTimeTimer(cleanupTime);
 		}
@@ -482,7 +485,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	protected void deleteCleanupTimer(W window) {
 		long cleanupTime = cleanupTime(window);
 		if (windowAssigner.isEventTime()) {
-			context.deleteEventTimeTimer(cleanupTime);
+			context.deleteEventTimeTimer(window.getTimeContext(), cleanupTime);
 		} else {
 			context.deleteProcessingTimeTimer(cleanupTime);
 		}
@@ -539,8 +542,8 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 			return WindowOperator.this.getMetricGroup();
 		}
 
-		public long getCurrentWatermark() {
-			return internalTimerService.currentWatermark();
+		public long getCurrentWatermark(List<Long> timeContext) {
+			return internalTimerService.currentWatermark(timeContext);
 		}
 
 		@Override
@@ -608,8 +611,8 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 		}
 
 		@Override
-		public void registerEventTimeTimer(long time) {
-			internalTimerService.registerEventTimeTimer(window, time);
+		public void registerEventTimeTimer(List<Long> timeContext, long time) {
+			internalTimerService.registerEventTimeTimer(window, timeContext, time);
 		}
 
 		@Override
@@ -618,20 +621,24 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 		}
 
 		@Override
-		public void deleteEventTimeTimer(long time) {
-			internalTimerService.deleteEventTimeTimer(window, time);
+		public void deleteEventTimeTimer(List<Long> timeContext, long time) {
+			internalTimerService.deleteEventTimeTimer(window, timeContext, time);
 		}
 
 		public TriggerResult onElement(StreamRecord<IN> element) throws Exception {
-			return trigger.onElement(element.getValue(), element.getTimestamp(), window, this);
+			return trigger.onElement(
+				element.getValue(),
+				element.getContext(),
+				element.getTimestamp(),
+				window, this);
 		}
 
 		public TriggerResult onProcessingTime(long time) throws Exception {
 			return trigger.onProcessingTime(time, window, this);
 		}
 
-		public TriggerResult onEventTime(long time) throws Exception {
-			return trigger.onEventTime(time, window, this);
+		public TriggerResult onEventTime(List<Long> timeContext, long time) throws Exception {
+			return trigger.onEventTime(timeContext, time, window, this);
 		}
 
 		public void onMerge(Collection<W> mergedWindows) throws Exception {
@@ -729,4 +736,5 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	public StateDescriptor<? extends AppendingState<IN, ACC>, ?> getStateDescriptor() {
 		return windowStateDescriptor;
 	}
+
 }

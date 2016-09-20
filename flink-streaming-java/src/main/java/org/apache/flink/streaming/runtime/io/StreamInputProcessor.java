@@ -19,6 +19,7 @@
 package org.apache.flink.streaming.runtime.io;
 
 import java.io.IOException;
+import java.util.*;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -43,6 +44,7 @@ import org.apache.flink.runtime.plugable.DeserializationDelegate;
 import org.apache.flink.runtime.plugable.NonReusingDeserializationDelegate;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.watermark.*;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
@@ -77,12 +79,11 @@ public class StreamInputProcessor<IN> {
 
 	private boolean isFinished;
 
-	private final long[] watermarks;
-	private long lastEmittedWatermark;
-
 	private final DeserializationDelegate<StreamElement> deserializationDelegate;
 
 	private Counter numRecordsIn;
+
+	private StreamInputProgressHandler progressHandler;
 
 	@SuppressWarnings("unchecked")
 	public StreamInputProcessor(
@@ -126,11 +127,7 @@ public class StreamInputProcessor<IN> {
 					ioManager.getSpillingDirectoriesPaths());
 		}
 
-		watermarks = new long[inputGate.getNumberOfInputChannels()];
-		for (int i = 0; i < inputGate.getNumberOfInputChannels(); i++) {
-			watermarks[i] = Long.MIN_VALUE;
-		}
-		lastEmittedWatermark = Long.MIN_VALUE;
+		progressHandler = new StreamInputProgressHandler(inputGate.getNumberOfInputChannels());
 	}
 
 	@SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
@@ -153,22 +150,19 @@ public class StreamInputProcessor<IN> {
 
 				if (result.isFullRecord()) {
 					StreamElement recordOrMark = deserializationDelegate.getInstance();
+					recordOrMark = progressHandler.adaptTimestamp(recordOrMark, streamOperator.getContextLevel());
 
-					if (recordOrMark.isWatermark()) {
-						long watermarkMillis = recordOrMark.asWatermark().getTimestamp();
-						if (watermarkMillis > watermarks[currentChannel]) {
-							watermarks[currentChannel] = watermarkMillis;
-							long newMinWatermark = Long.MAX_VALUE;
-							for (long watermark: watermarks) {
-								newMinWatermark = Math.min(watermark, newMinWatermark);
-							}
-							if (newMinWatermark > lastEmittedWatermark) {
-								lastEmittedWatermark = newMinWatermark;
-								synchronized (lock) {
-									streamOperator.processWatermark(new Watermark(lastEmittedWatermark));
-								}
+					if (recordOrMark == null) {
+						continue;
+					} else if (recordOrMark.isWatermark()) {
+						Watermark next = progressHandler.getNextWatermark(
+							recordOrMark.asWatermark(), currentChannel);
+						if(next != null) {
+							synchronized (lock) {
+								streamOperator.processWatermark(next);
 							}
 						}
+
 						continue;
 					} else if(recordOrMark.isLatencyMarker()) {
 						// handle latency marker
@@ -214,9 +208,16 @@ public class StreamInputProcessor<IN> {
 		}
 	}
 
+
+	public void setReporter(AccumulatorRegistry.Reporter reporter) {
+		for (RecordDeserializer<?> deserializer : recordDeserializers) {
+			deserializer.setReporter(reporter);
+		}
+	}
+
 	/**
 	 * Sets the metric group for this StreamInputProcessor.
-	 * 
+	 *
 	 * @param metrics metric group
 	 */
 	public void setMetricGroup(TaskIOMetricGroup metrics) {
@@ -227,14 +228,6 @@ public class StreamInputProcessor<IN> {
 			}
 		});
 
-		metrics.gauge("checkpointAlignmentTime", new Gauge<Long>() {
-			@Override
-			public Long getValue() {
-				return barrierHandler.getAlignmentDurationNanos();
-			}
-		});
-	}
-	
 	public void cleanup() throws IOException {
 		// clear the buffers first. this part should not ever fail
 		for (RecordDeserializer<?> deserializer : recordDeserializers) {
@@ -243,7 +236,7 @@ public class StreamInputProcessor<IN> {
 				buffer.recycle();
 			}
 		}
-		
+
 		// cleanup the barrier handler resources
 		barrierHandler.cleanup();
 	}
