@@ -88,6 +88,9 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 	private final DeserializationDelegate<StreamElement> deserializationDelegate1;
 	private final DeserializationDelegate<StreamElement> deserializationDelegate2;
 
+	private StreamInputProgressHandler progressHandler1;
+	private StreamInputProgressHandler progressHandler2;
+
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	public StreamTwoInputProcessor(
 			Collection<InputGate> inputGates1,
@@ -159,6 +162,9 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 		watermarks2 = new long[numInputChannels2];
 		Arrays.fill(watermarks2, Long.MIN_VALUE);
 		lastEmittedWatermark2 = Long.MIN_VALUE;
+
+		progressHandler1 = new StreamInputProgressHandler(numInputChannels1);
+		progressHandler2 = new StreamInputProgressHandler(numInputChannels2);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -185,7 +191,13 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 					if (currentChannel < numInputChannels1) {
 						StreamElement recordOrWatermark = deserializationDelegate1.getInstance();
 						if (recordOrWatermark.isWatermark()) {
-							handleWatermark(streamOperator, (Watermark) recordOrWatermark, currentChannel, lock);
+							Watermark next = progressHandler1.getNextWatermark(
+								recordOrWatermark.asWatermark(), currentChannel);
+							if(next != null) {
+								synchronized (lock) {
+									streamOperator.processWatermark1(next);
+								}
+							}
 							continue;
 						}
 						else {
@@ -200,7 +212,13 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 					else {
 						StreamElement recordOrWatermark = deserializationDelegate2.getInstance();
 						if (recordOrWatermark.isWatermark()) {
-							handleWatermark(streamOperator, recordOrWatermark.asWatermark(), currentChannel, lock);
+							Watermark next = progressHandler2.getNextWatermark(
+								recordOrWatermark.asWatermark(), currentChannel-numInputChannels1);
+							if(next != null) {
+								synchronized (lock) {
+									streamOperator.processWatermark2(next);
+								}
+							}
 							continue;
 						}
 						else {
@@ -236,41 +254,6 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 					throw new IllegalStateException("Trailing data in checkpoint barrier handler.");
 				}
 				return false;
-			}
-		}
-	}
-
-	private void handleWatermark(TwoInputStreamOperator<IN1, IN2, ?> operator, Watermark mark, int channelIndex, Object lock) throws Exception {
-		if (channelIndex < numInputChannels1) {
-			long watermarkMillis = mark.getTimestamp();
-			if (watermarkMillis > watermarks1[channelIndex]) {
-				watermarks1[channelIndex] = watermarkMillis;
-				long newMinWatermark = Long.MAX_VALUE;
-				for (long wm : watermarks1) {
-					newMinWatermark = Math.min(wm, newMinWatermark);
-				}
-				if (newMinWatermark > lastEmittedWatermark1) {
-					lastEmittedWatermark1 = newMinWatermark;
-					synchronized (lock) {
-						operator.processWatermark1(new Watermark(lastEmittedWatermark1));
-					}
-				}
-			}
-		} else {
-			channelIndex = channelIndex - numInputChannels1;
-			long watermarkMillis = mark.getTimestamp();
-			if (watermarkMillis > watermarks2[channelIndex]) {
-				watermarks2[channelIndex] = watermarkMillis;
-				long newMinWatermark = Long.MAX_VALUE;
-				for (long wm : watermarks2) {
-					newMinWatermark = Math.min(wm, newMinWatermark);
-				}
-				if (newMinWatermark > lastEmittedWatermark2) {
-					lastEmittedWatermark2 = newMinWatermark;
-					synchronized (lock) {
-						operator.processWatermark2(new Watermark(lastEmittedWatermark2));
-					}
-				}
 			}
 		}
 	}
