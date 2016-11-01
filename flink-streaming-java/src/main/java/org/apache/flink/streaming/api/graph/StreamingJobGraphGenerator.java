@@ -45,18 +45,15 @@ import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.runtime.partitioner.ForwardPartitioner;
 import org.apache.flink.streaming.runtime.partitioner.RescalePartitioner;
 import org.apache.flink.streaming.runtime.partitioner.StreamPartitioner;
+import org.apache.flink.streaming.runtime.progress.PartialOrderMinimumSet;
 import org.apache.flink.streaming.runtime.tasks.StreamIterationHead;
 import org.apache.flink.streaming.runtime.tasks.StreamIterationTail;
+import org.apache.flink.streaming.runtime.progress.PartialOrderProgressAggregator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.collection.immutable.Stream;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
 
 @Internal
@@ -85,6 +82,8 @@ public class StreamingJobGraphGenerator {
 
 	private final StreamGraphHasher defaultStreamGraphHasher;
 	private final List<StreamGraphHasher> legacyStreamGraphHashers;
+
+	private Map<Integer, Map<Integer, PartialOrderMinimumSet>> pathSummaries;
 
 	public StreamingJobGraphGenerator(StreamGraph streamGraph) {
 		this.streamGraph = streamGraph;
@@ -120,6 +119,8 @@ public class StreamingJobGraphGenerator {
 			legacyHashes.add(hasher.traverseStreamGraphAndGenerateHashes(streamGraph));
 		}
 
+		computePathSummaries();
+
 		setChaining(hashes, legacyHashes);
 
 		setPhysicalEdges();
@@ -132,6 +133,80 @@ public class StreamingJobGraphGenerator {
 		jobGraph.setExecutionConfig(streamGraph.getExecutionConfig());
 
 		return jobGraph;
+	}
+
+	private void computePathSummaries() {
+		pathSummaries = new HashMap<>();
+		for(Integer targetId : streamGraph.getOperatorIDsForNotification()) {
+			Map<Integer,PartialOrderMinimumSet> pathSummariesForTarget = new HashMap<>();
+
+			// initialise lastPaths with an empty path of length of target scope level
+			StreamNode targetNode = streamGraph.getStreamNode(targetId);
+			PartialOrderMinimumSet lastPaths = new PartialOrderMinimumSet(targetNode.getScope().getLevel());
+			lastPaths.update(new LinkedList<Long>(Collections.nCopies(targetNode.getScope().getLevel(), 0L)));
+
+			// start recursive graph search and save results in pathSummaries
+			computePath(targetNode, lastPaths, pathSummariesForTarget);
+			pathSummaries.put(targetId, pathSummariesForTarget);
+		}
+	}
+
+	private void computePath(StreamNode currentNode, PartialOrderMinimumSet lastPaths, Map<Integer, PartialOrderMinimumSet> summaries) {
+		int currentScopeLevel = currentNode.getScope().getLevel();
+
+		// check if there we were at this node before and if not, do initialisations
+		PartialOrderMinimumSet currentPaths = summaries.get(currentNode.getId());
+		int targetScopeLevel = lastPaths.getTimestampsLength();
+		if(currentPaths == null) {
+			currentPaths = new PartialOrderMinimumSet(targetScopeLevel);
+			summaries.put(currentNode.getId(), currentPaths);
+		}
+
+		// update the paths of the current node and check if our paths are better than eventually existing one for the node
+		boolean better = false;
+		for(List<Long> path : lastPaths.getElements()) {
+			List<Long> newPath = new LinkedList<>(path);
+			// if feedback node, increment the timestamp at scope level of current node
+			if(currentScopeLevel <= targetScopeLevel && isFeedbackNode(currentNode)) {
+				newPath.set(currentScopeLevel, path.get(currentScopeLevel) + 1);
+			}
+
+			if(currentPaths.update(newPath)) {
+				better = true;
+			}
+		}
+		if(!better) {
+			// Recursion Termination 1: none of our paths were better than previously existing paths for the node
+			return;
+		}
+
+		// Recursion Termination 2: We arrived at a source node
+		if(streamGraph.getSourceIDs().contains(currentNode.getId())) {
+			return;
+		}
+
+		// Recursive call for each direct downstream operator
+		for(StreamNode next : getAllPredecessors(currentNode)) {
+			computePath(next, currentPaths, summaries);
+		}
+	}
+
+	private boolean isFeedbackNode(StreamNode node) {
+		return node.getJobVertexClass().equals(StreamIterationHead.class);
+	}
+
+	private List<StreamNode> getAllPredecessors(StreamNode node) {
+		List<StreamNode> result = new LinkedList<>();
+		for(StreamEdge edge : node.getInEdges()) {
+			result.add(edge.getSourceVertex());
+		}
+		if(isFeedbackNode(node)) {
+			//this is the StreamIterationHead, so we want to add the corresponding StreamIterationSink
+			for(Tuple2<StreamNode,StreamNode> tuple : streamGraph.getIterationSourceSinkPairs()) {
+				if(tuple.f0.equals(node)) result.add(tuple.f1);
+			}
+		}
+		return result;
 	}
 
 	private void setPhysicalEdges() {

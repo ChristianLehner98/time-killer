@@ -481,6 +481,7 @@ class DataStream[T](val stream: JavaStream[T]) {
     }
     asScalaStream(stream.iterate(loopFun));
   }*/
+  
 
   /**
    * Initiates an iterative part of the program that creates a loop by feeding

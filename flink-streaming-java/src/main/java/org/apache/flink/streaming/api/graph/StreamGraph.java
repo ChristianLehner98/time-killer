@@ -92,6 +92,7 @@ public class StreamGraph extends StreamingPlan {
 	protected Map<Integer, Long> vertexIDtoLoopTimeout;
 	private AbstractStateBackend stateBackend;
 	private Set<Tuple2<StreamNode, StreamNode>> iterationSourceSinkPairs;
+	private Set<Integer> operatorIDsForNotification;
 
 
 	public StreamGraph(StreamExecutionEnvironment environment) {
@@ -113,6 +114,7 @@ public class StreamGraph extends StreamingPlan {
 		vertexIDtoBrokerID = new HashMap<>();
 		vertexIDtoLoopTimeout  = new HashMap<>();
 		iterationSourceSinkPairs = new HashSet<>();
+		operatorIDsForNotification = new HashSet<>();
 		sources = new HashSet<>();
 		sinks = new HashSet<>();
 	}
@@ -148,6 +150,10 @@ public class StreamGraph extends StreamingPlan {
 
 	public AbstractStateBackend getStateBackend() {
 		return this.stateBackend;
+	}
+
+	public Set<Integer> getOperatorIDsForNotification() {
+		return operatorIDsForNotification;
 	}
 
 	// Checkpointing
@@ -192,12 +198,13 @@ public class StreamGraph extends StreamingPlan {
 			String operatorName,
 			StreamScope scopeLevel) {
 
+		boolean wantsProgressNotifications = operatorObject != null && operatorObject.wantsProgressNotifications();
 		if (operatorObject instanceof StoppableStreamSource) {
-			addNode(vertexID, slotSharingGroup, StoppableSourceStreamTask.class, operatorObject, operatorName, scopeLevel);
+			addNode(vertexID, slotSharingGroup, StoppableSourceStreamTask.class, operatorObject, operatorName, scopeLevel, wantsProgressNotifications);
 		} else if (operatorObject instanceof StreamSource) {
-			addNode(vertexID, slotSharingGroup, SourceStreamTask.class, operatorObject, operatorName, scopeLevel);
+			addNode(vertexID, slotSharingGroup, SourceStreamTask.class, operatorObject, operatorName, scopeLevel, wantsProgressNotifications);
 		} else {
-			addNode(vertexID, slotSharingGroup, OneInputStreamTask.class, operatorObject, operatorName, scopeLevel);
+			addNode(vertexID, slotSharingGroup, OneInputStreamTask.class, operatorObject, operatorName, scopeLevel, wantsProgressNotifications);
 		}
 
 		TypeSerializer<IN> inSerializer = inTypeInfo != null && !(inTypeInfo instanceof MissingTypeInfo) ? inTypeInfo.createSerializer(executionConfig) : null;
@@ -233,7 +240,8 @@ public class StreamGraph extends StreamingPlan {
 			String operatorName,
 			StreamScope scope) {
 
-		addNode(vertexID, slotSharingGroup, TwoInputStreamTask.class, taskOperatorObject, operatorName, scope);
+		boolean wantsProgressNotifications = taskOperatorObject != null && taskOperatorObject.wantsProgressNotifications();
+		addNode(vertexID, slotSharingGroup, TwoInputStreamTask.class, taskOperatorObject, operatorName, scope, wantsProgressNotifications);
 
 		TypeSerializer<OUT> outSerializer = (outTypeInfo != null) && !(outTypeInfo instanceof MissingTypeInfo) ?
 				outTypeInfo.createSerializer(executionConfig) : null;
@@ -257,7 +265,8 @@ public class StreamGraph extends StreamingPlan {
 		Class<? extends AbstractInvokable> vertexClass,
 		StreamOperator<?> operatorObject,
 		String operatorName,
-		StreamScope scope) {
+		StreamScope scope,
+		boolean wantsProgressNotifications) {
 
 		if (streamNodes.containsKey(vertexID)) {
 			throw new RuntimeException("Duplicate vertexID " + vertexID);
@@ -273,6 +282,9 @@ public class StreamGraph extends StreamingPlan {
 			scope);
 
 		streamNodes.put(vertexID, vertex);
+		if(wantsProgressNotifications) {
+			operatorIDsForNotification.add(vertexID);
+		}
 
 		return vertex;
 	}
@@ -553,7 +565,8 @@ public class StreamGraph extends StreamingPlan {
 			StreamIterationHead.class,
 			null,
 			"IterationSource-" + loopId,
-			scope);
+			scope,
+			false);
 		sources.add(source.getId());
 		setParallelism(source.getId(), parallelism);
 		setMaxParallelism(source.getId(), maxParallelism);
@@ -564,7 +577,8 @@ public class StreamGraph extends StreamingPlan {
 			StreamIterationTail.class,
 			null,
 			"IterationSink-" + loopId,
-			scope);
+			scope,
+			false);
 		sinks.add(sink.getId());
 		setParallelism(sink.getId(), parallelism);
 		setMaxParallelism(sink.getId(), parallelism);

@@ -58,6 +58,7 @@ import org.apache.flink.runtime.state.VoidNamespace;
 import org.apache.flink.runtime.state.VoidNamespaceSerializer;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.watermark.Watermark;
+import org.apache.flink.streaming.runtime.progress.ProgressNotification;
 import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.OperatorStateHandles;
@@ -855,4 +856,10 @@ public abstract class AbstractStreamOperator<OUT>
 		}
 		return count;
 	}
+
+	@Override
+	public boolean wantsProgressNotifications() { return false; }
+
+	@Override
+	public void receiveProgress(ProgressNotification notification) {}
 }
