@@ -136,4 +136,8 @@ public interface StreamOperator<OUT> extends Serializable {
 	void setChainingStrategy(ChainingStrategy strategy);
 	
 	MetricGroup getMetricGroup();
+	
+	int getScopeLevel();
+
+	void setScopeLevel(int scopeLevel);
 }

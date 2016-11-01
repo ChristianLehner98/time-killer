@@ -25,35 +25,22 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * This transformation represents a selection of only certain upstream elements. This must
- * follow a {@link org.apache.flink.streaming.api.transformations.SplitTransformation} that
- * splits elements into several logical streams with assigned names.
- *
- * <p>
- * This does not create a physical operation, it only affects how upstream operations are
- * connected to downstream operations.
- *
- * @param <T> The type of the elements that result from this {@code SelectTransformation}
+ * This transformation represents an exit from an iteration scope. It is there to aid the proper
+ * job graph construction and coordinate the level of encapsulation in the dataflow graph.
+
  */
 @Internal
-public class SelectTransformation<T> extends StreamTransformation<T> {
+public class ScopeTransformation<T> extends StreamTransformation<T> {
 	
 	private final StreamTransformation<T> input;
-	private final List<String> selectedNames;
+	private final SCOPE_TYPE scopeType;
 
-	/**
-	 * Creates a new {@code SelectionTransformation} from the given input that only selects
-	 * the streams with the selected names.
-	 *
-	 * @param input The input {@code StreamTransformation}
-	 * @param selectedNames The names from the upstream {@code SplitTransformation} that this
-	 *                      {@code SelectTransformation} selects.
-	 */
-	public SelectTransformation(StreamTransformation<T> input,
-			List<String> selectedNames) {
-		super("Select", input.getOutputType(), input.getParallelism());
+	public enum SCOPE_TYPE {INGRESS, EGRESS}
+
+	public ScopeTransformation(StreamTransformation<T> input, SCOPE_TYPE type) {
+		super("Scope", input.getOutputType(), input.getParallelism());
 		this.input = input;
-		this.selectedNames = selectedNames;
+		this.scopeType = type;
 	}
 
 	/**
@@ -61,13 +48,6 @@ public class SelectTransformation<T> extends StreamTransformation<T> {
 	 */
 	public StreamTransformation<T> getInput() {
 		return input;
-	}
-
-	/**
-	 * Returns the names of the split streams that this {@code SelectTransformation} selects.
-	 */
-	public List<String> getSelectedNames() {
-		return selectedNames;
 	}
 
 	@Override
@@ -84,12 +64,13 @@ public class SelectTransformation<T> extends StreamTransformation<T> {
 
 	@Override
 	public int getScopeLevel() {
-		return input.getScopeLevel();
+		return scopeType==SCOPE_TYPE.INGRESS ? input.getScopeLevel() + 1 : input.getScopeLevel() - 1;
 	}
 
 	@Override
 	public final void setChainingStrategy(ChainingStrategy strategy) {
-		throw new UnsupportedOperationException("Cannot set chaining strategy on Select Transformation.");
 	}
 
 }
+
+

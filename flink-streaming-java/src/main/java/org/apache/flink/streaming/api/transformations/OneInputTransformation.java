@@ -64,6 +64,7 @@ public class OneInputTransformation<IN, OUT> extends StreamTransformation<OUT> {
 		super(name, outputType, parallelism);
 		this.input = input;
 		this.operator = operator;
+		this.operator.setScopeLevel(input.getScopeLevel());
 	}
 
 	/**
@@ -120,6 +121,16 @@ public class OneInputTransformation<IN, OUT> extends StreamTransformation<OUT> {
 		result.add(this);
 		result.addAll(input.getTransitivePredecessors());
 		return result;
+	}
+
+	@Override
+	public void setScopeLevel(int scopeLevel) {
+		this.operator.setScopeLevel(scopeLevel);
+	}
+
+	@Override
+	public int getScopeLevel() {
+		return this.operator.getScopeLevel();
 	}
 
 	@Override

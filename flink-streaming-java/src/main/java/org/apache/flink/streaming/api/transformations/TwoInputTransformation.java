@@ -71,6 +71,7 @@ public class TwoInputTransformation<IN1, IN2, OUT> extends StreamTransformation<
 		this.input1 = input1;
 		this.input2 = input2;
 		this.operator = operator;
+		this.operator.setScopeLevel(input1.getScopeLevel());
 	}
 
 	/**
@@ -155,6 +156,16 @@ public class TwoInputTransformation<IN1, IN2, OUT> extends StreamTransformation<
 		result.addAll(input1.getTransitivePredecessors());
 		result.addAll(input2.getTransitivePredecessors());
 		return result;
+	}
+
+	@Override
+	public void setScopeLevel(int scopeLevel) {
+		operator.setScopeLevel(scopeLevel);
+	}
+
+	@Override
+	public int getScopeLevel() {
+		return operator.getScopeLevel();
 	}
 
 	@Override

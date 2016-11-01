@@ -214,6 +214,16 @@ public class DataGenerators {
 			public Collection<StreamTransformation<?>> getTransitivePredecessors() {
 				return null;
 			}
+
+			@Override
+			public void setScopeLevel(int scopeLevel) {
+				
+			}
+
+			@Override
+			public int getScopeLevel() {
+				return 0;
+			}
 		}
 
 		public static class DummyStreamExecutionEnvironment extends StreamExecutionEnvironment {

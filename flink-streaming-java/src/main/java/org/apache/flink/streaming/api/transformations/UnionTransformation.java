@@ -76,6 +76,15 @@ public class UnionTransformation<T> extends StreamTransformation<T> {
 	}
 
 	@Override
+	public void setScopeLevel(int scopeLevel) {
+	}
+
+	@Override
+	public int getScopeLevel() {
+		return inputs.get(0).getScopeLevel();
+	}
+
+	@Override
 	public final void setChainingStrategy(ChainingStrategy strategy) {
 		throw new UnsupportedOperationException("Cannot set chaining strategy on Union Transformation.");
 	}
