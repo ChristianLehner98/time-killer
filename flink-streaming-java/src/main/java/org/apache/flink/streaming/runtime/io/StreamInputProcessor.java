@@ -83,7 +83,9 @@ public class StreamInputProcessor<IN> {
 	private StreamInputProgressHandler progressHandler;
 
 	@SuppressWarnings("unchecked")
-	public StreamInputProcessor(InputGate[] inputGates, TypeSerializer<IN> inputSerializer,
+	public StreamInputProcessor(
+			InputGate[] inputGates,
+			TypeSerializer<IN> inputSerializer,
 			StatefulTask checkpointedTask,
 			CheckpointingMode checkpointMode,
 			IOManager ioManager,

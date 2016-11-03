@@ -30,6 +30,7 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.FSDataInputStream;
 import org.apache.flink.core.fs.FSDataOutputStream;
 import org.apache.flink.core.testutils.OneShotLatch;
+import org.apache.flink.runtime.checkpoint.CheckpointMetaData;
 import org.apache.flink.runtime.io.network.api.CheckpointBarrier;
 import org.apache.flink.runtime.io.network.api.writer.ResultPartitionWriter;
 import org.apache.flink.runtime.operators.testutils.MockInputSplitProvider;
@@ -39,12 +40,12 @@ import org.apache.flink.runtime.state.CheckpointStreamFactory;
 import org.apache.flink.runtime.state.KeyGroupsStateHandle;
 import org.apache.flink.runtime.state.OperatorStateHandle;
 import org.apache.flink.runtime.state.StreamStateHandle;
-import org.apache.flink.streaming.api.operators.StreamCheckpointedOperator;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.graph.StreamEdge;
 import org.apache.flink.streaming.api.graph.StreamNode;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.operators.StreamCheckpointedOperator;
 import org.apache.flink.streaming.api.operators.StreamMap;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
@@ -374,7 +375,9 @@ public class OneInputStreamTaskTest extends TestLogger {
 		testHarness.invoke(env);
 		testHarness.waitForTaskRunning(deadline.timeLeft().toMillis());
 
-		while(!streamTask.triggerCheckpoint(checkpointId, checkpointTimestamp));
+		CheckpointMetaData checkpointMetaData = new CheckpointMetaData(checkpointId, checkpointTimestamp);
+
+		while(!streamTask.triggerCheckpoint(checkpointMetaData));
 
 		// since no state was set, there shouldn't be restore calls
 		assertEquals(0, TestingStreamOperator.numberRestoreCalls);
@@ -517,11 +520,10 @@ public class OneInputStreamTaskTest extends TestLogger {
 
 		@Override
 		public void acknowledgeCheckpoint(
-				long checkpointId,
-				CheckpointStateHandles checkpointStateHandles,
-				long syncDuration, long asymcDuration, long alignmentByte, long alignmentDuration) {
+				CheckpointMetaData checkpointMetaData,
+				CheckpointStateHandles checkpointStateHandles) {
 
-			this.checkpointId = checkpointId;
+			this.checkpointId = checkpointMetaData.getCheckpointId();
 			if(checkpointStateHandles != null) {
 				this.state = checkpointStateHandles.getNonPartitionedStateHandles();
 				this.keyGroupStates = checkpointStateHandles.getKeyGroupsStateHandle();
@@ -559,7 +561,7 @@ public class OneInputStreamTaskTest extends TestLogger {
 		public void open() throws Exception {
 			super.open();
 
-			ListState<Integer> partitionableState = getOperatorStateBackend().getPartitionableState(TEST_DESCRIPTOR);
+			ListState<Integer> partitionableState = getOperatorStateBackend().getOperatorState(TEST_DESCRIPTOR);
 
 			if (numberSnapshotCalls == 0) {
 				for (Integer v : partitionableState.get()) {
@@ -582,7 +584,7 @@ public class OneInputStreamTaskTest extends TestLogger {
 				long checkpointId, long timestamp, CheckpointStreamFactory streamFactory) throws Exception {
 
 			ListState<Integer> partitionableState =
-					getOperatorStateBackend().getPartitionableState(TEST_DESCRIPTOR);
+					getOperatorStateBackend().getOperatorState(TEST_DESCRIPTOR);
 			partitionableState.clear();
 
 			partitionableState.add(42);
@@ -632,8 +634,10 @@ public class OneInputStreamTaskTest extends TestLogger {
 
 			assertNotNull(in);
 
-			Serializable functionState= InstantiationUtil.deserializeObject(in);
-			Integer operatorState= InstantiationUtil.deserializeObject(in);
+			ClassLoader cl = Thread.currentThread().getContextClassLoader();
+
+			Serializable functionState= InstantiationUtil.deserializeObject(in, cl);
+			Integer operatorState= InstantiationUtil.deserializeObject(in, cl);
 
 			assertEquals(random.nextInt(), functionState);
 			assertEquals(random.nextInt(), (int) operatorState);

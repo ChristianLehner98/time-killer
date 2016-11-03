@@ -26,11 +26,13 @@ import akka.testkit.JavaTestKit;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.HighAvailabilityOptions;
 import org.apache.flink.core.fs.FSDataInputStream;
 import org.apache.flink.runtime.akka.AkkaUtils;
 import org.apache.flink.runtime.akka.ListeningBehaviour;
 import org.apache.flink.runtime.blob.BlobServer;
 import org.apache.flink.runtime.checkpoint.CheckpointIDCounter;
+import org.apache.flink.runtime.checkpoint.CheckpointMetaData;
 import org.apache.flink.runtime.checkpoint.CheckpointRecoveryFactory;
 import org.apache.flink.runtime.checkpoint.CompletedCheckpoint;
 import org.apache.flink.runtime.checkpoint.CompletedCheckpointStore;
@@ -68,6 +70,7 @@ import org.apache.flink.runtime.testingUtils.TestingMessages;
 import org.apache.flink.runtime.testingUtils.TestingTaskManager;
 import org.apache.flink.runtime.testingUtils.TestingTaskManagerMessages;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
+import org.apache.flink.runtime.util.TestByteStreamStateHandleDeepCompare;
 import org.apache.flink.util.InstantiationUtil;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -131,8 +134,8 @@ public class JobManagerHARecoveryTest {
 		ActorRef jobManager = null;
 		ActorRef taskManager = null;
 
-		flinkConfiguration.setString(ConfigConstants.HA_MODE, "zookeeper");
-		flinkConfiguration.setString(ConfigConstants.HA_ZOOKEEPER_STORAGE_PATH, temporaryFolder.newFolder().toString());
+		flinkConfiguration.setString(HighAvailabilityOptions.HA_MODE, "zookeeper");
+		flinkConfiguration.setString(HighAvailabilityOptions.HA_STORAGE_PATH, temporaryFolder.newFolder().toString());
 		flinkConfiguration.setInteger(ConfigConstants.TASK_MANAGER_NUM_TASK_SLOTS, slots);
 
 		try {
@@ -452,26 +455,29 @@ public class JobManagerHARecoveryTest {
 			int subtaskIndex = getIndexInSubtaskGroup();
 			if (subtaskIndex < recoveredStates.length) {
 				try (FSDataInputStream in = chainedState.get(0).openInputStream()) {
-					recoveredStates[subtaskIndex] = InstantiationUtil.deserializeObject(in);
+					recoveredStates[subtaskIndex] = InstantiationUtil.deserializeObject(in, getUserCodeClassLoader());
 				}
 			}
 		}
 
 		@Override
-		public boolean triggerCheckpoint(long checkpointId, long timestamp) {
+		public boolean triggerCheckpoint(CheckpointMetaData checkpointMetaData) {
 			try {
-				ByteStreamStateHandle byteStreamStateHandle = new ByteStreamStateHandle(
-						InstantiationUtil.serializeObject(checkpointId));
+				ByteStreamStateHandle byteStreamStateHandle = new TestByteStreamStateHandleDeepCompare(
+						String.valueOf(UUID.randomUUID()),
+						InstantiationUtil.serializeObject(checkpointMetaData.getCheckpointId()));
 
 				RetrievableStreamStateHandle<Long> state = new RetrievableStreamStateHandle<Long>(byteStreamStateHandle);
-				ChainedStateHandle<StreamStateHandle> chainedStateHandle = new ChainedStateHandle<StreamStateHandle>(Collections.singletonList(state));
+
+				ChainedStateHandle<StreamStateHandle> chainedStateHandle =
+						new ChainedStateHandle<StreamStateHandle>(Collections.singletonList(state));
+
 				CheckpointStateHandles checkpointStateHandles =
 						new CheckpointStateHandles(chainedStateHandle, null, Collections.<KeyGroupsStateHandle>emptyList());
 
 				getEnvironment().acknowledgeCheckpoint(
-						checkpointId,
-						checkpointStateHandles,
-						0L, 0L, 0L, 0L);
+						new CheckpointMetaData(checkpointMetaData.getCheckpointId(), -1, 0L, 0L, 0L, 0L),
+						checkpointStateHandles);
 				return true;
 			} catch (Exception ex) {
 				throw new RuntimeException(ex);
@@ -479,8 +485,7 @@ public class JobManagerHARecoveryTest {
 		}
 
 		@Override
-		public void triggerCheckpointOnBarrier(
-				long checkpointId, long timestamp, long bytesAligned, long alignmentTimeNanos) throws Exception {
+		public void triggerCheckpointOnBarrier(CheckpointMetaData checkpointMetaData) throws Exception {
 			throw new UnsupportedOperationException("should not be called!");
 		}
 

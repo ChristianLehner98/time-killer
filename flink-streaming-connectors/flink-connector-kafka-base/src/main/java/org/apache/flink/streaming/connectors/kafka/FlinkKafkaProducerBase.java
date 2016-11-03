@@ -21,7 +21,7 @@ import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.java.ClosureCleaner;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.MetricGroup;
-import org.apache.flink.runtime.state.OperatorStateStore;
+import org.apache.flink.api.common.state.OperatorStateStore;
 import org.apache.flink.runtime.util.SerializableObject;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
@@ -105,7 +105,7 @@ public abstract class FlinkKafkaProducerBase<IN> extends RichSinkFunction<IN> im
 	/**
 	 * If true, the producer will wait until all outstanding records have been send to the broker.
 	 */
-	private boolean flushOnCheckpoint;
+	protected boolean flushOnCheckpoint;
 	
 	// -------------------------------- Runtime fields ------------------------------------------
 
@@ -139,7 +139,7 @@ public abstract class FlinkKafkaProducerBase<IN> extends RichSinkFunction<IN> im
 		requireNonNull(defaultTopicId, "TopicID not set");
 		requireNonNull(serializationSchema, "serializationSchema not set");
 		requireNonNull(producerConfig, "producerConfig not set");
-		ClosureCleaner.ensureSerializable(customPartitioner);
+		ClosureCleaner.clean(customPartitioner, true);
 		ClosureCleaner.ensureSerializable(serializationSchema);
 
 		this.defaultTopicId = defaultTopicId;
