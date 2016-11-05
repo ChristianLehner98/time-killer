@@ -54,8 +54,8 @@ public class StreamInputProgressHandler {
 		else if(adaptRecords) element.asRecord().removeNestedTimestamp();
 	}
 
-	protected Collection<Watermark> getNextWatermark(Watermark watermark, int currentChannel) {
-		Set<Watermark> result = new HashSet<>(watermarkBuffer.headSet(watermark));
+	protected Watermark getNextWatermark(Watermark watermark, int currentChannel) {
+		//Set<Watermark> result = new HashSet<>(watermarkBuffer.headSet(watermark));
 
 		Long timestamp = watermark.getTimestamp();
 		List<Long> context = watermark.getContext();
@@ -64,8 +64,7 @@ public class StreamInputProgressHandler {
 		if(watermark.getTimestamp() == Long.MAX_VALUE) {
 			watermarks[currentChannel].remove(context);
 			lastEmittedWatermarks.remove(context);
-			result.add(new Watermark(watermark));
-			return result;
+			return new Watermark(watermark);
 		}
 		// Update local watermarks and eventually send out a new
 		Long currentMax = watermarks[currentChannel].get(context);

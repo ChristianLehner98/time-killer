@@ -210,7 +210,7 @@ public class StreamInputProcessor<IN> {
 	 *
 	 * @param metrics metric group
 	 */
-	public void setMetricGroup(IOMetricGroup metrics) {
+	public void setMetricGroup(TaskIOMetricGroup metrics) {
 		//TODO
 		//metrics.gauge("currentLowWatermark", new Gauge<Long>() {
 		//	@Override
