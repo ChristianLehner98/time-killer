@@ -61,6 +61,7 @@ public class SinkTransformation<T> extends StreamTransformation<Object> {
 		super(name, TypeExtractor.getForClass(Object.class), parallelism);
 		this.input = input;
 		this.operator = operator;
+		this.operator.setScopeLevel(input.getScopeLevel());
 	}
 
 	/**
@@ -110,6 +111,16 @@ public class SinkTransformation<T> extends StreamTransformation<Object> {
 		result.add(this);
 		result.addAll(input.getTransitivePredecessors());
 		return result;
+	}
+
+	@Override
+	public void setScopeLevel(int scopeLevel) {
+		operator.setScopeLevel(scopeLevel);
+	}
+
+	@Override
+	public int getScopeLevel() {
+		return operator.getScopeLevel();
 	}
 
 	@Override

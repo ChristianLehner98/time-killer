@@ -22,10 +22,12 @@ import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.streaming.api.datastream.ConnectedStreams;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.apache.flink.streaming.api.datastream.LoopFunction; 
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.DiscardingSink;
 import org.apache.flink.streaming.api.functions.co.CoMapFunction;
@@ -37,16 +39,19 @@ import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.partitioner.BroadcastPartitioner;
 import org.apache.flink.streaming.runtime.partitioner.GlobalPartitioner;
-import org.apache.flink.streaming.runtime.partitioner.KeyGroupStreamPartitioner;
 import org.apache.flink.streaming.runtime.partitioner.RebalancePartitioner;
 import org.apache.flink.streaming.runtime.partitioner.ShufflePartitioner;
 import org.apache.flink.streaming.runtime.partitioner.StreamPartitioner;
+import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.util.EvenOddOutputSelector;
 import org.apache.flink.streaming.util.NoOpIntMap;
 
 import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -270,7 +275,54 @@ public class StreamGraphGeneratorTest {
 
 		StreamPartitioner<?> streamPartitioner = keyedResultNode.getInEdges().get(0).getPartitioner();
 	}
-
+	
+	@Test
+	public void testNestedScopes(){
+		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+		
+		List<Integer> level0Ops = new ArrayList<>();
+		final List<Integer> level1Ops = new ArrayList<>();
+		final List<Integer> level2Ops = new ArrayList<>();
+		
+		DataStream<Integer> source = env.fromElements(1,2,3);
+		level0Ops.add(source.getId());
+		DataStream map1 = source.map(new NoOpIntMap());
+		level0Ops.add(map1.getId());
+		DataStream loop = map1.iterate(new LoopFunction<Integer, Integer>() {
+			@Override
+			public Tuple2<DataStream<Integer>, DataStream<Integer>> loop(DataStream<Integer> input) {
+				DataStream<Integer> map2 = input.map(new NoOpIntMap());
+				level1Ops.add(map2.getId());
+				DataStream<Integer> nestedLoop = map2.iterate(new LoopFunction<Integer, Integer>() {
+					@Override
+					public Tuple2<DataStream<Integer>, DataStream<Integer>> loop(DataStream<Integer> input2) {
+						DataStream<Integer> map3 = input2.map(new NoOpIntMap());
+						level2Ops.add(map3.getId());
+						return new Tuple2<>(map3, map3); 
+					}
+				});
+				return new Tuple2<>(nestedLoop, nestedLoop);
+			}
+		});
+		DataStream<Integer> map4 = loop.map(new NoOpIntMap());
+		level0Ops.add(map4.getId());
+		map4.addSink(new DiscardingSink<Integer>());
+		
+		StreamGraph graph = env.getStreamGraph();
+		for(int nodeId : level0Ops){
+			StreamNode node = graph.getStreamNode(nodeId);
+			assertEquals(0, node.getOperator().getScopeLevel());
+		}
+		for(int nodeId : level1Ops){
+			StreamNode node = graph.getStreamNode(nodeId);
+			assertEquals(1, node.getOperator().getScopeLevel());
+		}
+		for(int nodeId : level2Ops){
+			StreamNode node = graph.getStreamNode(nodeId);
+			assertEquals(2, node.getOperator().getScopeLevel());
+		}
+	}
+	
 	/**
 	 * Tests that the global and operator-wide max parallelism setting is respected
 	 */
@@ -453,6 +505,16 @@ public class StreamGraphGeneratorTest {
 		public void processWatermark2(Watermark mark) throws Exception {}
 
 		@Override
+		public void processLatencyMarker1(LatencyMarker latencyMarker) throws Exception {
+			// ignore
+		}
+
+		@Override
+		public void processLatencyMarker2(LatencyMarker latencyMarker) throws Exception {
+			// ignore
+		}
+
+		@Override
 		public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<Integer>> output) {}
 	}
 
@@ -474,6 +536,11 @@ public class StreamGraphGeneratorTest {
 
 		@Override
 		public void processWatermark(Watermark mark) {}
+
+		@Override
+		public void processLatencyMarker(LatencyMarker latencyMarker) throws Exception {
+
+		}
 
 		@Override
 		public void setOutputType(TypeInformation<Integer> outTypeInfo, ExecutionConfig executionConfig) {

@@ -26,7 +26,8 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.runtime.jobgraph.tasks.StatefulTask;
-import org.apache.flink.runtime.metrics.groups.IOMetricGroup;
+import org.apache.flink.runtime.metrics.groups.OperatorMetricGroup;
+import org.apache.flink.runtime.metrics.groups.TaskIOMetricGroup;
 import org.apache.flink.runtime.accumulators.AccumulatorRegistry;
 import org.apache.flink.runtime.event.AbstractEvent;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
@@ -43,9 +44,9 @@ import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.*;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
-import org.apache.flink.streaming.runtime.streamrecord.MultiplexingStreamRecordSerializer;
+import org.apache.flink.streaming.api.watermark.Watermark;
+import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.apache.flink.streaming.runtime.streamrecord.StreamRecordSerializer;
 
 /**
  * Input reader for {@link org.apache.flink.streaming.runtime.tasks.OneInputStreamTask}.
@@ -88,8 +89,7 @@ public class StreamInputProcessor<IN> {
 			TypeSerializer<IN> inputSerializer,
 			StatefulTask checkpointedTask,
 			CheckpointingMode checkpointMode,
-			IOManager ioManager,
-			boolean enableWatermarkMultiplexing) throws IOException {
+			IOManager ioManager) throws IOException {
 
 		InputGate inputGate = InputGateUtil.createInputGate(inputGates);
 
@@ -107,15 +107,9 @@ public class StreamInputProcessor<IN> {
 			this.barrierHandler.registerCheckpointEventHandler(checkpointedTask);
 		}
 		
-		if (enableWatermarkMultiplexing) {
-			MultiplexingStreamRecordSerializer<IN> ser = new MultiplexingStreamRecordSerializer<IN>(inputSerializer);
-			this.deserializationDelegate = new NonReusingDeserializationDelegate<StreamElement>(ser);
-		} else {
-			StreamRecordSerializer<IN> ser = new StreamRecordSerializer<IN>(inputSerializer);
-			this.deserializationDelegate = (NonReusingDeserializationDelegate<StreamElement>)
-					(NonReusingDeserializationDelegate<?>) new NonReusingDeserializationDelegate<StreamRecord<IN>>(ser);
-		}
-		
+		StreamElementSerializer<IN> ser = new StreamElementSerializer<>(inputSerializer);
+		this.deserializationDelegate = new NonReusingDeserializationDelegate<>(ser);
+
 		// Initialize one deserializer per input channel
 		this.recordDeserializers = new SpillingAdaptiveSpanningRecordDeserializer[inputGate.getNumberOfInputChannels()];
 		
@@ -133,7 +127,7 @@ public class StreamInputProcessor<IN> {
 			return false;
 		}
 		if (numRecordsIn == null) {
-			numRecordsIn = streamOperator.getMetricGroup().counter("numRecordsIn");
+			numRecordsIn = ((OperatorMetricGroup) streamOperator.getMetricGroup()).getIOMetricGroup().getNumRecordsInCounter();
 		}
 
 		while (true) {
@@ -146,13 +140,13 @@ public class StreamInputProcessor<IN> {
 				}
 
 				if (result.isFullRecord()) {
-					StreamElement recordOrWatermark = deserializationDelegate.getInstance();
-					progressHandler.adaptTimestamp(recordOrWatermark, streamOperator.getContextLevel(),
+					StreamElement recordOrMark = deserializationDelegate.getInstance();
+					progressHandler.adaptTimestamp(recordOrMark, streamOperator.getContextLevel(),
 						streamOperator.shouldAdaptRecordTimestamps());
 
-					if (recordOrWatermark.isWatermark()) {
+					if (recordOrMark.isWatermark()) {
 						Watermark next = progressHandler.getNextWatermark(
-							recordOrWatermark.asWatermark(), currentChannel);
+							recordOrMark.asWatermark(), currentChannel);
 						if(next != null) {
 							synchronized (lock) {
 								streamOperator.processWatermark(next);
@@ -160,9 +154,15 @@ public class StreamInputProcessor<IN> {
 						}
 
 						continue;
+					} else if(recordOrMark.isLatencyMarker()) {
+						// handle latency marker
+						synchronized (lock) {
+							streamOperator.processLatencyMarker(recordOrMark.asLatencyMarker());
+						}
+						continue;
 					} else {
 						// now we can do the actual processing
-						StreamRecord<IN> record = recordOrWatermark.asRecord();
+						StreamRecord<IN> record = recordOrMark.asRecord();
 						synchronized (lock) {
 							numRecordsIn.inc();
 							streamOperator.setKeyContextElement1(record);

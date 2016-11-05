@@ -67,6 +67,7 @@ public class IterativeStream<T> extends SingleOutputStreamOperator<T> {
 	 * 
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
+	@Deprecated
 	public DataStream<T> closeWith(DataStream<T> feedbackStream) {
 
 		Collection<StreamTransformation<?>> predecessors = feedbackStream.getTransformation().getTransitivePredecessors();

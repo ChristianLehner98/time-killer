@@ -79,6 +79,15 @@ public class SelectTransformation<T> extends StreamTransformation<T> {
 	}
 
 	@Override
+	public void setScopeLevel(int scopeLevel) {
+	}
+
+	@Override
+	public int getScopeLevel() {
+		return input.getScopeLevel();
+	}
+
+	@Override
 	public final void setChainingStrategy(ChainingStrategy strategy) {
 		throw new UnsupportedOperationException("Cannot set chaining strategy on Select Transformation.");
 	}

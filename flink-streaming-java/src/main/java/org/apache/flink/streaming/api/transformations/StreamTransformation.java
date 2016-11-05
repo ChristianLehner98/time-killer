@@ -375,4 +375,7 @@ public abstract class StreamTransformation<T> {
 		result = 31 * result + (int) (bufferTimeout ^ (bufferTimeout >>> 32));
 		return result;
 	}
+
+	public abstract void setScopeLevel(int scopeLevel); 
+	public abstract int getScopeLevel();
 }

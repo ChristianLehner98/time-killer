@@ -34,6 +34,7 @@ import org.apache.flink.streaming.api.transformations.SplitTransformation;
 import org.apache.flink.streaming.api.transformations.StreamTransformation;
 import org.apache.flink.streaming.api.transformations.TwoInputTransformation;
 import org.apache.flink.streaming.api.transformations.UnionTransformation;
+import org.apache.flink.streaming.api.transformations.ScopeTransformation;
 import org.apache.flink.util.MathUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -194,7 +195,9 @@ public class StreamGraphGenerator {
 			transformedIds = transformCoFeedback((CoFeedbackTransformation<?>) transform);
 		} else if (transform instanceof PartitionTransformation<?>) {
 			transformedIds = transformPartition((PartitionTransformation<?>) transform);
-		} else {
+		} else if (transform instanceof ScopeTransformation<?>) {
+			transformedIds = transformScope((ScopeTransformation<?>) transform);
+		}else {
 			throw new IllegalStateException("Unknown transformation: " + transform);
 		}
 
@@ -275,6 +278,17 @@ public class StreamGraphGenerator {
 
 
 		return resultIds;
+	}
+
+	/**
+	 * Transforms a {@code ScopeTransformation}.
+	 * 
+	 * <p>
+	 * This transformation has no effect on the resulting stream graph since it is embedded solely 
+	 * to enforce the right scopes during operator initialization.
+	 */
+	private <T> Collection<Integer> transformScope(ScopeTransformation<T> scope){
+		return transform(scope.getInput());
 	}
 
 	/**

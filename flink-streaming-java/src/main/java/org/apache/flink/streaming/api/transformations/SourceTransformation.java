@@ -66,6 +66,16 @@ public class SourceTransformation<T> extends StreamTransformation<T> {
 	}
 
 	@Override
+	public void setScopeLevel(int scopeLevel) {
+		operator.setScopeLevel(scopeLevel);
+	}
+
+	@Override
+	public int getScopeLevel() {
+		return operator.getScopeLevel();
+	}
+
+	@Override
 	public final void setChainingStrategy(ChainingStrategy strategy) {
 		operator.setChainingStrategy(strategy);
 	}

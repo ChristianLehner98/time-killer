@@ -28,6 +28,7 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.io.BlockingQueueBroker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,6 +76,11 @@ public class StreamIterationTail<IN> extends OneInputStreamTask<IN, IN> {
 		public void processWatermark(Watermark mark) {
 			output.emitWatermark(mark);
 		}
+
+		@Override
+		public void processLatencyMarker(LatencyMarker latencyMarker) throws Exception {
+			// ignore
+		}
 	}
 
 	private static class IterationTailOutput<IN> implements Output<StreamRecord<IN>> {
@@ -95,6 +101,10 @@ public class StreamIterationTail<IN> extends OneInputStreamTask<IN, IN> {
 		@Override
 		public void emitWatermark(Watermark mark) {
 			sendStreamElement(mark);
+		}
+
+		@Override
+		public void emitLatencyMarker(LatencyMarker latencyMarker) {
 		}
 
 		@Override

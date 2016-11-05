@@ -238,6 +238,10 @@ public class ConnectedStreams<IN1, IN2> {
 		// read the output type of the input Transforms to coax out errors about MissingTypeInfo
 		inputStream1.getType();
 		inputStream2.getType();
+		
+		if(inputStream1.transformation.getScopeLevel() != inputStream2.transformation.getScopeLevel()){
+			throw new UnsupportedOperationException("Not possible to connect data streams across different nested scopes");
+		}
 
 		TwoInputTransformation<IN1, IN2, R> transform = new TwoInputTransformation<>(
 				inputStream1.getTransformation(),

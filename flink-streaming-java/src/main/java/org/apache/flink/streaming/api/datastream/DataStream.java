@@ -41,8 +41,10 @@ import org.apache.flink.api.java.io.CsvOutputFormat;
 import org.apache.flink.api.java.io.TextOutputFormat;
 import org.apache.flink.api.common.operators.Keys;
 import org.apache.flink.api.java.tuple.Tuple;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.InputTypeConfigurable;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
+import org.apache.flink.api.java.typeutils.TypeInfoParser;
 import org.apache.flink.core.fs.FileSystem.WriteMode;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.TimeCharacteristic;
@@ -66,6 +68,7 @@ import org.apache.flink.streaming.api.transformations.OneInputTransformation;
 import org.apache.flink.streaming.api.transformations.PartitionTransformation;
 import org.apache.flink.streaming.api.transformations.StreamTransformation;
 import org.apache.flink.streaming.api.transformations.UnionTransformation;
+import org.apache.flink.streaming.api.transformations.ScopeTransformation;
 import org.apache.flink.streaming.api.windowing.assigners.GlobalWindows;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows;
@@ -189,7 +192,12 @@ public class DataStream<T> {
 		List<StreamTransformation<T>> unionedTransforms = new ArrayList<>();
 		unionedTransforms.add(this.transformation);
 
+		int scopeLevel = streams[0].getScopeLevel();
+
 		for (DataStream<T> newStream : streams) {
+			if(scopeLevel != newStream.transformation.getScopeLevel()){
+				throw new UnsupportedOperationException("Not possible to connect data streams across different nested scopes");
+			}
 			if (!getType().equals(newStream.getType())) {
 				throw new IllegalArgumentException("Cannot union streams of different types: "
 						+ getType() + " and " + newStream.getType());
@@ -197,6 +205,7 @@ public class DataStream<T> {
 			
 			unionedTransforms.add(newStream.getTransformation());
 		}
+
 		return new DataStream<>(this.environment, new UnionTransformation<>(unionedTransforms));
 	}
 
@@ -447,6 +456,7 @@ public class DataStream<T> {
 	 * @return The iterative data stream created.
 	 */
 	@PublicEvolving
+	@Deprecated
 	public IterativeStream<T> iterate() {
 		return new IterativeStream<>(this, 0);
 	}
@@ -483,8 +493,49 @@ public class DataStream<T> {
 	 * @return The iterative data stream created.
 	 */
 	@PublicEvolving
+	@Deprecated
 	public IterativeStream<T> iterate(long maxWaitTimeMillis) {
 		return new IterativeStream<>(this, maxWaitTimeMillis);
+	}
+	
+	/**
+	 */
+	public <R> DataStream<R> iterate(LoopFunction<T, R> loopFun) {
+		SingleOutputStreamOperator<T> scopedStream =
+			new SingleOutputStreamOperator<>(this.environment, new ScopeTransformation(this.transformation, ScopeTransformation.SCOPE_TYPE.INGRESS));
+		IterativeStream<T> iterativeStream = scopedStream.iterate();
+		Tuple2<DataStream<T>, DataStream<R>> outStreams =  loopFun.loop(iterativeStream);
+		iterativeStream.closeWith(outStreams.f0);
+		ScopeTransformation egressTransformation = new ScopeTransformation(outStreams.f1.getTransformation(), ScopeTransformation.SCOPE_TYPE.EGRESS);
+		return new SingleOutputStreamOperator<>(outStreams.f1.environment, egressTransformation);
+	}
+
+	/**
+	 */
+	public <F,R> DataStream<R> iterateWithFeedback(CoLoopFunction<T, F, R> coLoopFun, String feedbackTypeString) {
+		return iterateWithFeedback(coLoopFun, TypeInfoParser.<F> parse(feedbackTypeString));
+	}
+	
+	/**
+	 */
+	public <F,R> DataStream<R> iterateWithFeedback(CoLoopFunction<T, F, R> coLoopFun, Class<F> feedbackTypeClass) {
+		return iterateWithFeedback(coLoopFun, TypeExtractor.getForClass(feedbackTypeClass));
+	}
+	
+	/**
+	 */
+	public <F,R> DataStream<R> iterateWithFeedback(CoLoopFunction<T, F, R> coLoopFun, TypeInformation<F> feedbackType) {
+		SingleOutputStreamOperator<T> scopedStream = 
+			new SingleOutputStreamOperator<>(this.environment, new ScopeTransformation<>(this.transformation, ScopeTransformation.SCOPE_TYPE.INGRESS));
+		IterativeStream.ConnectedIterativeStreams<T, F> iterativeStream = scopedStream.iterate().withFeedbackType(feedbackType);
+		Tuple2<DataStream<F>, DataStream<R>> outStreams = coLoopFun.loop(iterativeStream);
+		iterativeStream.closeWith(outStreams.f0);
+		ScopeTransformation egressTransformation = new ScopeTransformation(outStreams.f1.getTransformation(), ScopeTransformation.SCOPE_TYPE.EGRESS);
+		return new SingleOutputStreamOperator<>(outStreams.f1.environment, egressTransformation);
+	}
+	
+	private int getScopeLevel(){
+		return this.transformation.getScopeLevel();
 	}
 
 	/**

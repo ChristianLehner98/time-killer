@@ -122,5 +122,14 @@ public class FeedbackTransformation<T> extends StreamTransformation<T> {
 		result.addAll(input.getTransitivePredecessors());
 		return result;
 	}
+
+	@Override
+	public void setScopeLevel(int scopeLevel) {
+	}
+
+	@Override
+	public int getScopeLevel() {
+		return input.getScopeLevel();
+	}
 }
 
