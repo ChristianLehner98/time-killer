@@ -141,10 +141,11 @@ public class StreamInputProcessor<IN> {
 
 				if (result.isFullRecord()) {
 					StreamElement recordOrMark = deserializationDelegate.getInstance();
-					progressHandler.adaptTimestamp(recordOrMark, streamOperator.getContextLevel(),
-						streamOperator.shouldAdaptRecordTimestamps());
+					recordOrMark = progressHandler.adaptTimestamp(recordOrMark, streamOperator.getContextLevel());
 
-					if (recordOrMark.isWatermark()) {
+					if (recordOrMark == null) {
+						continue;
+					} else if (recordOrMark.isWatermark()) {
 						Watermark next = progressHandler.getNextWatermark(
 							recordOrMark.asWatermark(), currentChannel);
 						if(next != null) {

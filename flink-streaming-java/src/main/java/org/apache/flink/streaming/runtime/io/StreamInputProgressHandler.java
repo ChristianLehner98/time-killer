@@ -22,17 +22,16 @@ public class StreamInputProgressHandler {
 		}
 	}
 
-	protected StreamElement adaptTimestamp(StreamElement element, int operatorLevel, boolean adaptRecords) {
-		if(!element.isWatermark() && !adaptRecords) return element;
-
+	public StreamElement adaptTimestamp(StreamElement element, int operatorLevel) {
 		int elementLevel = getContextSize(element);
 		if(elementLevel == operatorLevel) return element;
-		else if(elementLevel == operatorLevel-1) addTimestamp(element, adaptRecords);
+		else if(elementLevel == operatorLevel-1) addTimestamp(element);
 		else if(elementLevel == operatorLevel+1) {
-			if(element.isWatermark() && element.asWatermark().getTimestamp() == Long.MAX_VALUE) {
-				Watermark watermark = element.asWatermark();
+			if(element.isWatermark() && element.asWatermark().getTimestamp() != Long.MAX_VALUE) {
+				// this is a watermark coming out of an iteration which is not done yet!
+				return null;
 			} else {
-				removeTimestamp(element, adaptRecords);
+				removeTimestamp(element);
 			}
 		}
 		else throw new IllegalStateException("Got element with wrong timestamp level");
@@ -44,19 +43,17 @@ public class StreamInputProgressHandler {
 		return element.asRecord().getContext().size();
 	}
 
-	private void addTimestamp(StreamElement element, boolean adaptRecords) {
+	private void addTimestamp(StreamElement element) {
 		if(element.isWatermark()) element.asWatermark().addNestedTimestamp(0);
-		else if(adaptRecords) element.asRecord().addNestedTimestamp(0);
+		else element.asRecord().addNestedTimestamp(0);
 	}
 
-	private void removeTimestamp(StreamElement element, boolean adaptRecords) {
+	private void removeTimestamp(StreamElement element) {
 		if(element.isWatermark()) element.asWatermark().removeNestedTimestamp();
-		else if(adaptRecords) element.asRecord().removeNestedTimestamp();
+		else element.asRecord().removeNestedTimestamp();
 	}
 
-	protected Watermark getNextWatermark(Watermark watermark, int currentChannel) {
-		//Set<Watermark> result = new HashSet<>(watermarkBuffer.headSet(watermark));
-
+	public Watermark getNextWatermark(Watermark watermark, int currentChannel) {
 		Long timestamp = watermark.getTimestamp();
 		List<Long> context = watermark.getContext();
 

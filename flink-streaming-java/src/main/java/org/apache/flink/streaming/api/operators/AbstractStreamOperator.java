@@ -760,9 +760,6 @@ public abstract class AbstractStreamOperator<OUT>
 	@Override
 	public int getContextLevel() { return 0; }
 
-	@Override
-	public boolean shouldAdaptRecordTimestamps() { return true; }
-
 	// ------------------------------------------------------------------------
 	//  Watermark handling
 	// ------------------------------------------------------------------------
