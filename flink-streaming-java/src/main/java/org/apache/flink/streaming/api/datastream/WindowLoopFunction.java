@@ -20,6 +20,7 @@ package org.apache.flink.streaming.api.datastream;
 
 import org.apache.flink.annotation.Public;
 import org.apache.flink.api.common.functions.Function;
+import org.apache.flink.api.common.functions.TerminationFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.windowing.windows.Window;
 
@@ -29,10 +30,12 @@ import java.io.Serializable;
  *TODO
  */
 @Public
-public interface WindowLoopFunction<IN,W_IN extends Window,F,KEY,OUT> extends Function, Serializable {
+public interface WindowLoopFunction<IN,W_IN extends Window,F,KEY,OUT> extends Function, Serializable, TerminationFunction {
 	/**
 	 * 
 	 * TODO
 	 */
-	Tuple2<KeyedStream<F, KEY>, DataStream<OUT>> loop(ConnectedWindowedIterativeStreams<IN,W_IN,F,KEY> value);
+	Tuple2<KeyedStream<F, KEY>, DataStream<OUT>> loop(IterativeWindowStream<IN,W_IN,F,KEY> value);
+	
+	
 }

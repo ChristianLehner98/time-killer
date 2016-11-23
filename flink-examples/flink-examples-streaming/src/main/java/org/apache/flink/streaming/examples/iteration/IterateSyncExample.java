@@ -7,7 +7,6 @@ import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
-import org.apache.flink.streaming.api.operators.StreamSource;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
@@ -31,7 +30,7 @@ public class IterateSyncExample {
 			.keyBy(0)
 			.timeWindow(Time.milliseconds(1))
 			.iterateSync(new WindowLoopFunction<Tuple2<Long,List<Long>>, TimeWindow, Tuple2<Long,Long>, Tuple, Tuple2<Long,List<Long>>>() {
-				public Tuple2<KeyedStream<Tuple2<Long,Long>, Tuple>, DataStream<Tuple2<Long, List<Long>>>> loop(ConnectedWindowedIterativeStreams in) {
+				public Tuple2<KeyedStream<Tuple2<Long,Long>, Tuple>, DataStream<Tuple2<Long, List<Long>>>> loop(IterativeWindowStream in) {
 					ReduceFunction<>
 					in.reduce();
 				}

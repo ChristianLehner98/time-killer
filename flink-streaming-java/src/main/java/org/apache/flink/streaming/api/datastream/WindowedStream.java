@@ -721,7 +721,12 @@ public class WindowedStream<T, K, W extends Window> {
 		return reduce(aggregator);
 	}
 
-	public <OUT,F,K_F> DataStream<OUT> iterateSync(WindowLoopFunction<T,K,W,F,K_F,OUT> loopFun) {
+	/**
+	 *HINT: To extract the types from the WindowLoopFunction check the TypeExtractor convenience methods
+	 * You might have to add your own extraction logic
+	 * 
+	 */
+	public <OUT,F> DataStream<OUT> iterateSync(WindowLoopFunction<T,W,F, K,OUT> loopFun) {
 		// add watermark filler
 		OneInputTransformation watermarkfiller = new OneInputTransformation(
 			this.input.getTransformation(),
@@ -731,12 +736,14 @@ public class WindowedStream<T, K, W extends Window> {
 			this.input.getTransformation().getParallelism()
 		);
 
+		//TODO Maybe put superstep counter for simplicity
+		//FIXME apply watermark filler and scope transformation to the input of KeyStream and exchange input
 		WindowedStream scopedWindowedStream = new SingleOutputWindowedStreamOperator(this,
 			new ScopeTransformation(watermarkfiller, ScopeTransformation.SCOPE_TYPE.INGRESS));
 
 		// TODO: actually needs feedBackKeySelector from loopFun.loop(..).f0 -> how to solve?
-		ConnectedWindowedIterativeStreams<T,K,W,F,K_F> iterativeStream =
-			new ConnectedWindowedIterativeStreams<>();
+		IterativeWindowStream<T,W,K,F> iterativeStream =
+			new IterativeWindowStream<>(this);
 		//IterativeStream<T> iterativeStream = scopedStream.iterate();
 
 		Tuple2<KeyedStream<F,K_F>, DataStream<OUT>> outStreams =  loopFun.loop(iterativeStream);
