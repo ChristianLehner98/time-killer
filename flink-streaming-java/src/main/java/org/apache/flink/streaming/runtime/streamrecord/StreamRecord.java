@@ -98,6 +98,17 @@ public final class StreamRecord<T> extends StreamElement {
 //							"did you forget to call 'DataStream.assignTimestampsAndWatermarks(...)'?");
 		}
 	}
+	public List<Long> getFullTimestamp() {
+		if(hasTimestamp) {
+			List<Long> fullTimestamp = new LinkedList<>(context);
+			fullTimestamp.add(timestamp);
+			return fullTimestamp;
+		} else {
+			LinkedList<Long> result = new LinkedList<>();
+			result.add(Long.MIN_VALUE);
+			return result;
+		}
+	}
 
 	public List<Long> getContext() {
 		return context;
