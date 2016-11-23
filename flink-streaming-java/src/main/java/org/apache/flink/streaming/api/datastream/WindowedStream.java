@@ -20,10 +20,7 @@ package org.apache.flink.streaming.api.datastream;
 
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.annotation.Public;
-import org.apache.flink.api.common.functions.FoldFunction;
-import org.apache.flink.api.common.functions.Function;
-import org.apache.flink.api.common.functions.ReduceFunction;
-import org.apache.flink.api.common.functions.RichFunction;
+import org.apache.flink.api.common.functions.*;
 import org.apache.flink.api.common.state.FoldingStateDescriptor;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.state.ReducingStateDescriptor;
@@ -31,6 +28,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.Utils;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.aggregation.AggregationFunction;
@@ -40,7 +38,12 @@ import org.apache.flink.streaming.api.functions.windowing.FoldApplyWindowFunctio
 import org.apache.flink.streaming.api.functions.windowing.PassThroughWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.ReduceApplyWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
+import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
+import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.transformations.OneInputTransformation;
+import org.apache.flink.streaming.api.transformations.ScopeTransformation;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.assigners.MergingWindowAssigner;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
@@ -59,6 +62,8 @@ import org.apache.flink.streaming.runtime.operators.windowing.functions.Internal
 import org.apache.flink.streaming.runtime.operators.windowing.WindowOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+
+import java.util.*;
 
 /**
  * A {@code WindowedStream} represents a data stream where elements are grouped by
@@ -716,6 +721,87 @@ public class WindowedStream<T, K, W extends Window> {
 		return reduce(aggregator);
 	}
 
+	public <OUT,F,K_F> DataStream<OUT> iterateSync(WindowLoopFunction<T,K,W,F,K_F,OUT> loopFun) {
+		// add watermark filler
+		OneInputTransformation watermarkfiller = new OneInputTransformation(
+			this.input.getTransformation(),
+			"OneWatermarkPerContext",
+			new WindowedStreamWatermarkFiller(),
+			this.input.getTransformation().getOutputType(),
+			this.input.getTransformation().getParallelism()
+		);
+
+		WindowedStream scopedWindowedStream = new SingleOutputWindowedStreamOperator(this,
+			new ScopeTransformation(watermarkfiller, ScopeTransformation.SCOPE_TYPE.INGRESS));
+
+		// TODO: actually needs feedBackKeySelector from loopFun.loop(..).f0 -> how to solve?
+		ConnectedWindowedIterativeStreams<T,K,W,F,K_F> iterativeStream =
+			new ConnectedWindowedIterativeStreams<>();
+		//IterativeStream<T> iterativeStream = scopedStream.iterate();
+
+		Tuple2<KeyedStream<F,K_F>, DataStream<OUT>> outStreams =  loopFun.loop(iterativeStream);
+		iterativeStream.closeWith(outStreams.f0);
+		ScopeTransformation egressTransformation = new ScopeTransformation(outStreams.f1.getTransformation(), ScopeTransformation.SCOPE_TYPE.EGRESS);
+		return new SingleOutputStreamOperator<>(outStreams.f1.environment, egressTransformation);
+	}
+
+	private class WindowedStreamWatermarkFiller<IN>
+		extends AbstractStreamOperator<IN>
+		implements OneInputStreamOperator<IN, IN> {
+
+		private static final long serialVersionUID = 1L;
+
+		private Map<List<Long>,SortedMap<Long,List<StreamRecord>>> recordsByContext = new HashMap<>();
+		private Map<List<Long>, Long> lastEmittedTimestamps = new HashMap<>();
+		private Long sequenceID = 0L;
+
+		public WindowedStreamWatermarkFiller() {
+			chainingStrategy = ChainingStrategy.ALWAYS;
+		}
+
+		@Override
+		public void processElement(StreamRecord<IN> element) throws Exception {
+			SortedMap<Long, List<StreamRecord>> elements = recordsByContext.get(element.getContext());
+			if(elements == null) {
+				elements = new TreeMap<>();
+				recordsByContext.put(element.getContext(), elements);
+			}
+
+			List<StreamRecord> elementsWithSameTimestamp = elements.get(element.getTimestamp());
+			if(elementsWithSameTimestamp == null) {
+				elementsWithSameTimestamp = new LinkedList<>();
+				elements.put(element.getTimestamp(), elementsWithSameTimestamp);
+			}
+			elementsWithSameTimestamp.add(element);
+		}
+
+		@Override
+		public void processWatermark(Watermark watermark) {
+			// use sequence IDs on "real" (not iteration only) watermarks
+			// in order to emit them again in the right order after an iteration
+			watermark.pushSequenceID(sequenceID++);
+
+			Long currentTimestamp = lastEmittedTimestamps.get(watermark.getContext());
+			if(currentTimestamp == null) currentTimestamp = 0l;
+
+			SortedMap<Long,List<StreamRecord>> elements = recordsByContext.get(watermark.getContext());
+			for(Iterator<Map.Entry<Long,List<StreamRecord>>> it = elements.entrySet().iterator(); it.hasNext();) {
+				Map.Entry<Long,List<StreamRecord>> current = it.next();
+				if(current.getKey() > watermark.getTimestamp()) break;
+
+				for(StreamRecord record : current.getValue()) {
+					output.collect(record);
+				}
+				if(current.getKey() < watermark.getTimestamp()) {
+					// create "iteration only" watermark, because there is no real watermark for this context
+					output.emitWatermark(new Watermark(watermark.getContext(), current.getKey(), true));
+				}
+				it.remove();
+			}
+			output.emitWatermark(watermark);
+		}
+	}
+
 	// ------------------------------------------------------------------------
 	//  Utilities
 	// ------------------------------------------------------------------------
@@ -795,6 +881,14 @@ public class WindowedStream<T, K, W extends Window> {
 
 	public StreamExecutionEnvironment getExecutionEnvironment() {
 		return input.getExecutionEnvironment();
+	}
+
+	protected KeyedStream<T, K> getInput() {
+		return input;
+	}
+
+	protected WindowAssigner<? super T, W> getWindowAssigner() {
+		return windowAssigner;
 	}
 
 	public TypeInformation<T> getInputType() {
