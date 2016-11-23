@@ -25,13 +25,7 @@ import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.streaming.api.windowing.assigners.MergingWindowAssigner;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * A {@link Window} that represents a time interval from {@code start} (inclusive) to
@@ -40,12 +34,17 @@ import java.util.Set;
 @PublicEvolving
 public class TimeWindow extends Window {
 
+	private final List<Long> timeContext;
 	private final long start;
 	private final long end;
 
 	public TimeWindow(long start, long end) {
+		this(new LinkedList<Long>(), start, end);
+	}
+	public TimeWindow(List<Long> timeContext, long start, long end) {
 		this.start = start;
 		this.end = end;
+		this.timeContext = timeContext;
 	}
 
 	public long getStart() {
@@ -54,6 +53,11 @@ public class TimeWindow extends Window {
 
 	public long getEnd() {
 		return end;
+	}
+
+	@Override
+	public List<Long> getTimeContext() {
+		return timeContext;
 	}
 
 	@Override
@@ -72,14 +76,14 @@ public class TimeWindow extends Window {
 
 		TimeWindow window = (TimeWindow) o;
 
-		return end == window.end && start == window.start;
+		return timeContext.equals(window.getTimeContext()) && end == window.end && start == window.start;
 	}
 
 	@Override
 	public int hashCode() {
 		int result = (int) (start ^ (start >>> 32));
 		result = 31 * result + (int) (end ^ (end >>> 32));
-		return result;
+		return result^timeContext.hashCode(); // TODO: is this correct?
 	}
 
 	@Override
@@ -87,6 +91,7 @@ public class TimeWindow extends Window {
 		return "TimeWindow{" +
 				"start=" + start +
 				", end=" + end +
+				", timeContext=" + timeContext.toString() +
 				'}';
 	}
 
@@ -94,14 +99,16 @@ public class TimeWindow extends Window {
 	 * Returns {@code true} if this window intersects the given window.
 	 */
 	public boolean intersects(TimeWindow other) {
-		return this.start <= other.end && this.end >= other.start;
+		return timeContext.equals(other.getTimeContext()) &&
+			this.start <= other.end &&
+			this.end >= other.start;
 	}
 
 	/**
 	 * Returns the minimal window covers both this window and the given window.
 	 */
 	public TimeWindow cover(TimeWindow other) {
-		return new TimeWindow(Math.min(start, other.start), Math.max(end, other.end));
+		return new TimeWindow(timeContext, Math.min(start, other.start), Math.max(end, other.end));
 	}
 
 	public static class Serializer extends TypeSerializer<TimeWindow> {
@@ -141,19 +148,33 @@ public class TimeWindow extends Window {
 		public void serialize(TimeWindow record, DataOutputView target) throws IOException {
 			target.writeLong(record.start);
 			target.writeLong(record.end);
+			target.writeInt(record.getTimeContext().size());
+			for(Long timestamp : record.getTimeContext()) {
+				target.writeLong(timestamp);
+			}
 		}
 
 		@Override
 		public TimeWindow deserialize(DataInputView source) throws IOException {
 			long start = source.readLong();
 			long end = source.readLong();
-			return new TimeWindow(start, end);
+			long timeContextSize = source.readInt();
+			List<Long> timeContext = new LinkedList<>();
+			for(int i = 0; i<timeContextSize; i++) {
+				timeContext.add(source.readLong());
+			}
+			return new TimeWindow(timeContext, start, end);
 		}
 
 		@Override
 		public TimeWindow deserialize(TimeWindow reuse, DataInputView source) throws IOException {
 			long start = source.readLong();
 			long end = source.readLong();
+			long timeContextSize = source.readInt();
+			List<Long> timeContext = new LinkedList<>();
+			for(int i = 0; i<timeContextSize; i++) {
+				timeContext.add(source.readLong());
+			}
 			return new TimeWindow(start, end);
 		}
 
@@ -161,6 +182,11 @@ public class TimeWindow extends Window {
 		public void copy(DataInputView source, DataOutputView target) throws IOException {
 			target.writeLong(source.readLong());
 			target.writeLong(source.readLong());
+			int timeContextSize = source.readInt();
+			target.writeInt(timeContextSize);
+			for(int i=0; i<timeContextSize; i++) {
+				target.writeLong(source.readLong());
+			}
 		}
 
 		@Override

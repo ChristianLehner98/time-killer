@@ -105,7 +105,7 @@ public abstract class AbstractStreamOperator<OUT>
 	// ---------------- runtime fields ------------------
 
 	/** The task that contains this operator (and other operators in the same chain) */
-	private transient StreamTask<?, ?> container;
+	protected transient StreamTask<?, ?> container;
 	
 	protected transient StreamConfig config;
 
@@ -810,7 +810,7 @@ public abstract class AbstractStreamOperator<OUT>
 
 	public void processWatermark(Watermark mark) throws Exception {
 		for (HeapInternalTimerService<?, ?> service : timerServices.values()) {
-			service.advanceWatermark(mark.getTimestamp());
+			service.advanceWatermark(mark.getContext(), mark.getTimestamp());
 		}
 		output.emitWatermark(mark);
 	}

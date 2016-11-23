@@ -73,9 +73,7 @@ import org.apache.flink.util.TestLogger;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1192,7 +1190,8 @@ public class WindowOperatorTest extends TestLogger {
 		ConcurrentLinkedQueue<Object> expected = new ConcurrentLinkedQueue<>();
 
 		long timestamp = Long.MAX_VALUE - 1750;
-		Collection<TimeWindow> windows = windowAssigner.assignWindows(new Tuple2<>("key2", 1), timestamp, new WindowAssigner.WindowAssignerContext() {
+		List<Long> timeContext = new LinkedList<>();
+		Collection<TimeWindow> windows = windowAssigner.assignWindows(new Tuple2<>("key2", 1), timeContext, timestamp, new WindowAssigner.WindowAssignerContext() {
 			@Override
 			public long getCurrentProcessingTime() {
 				return operator.windowAssignerContext.getCurrentProcessingTime();
@@ -2388,7 +2387,7 @@ public class WindowOperatorTest extends TestLogger {
 
 		@Override
 		@SuppressWarnings("unchecked")
-		public Collection<TimeWindow> assignWindows(Object element, long timestamp, WindowAssignerContext ctx) {
+		public Collection<TimeWindow> assignWindows(Object element, List<Long> timeContext, long timestamp, WindowAssignerContext ctx) {
 			if (element instanceof Tuple2) {
 				Tuple2<String, Integer> t2 = (Tuple2<String, Integer>) element;
 				if (t2.f1 == 33) {

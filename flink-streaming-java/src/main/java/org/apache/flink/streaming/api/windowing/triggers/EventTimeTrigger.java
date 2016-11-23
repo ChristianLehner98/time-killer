@@ -21,6 +21,8 @@ package org.apache.flink.streaming.api.windowing.triggers;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 
+import java.util.List;
+
 /**
  * A {@link Trigger} that fires once the watermark passes the end of the window
  * to which a pane belongs.
@@ -34,8 +36,8 @@ public class EventTimeTrigger extends Trigger<Object, TimeWindow> {
 	private EventTimeTrigger() {}
 
 	@Override
-	public TriggerResult onElement(Object element, long timestamp, TimeWindow window, TriggerContext ctx) throws Exception {
-		if (window.maxTimestamp() <= ctx.getCurrentWatermark()) {
+	public TriggerResult onElement(Object element, List<Long> timeContext, long timestamp, TimeWindow window, TriggerContext ctx) throws Exception {
+		if (window.maxTimestamp() <= ctx.getCurrentWatermark(timeContext)) {
 			// if the watermark is already past the window fire immediately
 			return TriggerResult.FIRE;
 		} else {
@@ -45,8 +47,8 @@ public class EventTimeTrigger extends Trigger<Object, TimeWindow> {
 	}
 
 	@Override
-	public TriggerResult onEventTime(long time, TimeWindow window, TriggerContext ctx) {
-		return time == window.maxTimestamp() ?
+	public TriggerResult onEventTime(List<Long> timeContext, long time, TimeWindow window, TriggerContext ctx) {
+		return timeContext == window.getTimeContext() && time == window.maxTimestamp() ?
 			TriggerResult.FIRE :
 			TriggerResult.CONTINUE;
 	}

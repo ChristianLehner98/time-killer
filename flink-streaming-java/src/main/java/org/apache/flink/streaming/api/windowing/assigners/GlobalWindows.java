@@ -27,6 +27,7 @@ import org.apache.flink.streaming.api.windowing.windows.GlobalWindow;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * A {@link WindowAssigner} that assigns all elements to the same global window.
@@ -43,7 +44,7 @@ public class GlobalWindows extends WindowAssigner<Object, GlobalWindow> {
 	private GlobalWindows() {}
 
 	@Override
-	public Collection<GlobalWindow> assignWindows(Object element, long timestamp, WindowAssignerContext context) {
+	public Collection<GlobalWindow> assignWindows(Object element, List<Long> timeContext, long timestamp, WindowAssignerContext context) {
 		return Collections.singletonList(GlobalWindow.get());
 	}
 
