@@ -24,6 +24,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Stack;
 
 /**
  * A Watermark tells operators that receive it that no elements with a timestamp older or equal
@@ -55,6 +56,8 @@ public final class Watermark extends StreamElement {
 	/** The timestamp of the watermark in milliseconds*/
 	private long timestamp;
 	private final List<Long> context;
+	private final Stack<Long> sequenceIDs = new Stack<>();
+	private boolean iterationOnly = false;
 
 	/**
 	 * Creates a new watermark with the given timestamp in milliseconds.
@@ -81,6 +84,15 @@ public final class Watermark extends StreamElement {
 	}
 
 	/**
+	 * Creates a new watermark with the given timestamp in milliseconds and a context.
+	 */
+	public Watermark(List<Long> context, long timestamp, boolean iterationOnly) {
+		this.timestamp = timestamp;
+		this.context = new LinkedList(context);
+		this.iterationOnly = iterationOnly;
+	}
+
+	/**
 	 * Returns the timestamp associated with this {@link Watermark} in milliseconds.
 	 */
 	public long getTimestamp() {
@@ -101,6 +113,13 @@ public final class Watermark extends StreamElement {
 		if(this.context.size() > 0) {
 			this.timestamp = this.context.remove(this.context.size()-1);
 		}
+	}
+
+	public Long popSequenceID() {
+		return sequenceIDs.pop();
+	}
+	public void pushSequenceID(Long seqID) {
+		sequenceIDs.push(seqID);
 	}
 
 	// ------------------------------------------------------------------------
