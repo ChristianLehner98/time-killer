@@ -662,7 +662,7 @@ public class DataStream<T> {
 	public AllWindowedStream<T, TimeWindow> timeWindowAll(Time size) {
 		if (environment.getStreamTimeCharacteristic() == TimeCharacteristic.ProcessingTime) {
 			return windowAll(TumblingProcessingTimeWindows.of(size));
-//		} else {        ¶
+		} else {
 			return windowAll(TumblingEventTimeWindows.of(size));
 		}
 	}
