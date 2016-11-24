@@ -34,10 +34,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.aggregation.AggregationFunction;
 import org.apache.flink.streaming.api.functions.aggregation.ComparableAggregator;
 import org.apache.flink.streaming.api.functions.aggregation.SumAggregator;
-import org.apache.flink.streaming.api.functions.windowing.FoldApplyWindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.PassThroughWindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.ReduceApplyWindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
+import org.apache.flink.streaming.api.functions.windowing.*;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
@@ -100,13 +97,13 @@ public class WindowedStream<T, K, W extends Window> {
 	private final WindowAssigner<? super T, W> windowAssigner;
 
 	/** The trigger that is used for window evaluation/emission. */
-	private Trigger<? super T, ? super W> trigger;
+	protected Trigger<? super T, ? super W> trigger;
 
 	/** The evictor that is used for evicting elements before window evaluation. */
-	private Evictor<? super T, ? super W> evictor;
+	protected Evictor<? super T, ? super W> evictor;
 
 	/** The user-specified allowed lateness. */
-	private long allowedLateness = 0L;
+	protected long allowedLateness = 0L;
 
 	@PublicEvolving
 	public WindowedStream(KeyedStream<T, K> input,
@@ -722,13 +719,18 @@ public class WindowedStream<T, K, W extends Window> {
 	}
 
 	/**
+	 * TODO
 	 *HINT: To extract the types from the WindowLoopFunction check the TypeExtractor convenience methods
 	 * You might have to add your own extraction logic
 	 * 
 	 */
-	public <OUT,F> DataStream<OUT> iterateSync(WindowLoopFunction<T,W,F, K,OUT> loopFun) {
+	//TODO Maybe put superstep counter for simplicity
+	//TODO add Postprocessing functions for output and feedback
+	public <OUT,F> DataStream<OUT> iterateSync(CoWindowTerminateFunction coWinTermFun,
+											   Class<F> feedbackTypeClass,
+											   ) throws Exception {
 		// add watermark filler
-		OneInputTransformation watermarkfiller = new OneInputTransformation(
+		OneInputTransformation<T, T> watermarkfiller = new OneInputTransformation(
 			this.input.getTransformation(),
 			"OneWatermarkPerContext",
 			new WindowedStreamWatermarkFiller(),
@@ -736,18 +738,24 @@ public class WindowedStream<T, K, W extends Window> {
 			this.input.getTransformation().getParallelism()
 		);
 
-		//TODO Maybe put superstep counter for simplicity
-		//FIXME apply watermark filler and scope transformation to the input of KeyStream and exchange input
-		WindowedStream scopedWindowedStream = new SingleOutputWindowedStreamOperator(this,
-			new ScopeTransformation(watermarkfiller, ScopeTransformation.SCOPE_TYPE.INGRESS));
+		DataStream<T> scopedStreamInput = new SingleOutputStreamOperator<>(input.getExecutionEnvironment(), new ScopeTransformation(watermarkfiller, ScopeTransformation.SCOPE_TYPE.INGRESS));
+		// TODO input.getExecutionEnvironment or this.getExecutionEnvironment() ??
+		// TODO is this a correct way to do this?
+		WindowedStream<T,K,W> scopedWindowStream = new WindowedStream<>(
+			new KeyedStream<T, K>(scopedStreamInput, input.getKeySelector(),
+				input.getKeyType()), this.getWindowAssigner());
 
-		// TODO: actually needs feedBackKeySelector from loopFun.loop(..).f0 -> how to solve?
-		IterativeWindowStream<T,W,K,F> iterativeStream =
-			new IterativeWindowStream<>(this);
-		//IterativeStream<T> iterativeStream = scopedStream.iterate();
+		// TODO: feedbackType, feedBackKeySelector und waitTime hinzufügen (in ConnectedIterativeStreams nachgucken)
+		IterativeWindowStream<T,W,F,K> iterativeStream = new IterativeWindowStream<>(scopedWindowStream);
 
-		Tuple2<KeyedStream<F,K_F>, DataStream<OUT>> outStreams =  loopFun.loop(iterativeStream);
+		// old: Tuple2<KeyedStream<F,K>, DataStream<OUT>> outStreams = loopFun.loop(iterativeStream);
+		Tuple2<KeyedStream<F,K>, DataStream<OUT>> outStreams = iterativeStream.loop(coWinTermFun);
+
+		// TODO Postprocessing of feedback
 		iterativeStream.closeWith(outStreams.f0);
+
+
+		// TODO Postprocessing of loop function
 		ScopeTransformation egressTransformation = new ScopeTransformation(outStreams.f1.getTransformation(), ScopeTransformation.SCOPE_TYPE.EGRESS);
 		return new SingleOutputStreamOperator<>(outStreams.f1.environment, egressTransformation);
 	}
