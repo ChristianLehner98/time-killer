@@ -726,9 +726,9 @@ public class WindowedStream<T, K, W extends Window> {
 	 */
 	//TODO Maybe put superstep counter for simplicity
 	//TODO add Postprocessing functions for output and feedback
-	public <OUT,F> DataStream<OUT> iterateSync(CoWindowTerminateFunction coWinTermFun,
-											   Class<F> feedbackTypeClass,
-											   ) throws Exception {
+	public <OUT,F,R> DataStream<OUT> iterateSync(CoWindowTerminateFunction coWinTermFun,
+												 FeedbackBuilder feedbackBuilder,
+												 TypeInformation<R> feedbackType) throws Exception {
 		// add watermark filler
 		OneInputTransformation<T, T> watermarkfiller = new OneInputTransformation(
 			this.input.getTransformation(),
@@ -738,26 +738,25 @@ public class WindowedStream<T, K, W extends Window> {
 			this.input.getTransformation().getParallelism()
 		);
 
-		DataStream<T> scopedStreamInput = new SingleOutputStreamOperator<>(input.getExecutionEnvironment(), new ScopeTransformation(watermarkfiller, ScopeTransformation.SCOPE_TYPE.INGRESS));
+		DataStream<T> scopedStreamInput = new SingleOutputStreamOperator<>(input.getExecutionEnvironment(),
+			new ScopeTransformation(watermarkfiller, ScopeTransformation.SCOPE_TYPE.INGRESS));
+
 		// TODO input.getExecutionEnvironment or this.getExecutionEnvironment() ??
 		// TODO is this a correct way to do this?
 		WindowedStream<T,K,W> scopedWindowStream = new WindowedStream<>(
 			new KeyedStream<T, K>(scopedStreamInput, input.getKeySelector(),
 				input.getKeyType()), this.getWindowAssigner());
 
-		// TODO: feedbackType, feedBackKeySelector und waitTime hinzufügen (in ConnectedIterativeStreams nachgucken)
-		IterativeWindowStream<T,W,F,K> iterativeStream = new IterativeWindowStream<>(scopedWindowStream);
+		IterativeWindowStream<T,W,F,K,R,OUT> iterativeStream = new IterativeWindowStream<>(
+			scopedWindowStream, coWinTermFun, feedbackBuilder, feedbackType, 0);
 
-		// old: Tuple2<KeyedStream<F,K>, DataStream<OUT>> outStreams = loopFun.loop(iterativeStream);
-		Tuple2<KeyedStream<F,K>, DataStream<OUT>> outStreams = iterativeStream.loop(coWinTermFun);
+		DataStream<OUT> outStream = iterativeStream.loop();
 
-		// TODO Postprocessing of feedback
-		iterativeStream.closeWith(outStreams.f0);
+		ScopeTransformation egressTransformation = new ScopeTransformation(outStream.getTransformation(), ScopeTransformation.SCOPE_TYPE.EGRESS);
 
+		// TODO add watermarkSequencializer
 
-		// TODO Postprocessing of loop function
-		ScopeTransformation egressTransformation = new ScopeTransformation(outStreams.f1.getTransformation(), ScopeTransformation.SCOPE_TYPE.EGRESS);
-		return new SingleOutputStreamOperator<>(outStreams.f1.environment, egressTransformation);
+		return new SingleOutputStreamOperator<>(outStream.environment, egressTransformation);
 	}
 
 	private class WindowedStreamWatermarkFiller<IN>

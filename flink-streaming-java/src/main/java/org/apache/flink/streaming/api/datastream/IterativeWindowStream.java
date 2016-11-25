@@ -34,39 +34,44 @@ import org.apache.flink.util.Collector;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows.of;
+
 @Public
-public class IterativeWindowStream<IN,IN_W extends Window,F,K> {
+public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
 
 	private StreamExecutionEnvironment environment;
-	private WindowedStream<IN, K, IN_W> windowedStream1;
-	private WindowedStream<F, K, TimeWindow> windowedStream2;
+	CoWindowTerminateFunction<IN,F,S,R,K,IN_W> coWinTerm;
+	private CoFeedbackTransformation<R> coFeedbackTransformation;
 
-	private CoFeedbackTransformation<F> coFeedbackTransformation;
+	private DataStream<S> outStream;
 
 	public IterativeWindowStream(WindowedStream<IN, K,IN_W> input,
-								 TypeInformation<F> feedbackType,
-								 KeySelector<F, K> feedbackKeySelector,
-								 long waitTime) {
+								 CoWindowTerminateFunction<IN,F,S,R,K,IN_W> coWinTerm,
+								 FeedbackBuilder<R> feedbackBuilder,
+								 TypeInformation<R> feedbackType,
+								 long waitTime) throws Exception {
 		environment = input.getExecutionEnvironment();
-		windowedStream1 = input;
+		WindowedStream<IN, K, IN_W> windowedStream1 = input;
 
-		coFeedbackTransformation = new CoFeedbackTransformation(input.getInput().getParallelism(), feedbackType, waitTime);
-		DataStream feedBack = new DataStream(environment, coFeedbackTransformation);
-		KeyedStream feedBackKeyed = new KeyedStream(feedBack, feedbackKeySelector);
+		// create feedback edge
+		coFeedbackTransformation = new CoFeedbackTransformation(input.getInput().getParallelism(),
+			feedbackType, waitTime);
+
+		// create feedback source
+		KeyedStream<F,K> feedbackSourceStream = feedbackBuilder.feedback(new DataStream<R>(environment, coFeedbackTransformation));
 		WindowAssigner assinger = TumblingEventTimeWindows.of(Time.milliseconds(1));
-		windowedStream2 = new WindowedStream<>(feedBackKeyed, assinger);
+		WindowedStream<F, K, TimeWindow> windowedStream2 = new WindowedStream<>(feedbackSourceStream, assinger);
+
+		// create feedback sink
+		Tuple2<DataStream<R>, DataStream<S>> streams = applyCoWinTerm(coWinTerm, windowedStream1, windowedStream2);
+		coFeedbackTransformation.addFeedbackEdge(streams.f0.getTransformation());
+		outStream = streams.f1;
 	}
 
-	/**
-	 *FIXME
-	 * 1) Keep one UDF, Either WindowLoopFunction or IterativeWindowFunction...
-	 * 2) Implement the TerminationListener on that function
-	 * 3) See the ReduceApplyWindowFunction on how you can apply a reduce function on the contents of a window but
-	 * also check the CoFlatMapFunction which is a binary operator (with common state) which is what we want to combine here
-	 */
-	public <R, S> Tuple2<DataStream<R>, DataStream<S>> loop(
-		CoWindowTerminateFunction<IN,F,S,R,K,IN_W> coWinTerm) throws Exception {
-		TwoInputTransformation<IN,F,Either<R,S>> transformation = getTransformation(coWinTerm);
+	public Tuple2<DataStream<R>, DataStream<S>> applyCoWinTerm(CoWindowTerminateFunction coWinTerm,
+															   WindowedStream<IN, K, IN_W> windowedStream1,
+															   WindowedStream<F, K, TimeWindow> windowedStream2) throws Exception {
+		TwoInputTransformation<IN,F,Either<R,S>> transformation = getTransformation(coWinTerm,windowedStream1,windowedStream2);
 		DataStream<Either<R,S>> combinedOutputStream = new SingleOutputStreamOperator<Either<R,S>>(environment, transformation);
 
 		SplitStream<Either<R,S>> splitStream = combinedOutputStream.split(new OutputSelector<Either<R, S>>() {
@@ -88,12 +93,19 @@ public class IterativeWindowStream<IN,IN_W extends Window,F,K> {
 			}
 		});
 
-		return new Tuple2<>(feedbackStream, forwardStream);
+		return new Tuple2(feedbackStream, forwardStream);
+	}
+
+	public DataStream<S> loop() throws Exception {
+		return outStream;
 	}
 
 	// TODO does the (required) final do harm?
-	public <R,S> TwoInputTransformation<IN,F,Either<R,S>> getTransformation(final
-		CoWindowTerminateFunction<IN,F,S,R,K,IN_W> coWinTerm) throws Exception {
+	public <R,S> TwoInputTransformation<IN,F,Either<R,S>> getTransformation(
+		final CoWindowTerminateFunction<IN,F,S,R,K,IN_W> coWinTerm,
+		WindowedStream<IN, K, IN_W> windowedStream1,
+		WindowedStream<F, K, TimeWindow> windowedStream2) throws Exception {
+
 		//TODO: is this correct?!
 		TypeInformation<Either<R,S>> outTypeInfo = TypeExtractor.getBinaryOperatorReturnType(coWinTerm,
 			CoWindowTerminateFunction.class, false, true, windowedStream1.getInputType(),
@@ -184,20 +196,5 @@ public class IterativeWindowStream<IN,IN_W extends Window,F,K> {
 		}
 
 		return new Tuple2(opName, operator);
-	}
-
-
-	public DataStream<F> closeWith(KeyedStream<F,K> feedbackStream) {
-
-		Collection<StreamTransformation<?>> predecessors = feedbackStream.getTransformation().getTransitivePredecessors();
-
-		if (!predecessors.contains(this.coFeedbackTransformation)) {
-			throw new UnsupportedOperationException(
-				"Cannot close an iteration with a feedback DataStream that does not originate from said iteration.");
-		}
-
-		coFeedbackTransformation.addFeedbackEdge(feedbackStream.getTransformation());
-
-		return feedbackStream;
 	}
 }
