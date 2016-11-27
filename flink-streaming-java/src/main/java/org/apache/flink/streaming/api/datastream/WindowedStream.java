@@ -718,15 +718,9 @@ public class WindowedStream<T, K, W extends Window> {
 		return reduce(aggregator);
 	}
 
-	/**
-	 * TODO
-	 *HINT: To extract the types from the WindowLoopFunction check the TypeExtractor convenience methods
-	 * You might have to add your own extraction logic
-	 * 
-	 */
 	//TODO Maybe put superstep counter for simplicity
-	//TODO add Postprocessing functions for output and feedback
-	public <OUT,F,R> DataStream<OUT> iterateSync(CoWindowTerminateFunction coWinTermFun,
+
+	public <OUT,F,R> DataStream<OUT> iterateSync(CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun,
 												 FeedbackBuilder feedbackBuilder,
 												 TypeInformation<R> feedbackType) throws Exception {
 		// add watermark filler
