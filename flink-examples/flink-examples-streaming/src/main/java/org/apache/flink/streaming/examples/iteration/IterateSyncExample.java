@@ -7,9 +7,12 @@ import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
+import org.apache.flink.streaming.api.functions.windowing.CoWindowTerminateFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
+import org.apache.flink.types.Either;
+import org.apache.flink.util.Collector;
 
 import java.util.*;
 
@@ -29,12 +32,65 @@ public class IterateSyncExample {
 		inputStream
 			.keyBy(0)
 			.timeWindow(Time.milliseconds(1))
-			.iterateSync(new WindowLoopFunction<Tuple2<Long,List<Long>>, TimeWindow, Tuple2<Long,Long>, Tuple, Tuple2<Long,List<Long>>>() {
-				public Tuple2<KeyedStream<Tuple2<Long,Long>, Tuple>, DataStream<Tuple2<Long, List<Long>>>> loop(IterativeWindowStream in) {
-					ReduceFunction<>
-					in.reduce();
+			.iterateSync(new CoWindowTerminateFunction<Tuple2<Long, List<Long>>, Tuple2<Long, Double>, Tuple2<Long, List<Long>>, Tuple2<Long, Double>, Tuple, TimeWindow>() {
+				Map<List<Long>,Map<Long, List<Long>>> neighboursPerContext = new HashMap<>();
+				Map<List<Long>,Map<Long,Double>> pageRanksPerContext = new HashMap<>();
+
+				public List<Long> getNeighbours(List<Long> timeContext, Long pageID) {
+					return neighboursPerContext.get(timeContext).get(pageID);
 				}
-			});
+
+				@Override
+				// TODO think about putting apply1 before apply2?
+				public void apply1(Tuple key, TimeWindow win, Iterable<Tuple2<Long, List<Long>>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long, List<Long>>>> collector) {
+					Map<Long, List<Long>> neighbours = new HashMap<>();
+					neighboursPerContext.put(win.getTimeContext(), neighbours);
+
+					Map<Long,Double> pageRanks = new HashMap<>();
+					pageRanksPerContext.put(win.getTimeContext(), pageRanks);
+
+					for(Tuple2<Long,List<Long>> entry : iterable) {
+						// save neighbours to local state
+						neighbours.put(entry.f0, entry.f1);
+
+						// save page rank to local state
+						pageRanks.put(entry.f0, 1.0);
+
+						// send rank into feedback loop
+						collector.collect(new Either.Left(new Tuple2<>(entry.f0, 1.0)));
+					}
+				}
+
+				// TUPLE key??
+				@Override
+				public void apply2(Tuple key, TimeWindow win, Iterable<Tuple2<Long, Double>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long, List<Long>>>> collector) {
+					for(Tuple2<Long,Double> entry : iterable) {
+						List<Long> neighbourIDs = getNeighbours(win.getTimeContext(),entry.f0);
+						Double currentRank = entry.f1;
+						Double rankToDistribute = currentRank / (double) neighbourIDs.size();
+
+						for(Long neighbourID : neighbourIDs) {
+							collector.collect(new Either.Left(new Tuple2<>(neighbourID, rankToDistribute)));
+						}
+					}
+				}
+
+				@Override
+				public boolean terminate(int i) {
+					if (i < 20) return true;
+					return false;
+				}
+
+				@Override
+				public void onTermination(int i, Collector<Either<Tuple2<Long, Double>, Tuple2<Long, List<Long>>>> out) {
+					// use getNeighbours()
+				}
+			}, new FeedbackBuilder() {
+				@Override
+				public KeyedStream feedback(DataStream input) {
+					return input.keyBy(0).timeWindow(Time.milliseconds(1)).sum(0).keyBy(0);
+				}
+			}, new Tuple2<Long, Double>().getClass());
 	}
 
 	protected void run() throws Exception {
