@@ -84,7 +84,7 @@ public class IterateExample {
 				@Override
 				public Tuple2<DataStream<Tuple5<Integer, Integer, Integer, Integer, Integer>>,
 					DataStream<Tuple2<Tuple2<Integer, Integer>, Integer>>>
-				loop(DataStream<Tuple5<Integer, Integer, Integer, Integer, Integer>> it) throws Exception {
+				loop(DataStream<Tuple5<Integer, Integer, Integer, Integer, Integer>> it) {
 					// apply the step function to get the next Fibonacci number
 					// increment the counter and split the output with the output selector
 					SplitStream<Tuple5<Integer, Integer, Integer, Integer, Integer>> step = it.map(new Step())
