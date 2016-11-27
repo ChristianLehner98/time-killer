@@ -10,7 +10,7 @@ import org.apache.flink.util.Collector;
 import java.io.Serializable;
 
 @Public
-public interface CoWindowTerminateFunction<IN,F_IN,OUT,F_OUT,KEY,W_IN extends Window> extends TerminationFunction, Serializable {
+public interface CoWindowTerminateFunction<IN,F_IN,OUT,F_OUT,KEY,W_IN extends Window> extends TerminationFunction<Either<F_OUT,OUT>>, Serializable {
 	void apply1(KEY key, W_IN window, Iterable<IN> input, Collector<Either<F_OUT,OUT>> out) throws Exception;
 
 	// TODO add i?
