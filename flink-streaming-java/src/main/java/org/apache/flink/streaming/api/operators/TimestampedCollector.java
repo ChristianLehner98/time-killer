@@ -22,6 +22,8 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.Collector;
 
+import java.util.List;
+
 /**
  * Wrapper around an {@link Output} for user functions that expect a {@link Collector}.
  * Before giving the {@link TimestampedCollector} to a user function you must set
@@ -59,8 +61,9 @@ public class TimestampedCollector<T> implements Collector<T> {
 		}
 	}
 
-	public void setAbsoluteTimestamp(long timestamp) {
+	public void setAbsoluteTimestamp(List<Long> timeContext, long timestamp) {
 		reuse.setTimestamp(timestamp);
+		reuse.setContext(timeContext);
 	}
 
 	@Override

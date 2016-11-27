@@ -172,6 +172,10 @@ public final class StreamRecord<T> extends StreamElement {
 		this.hasTimestamp = true;
 	}
 
+	public void setContext(List<Long> context) {
+		this.context = context;
+	}
+
 	public void addNestedTimestamp(long timestamp) {
 		if(!hasTimestamp) {
 			setTimestamp(timestamp);
