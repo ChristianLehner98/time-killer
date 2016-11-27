@@ -32,65 +32,7 @@ public class IterateSyncExample {
 		inputStream
 			.keyBy(0)
 			.timeWindow(Time.milliseconds(1))
-			.iterateSync(new CoWindowTerminateFunction<Tuple2<Long, List<Long>>, Tuple2<Long, Double>, Tuple2<Long,Double>, Tuple2<Long, Double>, Tuple, TimeWindow>() {
-				Map<List<Long>,Map<Long, List<Long>>> neighboursPerContext = new HashMap<>();
-				Map<List<Long>,Map<Long,Double>> pageRanksPerContext = new HashMap<>();
-
-				public List<Long> getNeighbours(List<Long> timeContext, Long pageID) {
-					return neighboursPerContext.get(timeContext).get(pageID);
-				}
-
-				@Override
-				// TODO think about putting apply1 before apply2?
-				public void apply1(Tuple key, TimeWindow win, Iterable<Tuple2<Long, List<Long>>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
-					Map<Long, List<Long>> neighbours = new HashMap<>();
-					neighboursPerContext.put(win.getTimeContext(), neighbours);
-
-					Map<Long,Double> pageRanks = new HashMap<>();
-					pageRanksPerContext.put(win.getTimeContext(), pageRanks);
-
-					for(Tuple2<Long,List<Long>> entry : iterable) {
-						// save neighbours to local state
-						neighbours.put(entry.f0, entry.f1);
-
-						// save page rank to local state
-						pageRanks.put(entry.f0, 1.0);
-
-						// send rank into feedback loop
-						collector.collect(new Either.Left(new Tuple2<>(entry.f0, 1.0)));
-					}
-				}
-
-				@Override
-				public void apply2(Tuple key, TimeWindow win, Iterable<Tuple2<Long, Double>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
-					for(Tuple2<Long,Double> entry : iterable) {
-						List<Long> neighbourIDs = getNeighbours(win.getTimeContext(),entry.f0);
-						Double currentRank = entry.f1;
-
-						// update current rank
-						pageRanksPerContext.get(win.getTimeContext()).put(entry.f0, currentRank);
-
-						// generate new ranks for neighbours
-						Double rankToDistribute = currentRank / (double) neighbourIDs.size();
-						for(Long neighbourID : neighbourIDs) {
-							collector.collect(new Either.Left(new Tuple2<>(neighbourID, rankToDistribute)));
-						}
-					}
-				}
-
-				@Override
-				public boolean terminate(long i) {
-					if (i < 20) return true;
-					return false;
-				}
-
-				@Override
-				public void onTermination(List<Long> timeContext, Collector<Either<Tuple2<Long, Double>, Tuple2<Long, Double>>> out) {
-					for(Map.Entry<Long,Double> rank : pageRanksPerContext.get(timeContext).entrySet()) {
-						out.collect(new Either.Right(new Tuple2(rank.getKey(), rank.getValue())));
-					}
-				}
-			}, new FeedbackBuilder() {
+			.iterateSync(new MyCoWindowTerminateFunction(), new FeedbackBuilder() {
 				@Override
 				public KeyedStream feedback(DataStream input) {
 					return input.keyBy(0).timeWindow(Time.milliseconds(1)).sum(0).keyBy(0);
@@ -137,6 +79,66 @@ public class IterateSyncExample {
 				input.add(new Tuple2(entry.getKey(), entry.getValue()));
 			}
 			return input;
+		}
+	}
+
+	private class MyCoWindowTerminateFunction implements CoWindowTerminateFunction<Tuple2<Long, List<Long>>, Tuple2<Long, Double>, Tuple2<Long,Double>, Tuple2<Long, Double>, Tuple, TimeWindow> {
+		Map<List<Long>,Map<Long, List<Long>>> neighboursPerContext = new HashMap<>();
+		Map<List<Long>,Map<Long,Double>> pageRanksPerContext = new HashMap<>();
+
+		public List<Long> getNeighbours(List<Long> timeContext, Long pageID) {
+			return neighboursPerContext.get(timeContext).get(pageID);
+		}
+
+		@Override
+		// TODO think about putting apply1 before apply2?
+		public void apply1(Tuple key, TimeWindow win, Iterable<Tuple2<Long, List<Long>>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
+			Map<Long, List<Long>> neighbours = new HashMap<>();
+			neighboursPerContext.put(win.getTimeContext(), neighbours);
+
+			Map<Long,Double> pageRanks = new HashMap<>();
+			pageRanksPerContext.put(win.getTimeContext(), pageRanks);
+
+			for(Tuple2<Long,List<Long>> entry : iterable) {
+				// save neighbours to local state
+				neighbours.put(entry.f0, entry.f1);
+
+				// save page rank to local state
+				pageRanks.put(entry.f0, 1.0);
+
+				// send rank into feedback loop
+				collector.collect(new Either.Left(new Tuple2<>(entry.f0, 1.0)));
+			}
+		}
+
+		@Override
+		public void apply2(Tuple key, TimeWindow win, Iterable<Tuple2<Long, Double>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
+			for(Tuple2<Long,Double> entry : iterable) {
+				List<Long> neighbourIDs = getNeighbours(win.getTimeContext(),entry.f0);
+				Double currentRank = entry.f1;
+
+				// update current rank
+				pageRanksPerContext.get(win.getTimeContext()).put(entry.f0, currentRank);
+
+				// generate new ranks for neighbours
+				Double rankToDistribute = currentRank / (double) neighbourIDs.size();
+				for(Long neighbourID : neighbourIDs) {
+					collector.collect(new Either.Left(new Tuple2<>(neighbourID, rankToDistribute)));
+				}
+			}
+		}
+
+		@Override
+		public boolean terminate(long i) {
+			if (i < 20) return true;
+			return false;
+		}
+
+		@Override
+		public void onTermination(List<Long> timeContext, Collector<Either<Tuple2<Long, Double>, Tuple2<Long, Double>>> out) {
+			for(Map.Entry<Long,Double> rank : pageRanksPerContext.get(timeContext).entrySet()) {
+				out.collect(new Either.Right(new Tuple2(rank.getKey(), rank.getValue())));
+			}
 		}
 	}
 }
