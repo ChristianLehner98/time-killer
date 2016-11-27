@@ -35,6 +35,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 
 	private StreamInputProgressHandler progressHandler;
 	private Map<List<Long>,Long> iterationIndices = new HashMap<>();
+	TimestampedCollector<Either<R,S>> collector = new TimestampedCollector<>(output);
 
 	public TwoWindowTerminateOperator(WindowOperator winOp1, WindowOperator winOp2, TerminationFunction terminationFunction) {
 		this.winOp1 = winOp1;
@@ -80,13 +81,27 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	}
 
 	public void processElement1(StreamRecord<IN1> element) throws Exception {
-		// TODO include iteration index somehow
-		winOp1.processElement(element);
+		Long i = iterationIndices.get(element.getContext());
+		if(i != null) {
+			iterationIndices.put(element.getContext(), 0L);
+			i = 0L;
+		}
+
+		if(terminationFunction.terminate(i)) {
+			collector.setAbsoluteTimestamp(element.getContext(), element.getTimestamp());
+			terminationFunction.onTermination(element.getContext(), collector);
+		} else {
+			winOp1.processElement(element);
+		}
 	}
 	public void processElement2(StreamRecord<IN2> element) throws Exception {
-		// TODO Only do this if the context still exists??
-		// TODO include iteration index somehow
-		winOp2.processElement(element);
+		Long i = iterationIndices.get(element.getContext());
+		if(terminationFunction.terminate(i) || i == null) {
+			collector.setAbsoluteTimestamp(element.getContext(), element.getTimestamp());
+			terminationFunction.onTermination(element.getContext(), collector);
+		} else {
+			winOp2.processElement(element);
+		}
 	}
 
 	public void processWatermark1(Watermark mark) throws Exception {
@@ -95,31 +110,19 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 		if(next != null) {
 			iterationIndices.put(mark.getContext(), mark.getTimestamp());
 			winOp2.processWatermark(mark);
-
-			if(terminationFunction.terminate()) {
-				terminateIteration(mark);
-			}
 		}
 	}
 	public void processWatermark2(Watermark mark) throws Exception {
 		//watermarks need to be treated together because we're unioning here!
 		Watermark next = progressHandler.getNextWatermark(mark, 1);
 		if(next != null) {
-			if(mark.getTimestamp() == Long.MAX_VALUE || terminationFunction.terminate()) {
-				terminateIteration(mark);
+			Long i = iterationIndices.get(mark.getContext());
+			if(mark.getTimestamp() == Long.MAX_VALUE || (i != null && terminationFunction.terminate(i))) {
+				iterationIndices.remove(mark.getContext());
 			} else {
-				// TODO only to Feedback?
 				winOp2.processWatermark(mark);
 				iterationIndices.put(mark.getContext(), mark.getTimestamp());
 			}
-		}
-	}
-
-	private void terminateIteration(Watermark mark) {
-		if(iterationIndices.get(mark.getContext()) != null) {
-			terminationFunction.onTermination();
-			iterationIndices.remove(mark.getContext());
-			// TODO send watermark to output!
 		}
 	}
 
