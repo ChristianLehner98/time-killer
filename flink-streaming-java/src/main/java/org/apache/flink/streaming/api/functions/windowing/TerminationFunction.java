@@ -5,9 +5,10 @@ import org.apache.flink.api.common.functions.Function;
 import org.apache.flink.util.Collector;
 
 import java.io.Serializable;
+import java.util.List;
 
 @Public
 public interface TerminationFunction<OUT> extends Function, Serializable {
-	boolean terminate(int i);
-	void onTermination(int i, Collector<OUT> out) throws Exception;
+	boolean terminate(long i);
+	void onTermination(List<Long> timeContext, Collector<OUT> out) throws Exception;
 }
