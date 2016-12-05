@@ -35,13 +35,7 @@ import org.mockito.stubbing.Answer;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
@@ -111,7 +105,8 @@ public class HeapInternalTimerServiceTest {
 		for (int i = 0; i < totalNoOfTimers; i++) {
 
 			// create the timer to be registered
-			InternalTimer<Integer, String> timer = new InternalTimer<>(10 + i, i, "hello_world_"+ i);
+			// TODO is the dummy timeContext ok here?
+			InternalTimer<Integer, String> timer = new InternalTimer<>(new LinkedList<Long>(), 10 + i, i, "hello_world_"+ i);
 			int keyGroupIdx =  KeyGroupRangeAssignment.assignToKeyGroup(timer.getKey(), totalNoOfKeyGroups);
 
 			// add it in the adequate expected set of timers per keygroup
@@ -124,7 +119,7 @@ public class HeapInternalTimerServiceTest {
 
 			// register the timer as both processing and event time one
 			keyContext.setCurrentKey(timer.getKey());
-			timerService.registerEventTimeTimer(timer.getNamespace(), timer.getTimestamp());
+			timerService.registerEventTimeTimer(timer.getNamespace(), timer.getTimeContext(), timer.getTimestamp());
 			timerService.registerProcessingTimeTimer(timer.getNamespace(), timer.getTimestamp());
 		}
 
@@ -328,11 +323,11 @@ public class HeapInternalTimerServiceTest {
 		HeapInternalTimerService<Integer, String> timerService =
 				createTimerService(mockTriggerable, keyContext, processingTimeService, testKeyGroupRange, maxParallelism);
 
-		timerService.advanceWatermark(17);
-		assertEquals(17, timerService.currentWatermark());
+		timerService.advanceWatermark(new LinkedList<Long>(), 17);
+		assertEquals(17, timerService.currentWatermark(new LinkedList<Long>()));
 
-		timerService.advanceWatermark(42);
-		assertEquals(42, timerService.currentWatermark());
+		timerService.advanceWatermark(new LinkedList<Long>(), 42);
+		assertEquals(42, timerService.currentWatermark(new LinkedList<Long>()));
 	}
 
 	/**
@@ -357,25 +352,25 @@ public class HeapInternalTimerServiceTest {
 
 		keyContext.setCurrentKey(key1);
 
-		timerService.registerEventTimeTimer("ciao", 10);
-		timerService.registerEventTimeTimer("hello", 10);
+		timerService.registerEventTimeTimer("ciao", new LinkedList<Long>(), 10);
+		timerService.registerEventTimeTimer("hello", new LinkedList<Long>(), 10);
 
 		keyContext.setCurrentKey(key2);
 
-		timerService.registerEventTimeTimer("ciao", 10);
-		timerService.registerEventTimeTimer("hello", 10);
+		timerService.registerEventTimeTimer("ciao", new LinkedList<Long>(), 10);
+		timerService.registerEventTimeTimer("hello", new LinkedList<Long>(), 10);
 
 		assertEquals(4, timerService.numEventTimeTimers());
 		assertEquals(2, timerService.numEventTimeTimers("hello"));
 		assertEquals(2, timerService.numEventTimeTimers("ciao"));
 
-		timerService.advanceWatermark(10);
+		timerService.advanceWatermark(new LinkedList<Long>(), 10);
 
 		verify(mockTriggerable, times(4)).onEventTime(anyInternalTimer());
-		verify(mockTriggerable, times(1)).onEventTime(eq(new InternalTimer<>(10, key1, "ciao")));
-		verify(mockTriggerable, times(1)).onEventTime(eq(new InternalTimer<>(10, key1, "hello")));
-		verify(mockTriggerable, times(1)).onEventTime(eq(new InternalTimer<>(10, key2, "ciao")));
-		verify(mockTriggerable, times(1)).onEventTime(eq(new InternalTimer<>(10, key2, "hello")));
+		verify(mockTriggerable, times(1)).onEventTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key1, "ciao")));
+		verify(mockTriggerable, times(1)).onEventTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key1, "hello")));
+		verify(mockTriggerable, times(1)).onEventTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key2, "ciao")));
+		verify(mockTriggerable, times(1)).onEventTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key2, "hello")));
 
 		assertEquals(0, timerService.numEventTimeTimers());
 	}
@@ -417,10 +412,10 @@ public class HeapInternalTimerServiceTest {
 		processingTimeService.setCurrentTime(10);
 
 		verify(mockTriggerable, times(4)).onProcessingTime(anyInternalTimer());
-		verify(mockTriggerable, times(1)).onProcessingTime(eq(new InternalTimer<>(10, key1, "ciao")));
-		verify(mockTriggerable, times(1)).onProcessingTime(eq(new InternalTimer<>(10, key1, "hello")));
-		verify(mockTriggerable, times(1)).onProcessingTime(eq(new InternalTimer<>(10, key2, "ciao")));
-		verify(mockTriggerable, times(1)).onProcessingTime(eq(new InternalTimer<>(10, key2, "hello")));
+		verify(mockTriggerable, times(1)).onProcessingTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key1, "ciao")));
+		verify(mockTriggerable, times(1)).onProcessingTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key1, "hello")));
+		verify(mockTriggerable, times(1)).onProcessingTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key2, "ciao")));
+		verify(mockTriggerable, times(1)).onProcessingTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key2, "hello")));
 
 		assertEquals(0, timerService.numProcessingTimeTimers());
 	}
@@ -449,35 +444,35 @@ public class HeapInternalTimerServiceTest {
 
 		keyContext.setCurrentKey(key1);
 
-		timerService.registerEventTimeTimer("ciao", 10);
-		timerService.registerEventTimeTimer("hello", 10);
+		timerService.registerEventTimeTimer("ciao", new LinkedList<Long>(), 10);
+		timerService.registerEventTimeTimer("hello", new LinkedList<Long>(), 10);
 
 		keyContext.setCurrentKey(key2);
 
-		timerService.registerEventTimeTimer("ciao", 10);
-		timerService.registerEventTimeTimer("hello", 10);
+		timerService.registerEventTimeTimer("ciao", new LinkedList<Long>(), 10);
+		timerService.registerEventTimeTimer("hello", new LinkedList<Long>(), 10);
 
 		assertEquals(4, timerService.numEventTimeTimers());
 		assertEquals(2, timerService.numEventTimeTimers("hello"));
 		assertEquals(2, timerService.numEventTimeTimers("ciao"));
 
 		keyContext.setCurrentKey(key1);
-		timerService.deleteEventTimeTimer("hello", 10);
+		timerService.deleteEventTimeTimer("hello", new LinkedList<Long>(), 10);
 
 		keyContext.setCurrentKey(key2);
-		timerService.deleteEventTimeTimer("ciao", 10);
+		timerService.deleteEventTimeTimer("ciao", new LinkedList<Long>(), 10);
 
 		assertEquals(2, timerService.numEventTimeTimers());
 		assertEquals(1, timerService.numEventTimeTimers("hello"));
 		assertEquals(1, timerService.numEventTimeTimers("ciao"));
 
-		timerService.advanceWatermark(10);
+		timerService.advanceWatermark(new LinkedList<Long>(), 10);
 
 		verify(mockTriggerable, times(2)).onEventTime(anyInternalTimer());
-		verify(mockTriggerable, times(1)).onEventTime(eq(new InternalTimer<>(10, key1, "ciao")));
-		verify(mockTriggerable, times(0)).onEventTime(eq(new InternalTimer<>(10, key1, "hello")));
-		verify(mockTriggerable, times(0)).onEventTime(eq(new InternalTimer<>(10, key2, "ciao")));
-		verify(mockTriggerable, times(1)).onEventTime(eq(new InternalTimer<>(10, key2, "hello")));
+		verify(mockTriggerable, times(1)).onEventTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key1, "ciao")));
+		verify(mockTriggerable, times(0)).onEventTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key1, "hello")));
+		verify(mockTriggerable, times(0)).onEventTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key2, "ciao")));
+		verify(mockTriggerable, times(1)).onEventTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key2, "hello")));
 
 		assertEquals(0, timerService.numEventTimeTimers());
 	}
@@ -531,10 +526,10 @@ public class HeapInternalTimerServiceTest {
 		processingTimeService.setCurrentTime(10);
 
 		verify(mockTriggerable, times(2)).onProcessingTime(anyInternalTimer());
-		verify(mockTriggerable, times(1)).onProcessingTime(eq(new InternalTimer<>(10, key1, "ciao")));
-		verify(mockTriggerable, times(0)).onProcessingTime(eq(new InternalTimer<>(10, key1, "hello")));
-		verify(mockTriggerable, times(0)).onProcessingTime(eq(new InternalTimer<>(10, key2, "ciao")));
-		verify(mockTriggerable, times(1)).onProcessingTime(eq(new InternalTimer<>(10, key2, "hello")));
+		verify(mockTriggerable, times(1)).onProcessingTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key1, "ciao")));
+		verify(mockTriggerable, times(0)).onProcessingTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key1, "hello")));
+		verify(mockTriggerable, times(0)).onProcessingTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key2, "ciao")));
+		verify(mockTriggerable, times(1)).onProcessingTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key2, "hello")));
 
 		assertEquals(0, timerService.numEventTimeTimers());
 	}
@@ -559,11 +554,11 @@ public class HeapInternalTimerServiceTest {
 		keyContext.setCurrentKey(key1);
 
 		timerService.registerProcessingTimeTimer("ciao", 10);
-		timerService.registerEventTimeTimer("hello", 10);
+		timerService.registerEventTimeTimer("hello", new LinkedList<Long>(), 10);
 
 		keyContext.setCurrentKey(key2);
 
-		timerService.registerEventTimeTimer("ciao", 10);
+		timerService.registerEventTimeTimer("ciao", new LinkedList<Long>(), 10);
 		timerService.registerProcessingTimeTimer("hello", 10);
 
 		assertEquals(2, timerService.numProcessingTimeTimers());
@@ -596,14 +591,14 @@ public class HeapInternalTimerServiceTest {
 				maxParallelism);
 
 		processingTimeService.setCurrentTime(10);
-		timerService.advanceWatermark(10);
+		timerService.advanceWatermark(new LinkedList<Long>(), 10);
 
 		verify(mockTriggerable2, times(2)).onProcessingTime(anyInternalTimer());
-		verify(mockTriggerable2, times(1)).onProcessingTime(eq(new InternalTimer<>(10, key1, "ciao")));
-		verify(mockTriggerable2, times(1)).onProcessingTime(eq(new InternalTimer<>(10, key2, "hello")));
+		verify(mockTriggerable2, times(1)).onProcessingTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key1, "ciao")));
+		verify(mockTriggerable2, times(1)).onProcessingTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key2, "hello")));
 		verify(mockTriggerable2, times(2)).onEventTime(anyInternalTimer());
-		verify(mockTriggerable2, times(1)).onEventTime(eq(new InternalTimer<>(10, key1, "hello")));
-		verify(mockTriggerable2, times(1)).onEventTime(eq(new InternalTimer<>(10, key2, "ciao")));
+		verify(mockTriggerable2, times(1)).onEventTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key1, "hello")));
+		verify(mockTriggerable2, times(1)).onEventTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key2, "ciao")));
 
 		assertEquals(0, timerService.numEventTimeTimers());
 	}
@@ -636,11 +631,11 @@ public class HeapInternalTimerServiceTest {
 		keyContext.setCurrentKey(key1);
 
 		timerService.registerProcessingTimeTimer("ciao", 10);
-		timerService.registerEventTimeTimer("hello", 10);
+		timerService.registerEventTimeTimer("hello", new LinkedList<Long>(), 10);
 
 		keyContext.setCurrentKey(key2);
 
-		timerService.registerEventTimeTimer("ciao", 10);
+		timerService.registerEventTimeTimer("ciao", new LinkedList<Long>(), 10);
 		timerService.registerProcessingTimeTimer("hello", 10);
 
 		assertEquals(2, timerService.numProcessingTimeTimers());
@@ -698,26 +693,26 @@ public class HeapInternalTimerServiceTest {
 
 
 		processingTimeService1.setCurrentTime(10);
-		timerService1.advanceWatermark(10);
+		timerService1.advanceWatermark(new LinkedList<Long>(), 10);
 
 		verify(mockTriggerable1, times(1)).onProcessingTime(anyInternalTimer());
-		verify(mockTriggerable1, times(1)).onProcessingTime(eq(new InternalTimer<>(10, key1, "ciao")));
-		verify(mockTriggerable1, never()).onProcessingTime(eq(new InternalTimer<>(10, key2, "hello")));
+		verify(mockTriggerable1, times(1)).onProcessingTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key1, "ciao")));
+		verify(mockTriggerable1, never()).onProcessingTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key2, "hello")));
 		verify(mockTriggerable1, times(1)).onEventTime(anyInternalTimer());
-		verify(mockTriggerable1, times(1)).onEventTime(eq(new InternalTimer<>(10, key1, "hello")));
-		verify(mockTriggerable1, never()).onEventTime(eq(new InternalTimer<>(10, key2, "ciao")));
+		verify(mockTriggerable1, times(1)).onEventTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key1, "hello")));
+		verify(mockTriggerable1, never()).onEventTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key2, "ciao")));
 
 		assertEquals(0, timerService1.numEventTimeTimers());
 
 		processingTimeService2.setCurrentTime(10);
-		timerService2.advanceWatermark(10);
+		timerService2.advanceWatermark(new LinkedList<Long>(), 10);
 
 		verify(mockTriggerable2, times(1)).onProcessingTime(anyInternalTimer());
-		verify(mockTriggerable2, never()).onProcessingTime(eq(new InternalTimer<>(10, key1, "ciao")));
-		verify(mockTriggerable2, times(1)).onProcessingTime(eq(new InternalTimer<>(10, key2, "hello")));
+		verify(mockTriggerable2, never()).onProcessingTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key1, "ciao")));
+		verify(mockTriggerable2, times(1)).onProcessingTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key2, "hello")));
 		verify(mockTriggerable2, times(1)).onEventTime(anyInternalTimer());
-		verify(mockTriggerable2, never()).onEventTime(eq(new InternalTimer<>(10, key1, "hello")));
-		verify(mockTriggerable2, times(1)).onEventTime(eq(new InternalTimer<>(10, key2, "ciao")));
+		verify(mockTriggerable2, never()).onEventTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key1, "hello")));
+		verify(mockTriggerable2, times(1)).onEventTime(eq(new InternalTimer<>(new LinkedList<Long>(), 10, key2, "ciao")));
 
 		assertEquals(0, timerService2.numEventTimeTimers());
 	}

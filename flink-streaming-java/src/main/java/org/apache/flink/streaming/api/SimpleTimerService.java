@@ -21,6 +21,8 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.state.VoidNamespace;
 import org.apache.flink.streaming.api.operators.InternalTimerService;
 
+import java.util.List;
+
 /**
  * Implementation of {@link TimerService} that uses a {@link InternalTimerService}.
  */
@@ -39,8 +41,8 @@ public class SimpleTimerService implements TimerService {
 	}
 
 	@Override
-	public long currentWatermark() {
-		return internalTimerService.currentWatermark();
+	public long currentWatermark(List<Long> timeContext) {
+		return internalTimerService.currentWatermark(timeContext);
 	}
 
 	@Override
@@ -49,7 +51,7 @@ public class SimpleTimerService implements TimerService {
 	}
 
 	@Override
-	public void registerEventTimeTimer(long time) {
-		internalTimerService.registerEventTimeTimer(VoidNamespace.INSTANCE, time);
+	public void registerEventTimeTimer(List<Long> timeContext, long time) {
+		internalTimerService.registerEventTimeTimer(VoidNamespace.INSTANCE, timeContext, time);
 	}
 }

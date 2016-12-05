@@ -36,6 +36,7 @@ import org.apache.flink.util.Collector;
 import org.apache.flink.util.TestLogger;
 import org.junit.Test;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static org.junit.Assert.assertEquals;
@@ -350,17 +351,18 @@ public class TimelyCoFlatMapTest extends TestLogger {
 		private static final long serialVersionUID = 1L;
 
 		@Override
-		public void flatMap1(Integer value, TimerService timerService, Collector<String> out) throws Exception {
-			out.collect(value + "WM:" + timerService.currentWatermark());
+		public void flatMap1(Integer value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
+			out.collect(value + "WM:" + timerService.currentWatermark(timeContext));
 		}
 
 		@Override
-		public void flatMap2(String value, TimerService timerService, Collector<String> out) throws Exception {
-			out.collect(value + "WM:" + timerService.currentWatermark());
+		public void flatMap2(String value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
+			out.collect(value + "WM:" + timerService.currentWatermark(timeContext));
 		}
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				TimeDomain timeDomain,
 				TimerService timerService,
@@ -373,19 +375,20 @@ public class TimelyCoFlatMapTest extends TestLogger {
 		private static final long serialVersionUID = 1L;
 
 		@Override
-		public void flatMap1(Integer value, TimerService timerService, Collector<String> out) throws Exception {
+		public void flatMap1(Integer value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT1:" + value);
-			timerService.registerEventTimeTimer(5);
+			timerService.registerEventTimeTimer(timeContext, 5);
 		}
 
 		@Override
-		public void flatMap2(String value, TimerService timerService, Collector<String> out) throws Exception {
+		public void flatMap2(String value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT2:" + value);
-			timerService.registerEventTimeTimer(6);
+			timerService.registerEventTimeTimer(timeContext, 6);
 		}
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				TimeDomain timeDomain,
 				TimerService timerService,
@@ -404,22 +407,23 @@ public class TimelyCoFlatMapTest extends TestLogger {
 				new ValueStateDescriptor<>("seen-element", StringSerializer.INSTANCE, null);
 
 		@Override
-		public void flatMap1(Integer value, TimerService timerService, Collector<String> out) throws Exception {
+		public void flatMap1(Integer value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT1:" + value);
 			getRuntimeContext().getState(state).update("" + value);
-			timerService.registerEventTimeTimer(timerService.currentWatermark() + 5);
+			timerService.registerEventTimeTimer(timeContext, timerService.currentWatermark(timeContext) + 5);
 		}
 
 		@Override
-		public void flatMap2(String value, TimerService timerService, Collector<String> out) throws Exception {
+		public void flatMap2(String value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT2:" + value);
 			getRuntimeContext().getState(state).update(value);
-			timerService.registerEventTimeTimer(timerService.currentWatermark() + 5);
+			timerService.registerEventTimeTimer(timeContext, timerService.currentWatermark(timeContext) + 5);
 		}
 
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				TimeDomain timeDomain,
 				TimerService timerService,
@@ -434,19 +438,20 @@ public class TimelyCoFlatMapTest extends TestLogger {
 		private static final long serialVersionUID = 1L;
 
 		@Override
-		public void flatMap1(Integer value, TimerService timerService, Collector<String> out) throws Exception {
+		public void flatMap1(Integer value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT1:" + value);
 			timerService.registerProcessingTimeTimer(5);
 		}
 
 		@Override
-		public void flatMap2(String value, TimerService timerService, Collector<String> out) throws Exception {
+		public void flatMap2(String value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT2:" + value);
 			timerService.registerProcessingTimeTimer(6);
 		}
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				TimeDomain timeDomain,
 				TimerService timerService,
@@ -462,17 +467,18 @@ public class TimelyCoFlatMapTest extends TestLogger {
 		private static final long serialVersionUID = 1L;
 
 		@Override
-		public void flatMap1(Integer value, TimerService timerService, Collector<String> out) throws Exception {
+		public void flatMap1(Integer value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect(value + "PT:" + timerService.currentProcessingTime());
 		}
 
 		@Override
-		public void flatMap2(String value, TimerService timerService, Collector<String> out) throws Exception {
+		public void flatMap2(String value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect(value + "PT:" + timerService.currentProcessingTime());
 		}
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				TimeDomain timeDomain,
 				TimerService timerService,
@@ -488,14 +494,14 @@ public class TimelyCoFlatMapTest extends TestLogger {
 				new ValueStateDescriptor<>("seen-element", StringSerializer.INSTANCE, null);
 
 		@Override
-		public void flatMap1(Integer value, TimerService timerService, Collector<String> out) throws Exception {
+		public void flatMap1(Integer value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT1:" + value);
 			getRuntimeContext().getState(state).update("" + value);
 			timerService.registerProcessingTimeTimer(timerService.currentProcessingTime() + 5);
 		}
 
 		@Override
-		public void flatMap2(String value, TimerService timerService, Collector<String> out) throws Exception {
+		public void flatMap2(String value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT2:" + value);
 			getRuntimeContext().getState(state).update(value);
 			timerService.registerProcessingTimeTimer(timerService.currentProcessingTime() + 5);
@@ -504,6 +510,7 @@ public class TimelyCoFlatMapTest extends TestLogger {
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				TimeDomain timeDomain,
 				TimerService timerService,
@@ -518,18 +525,19 @@ public class TimelyCoFlatMapTest extends TestLogger {
 		private static final long serialVersionUID = 1L;
 
 		@Override
-		public void flatMap1(Integer value, TimerService timerService, Collector<String> out) throws Exception {
-			timerService.registerEventTimeTimer(6);
+		public void flatMap1(Integer value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
+			timerService.registerEventTimeTimer(timeContext, 6);
 		}
 
 		@Override
-		public void flatMap2(String value, TimerService timerService, Collector<String> out) throws Exception {
+		public void flatMap2(String value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
 			timerService.registerProcessingTimeTimer(5);
 		}
 
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				TimeDomain timeDomain,
 				TimerService timerService,

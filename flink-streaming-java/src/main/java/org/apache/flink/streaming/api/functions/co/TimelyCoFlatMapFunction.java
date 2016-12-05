@@ -25,6 +25,7 @@ import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.util.Collector;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * A {@code TimelyCoFlatMapFunction} implements a flat-map transformation over two
@@ -61,7 +62,7 @@ public interface TimelyCoFlatMapFunction<IN1, IN2, OUT> extends Function, Serial
 	 * @throws Exception The function may throw exceptions which cause the streaming program
 	 *                   to fail and go into recovery.
 	 */
-	void flatMap1(IN1 value, TimerService timerService, Collector<OUT> out) throws Exception;
+	void flatMap1(IN1 value, TimerService timerService, List<Long> timeContext, Collector<OUT> out) throws Exception;
 
 	/**
 	 * This method is called for each element in the second of the connected streams.
@@ -73,7 +74,7 @@ public interface TimelyCoFlatMapFunction<IN1, IN2, OUT> extends Function, Serial
 	 * @throws Exception The function may throw exceptions which cause the streaming program
 	 *                   to fail and go into recovery.
 	 */
-	void flatMap2(IN2 value, TimerService timerService, Collector<OUT> out) throws Exception;
+	void flatMap2(IN2 value, TimerService timerService, List<Long> timeContext, Collector<OUT> out) throws Exception;
 
 	/**
 	 * Called when a timer set using {@link TimerService} fires.
@@ -87,6 +88,6 @@ public interface TimelyCoFlatMapFunction<IN1, IN2, OUT> extends Function, Serial
 	 * @throws Exception This method may throw exceptions. Throwing an exception will cause the operation
 	 *                   to fail and may trigger recovery.
 	 */
-	void onTimer(long timestamp, TimeDomain timeDomain, TimerService timerService, Collector<OUT> out) throws Exception ;
+	void onTimer(List<Long> timeContext, long timestamp, TimeDomain timeDomain, TimerService timerService, Collector<OUT> out) throws Exception ;
 
 }

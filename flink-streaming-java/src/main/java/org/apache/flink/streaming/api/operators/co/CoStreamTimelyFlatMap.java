@@ -68,26 +68,26 @@ public class CoStreamTimelyFlatMap<K, IN1, IN2, OUT>
 	@Override
 	public void processElement1(StreamRecord<IN1> element) throws Exception {
 		collector.setTimestamp(element);
-		userFunction.flatMap1(element.getValue(), timerService, collector);
+		userFunction.flatMap1(element.getValue(), timerService, element.getContext(), collector);
 
 	}
 
 	@Override
 	public void processElement2(StreamRecord<IN2> element) throws Exception {
 		collector.setTimestamp(element);
-		userFunction.flatMap2(element.getValue(), timerService, collector);
+		userFunction.flatMap2(element.getValue(), timerService, element.getContext(), collector);
 	}
 
 	@Override
 	public void onEventTime(InternalTimer<K, VoidNamespace> timer) throws Exception {
-		collector.setAbsoluteTimestamp(timer.getTimestamp());
-		userFunction.onTimer(timer.getTimestamp(), TimeDomain.EVENT_TIME, timerService, collector);
+		collector.setAbsoluteTimestamp(timer.getTimeContext(), timer.getTimestamp());
+		userFunction.onTimer(timer.getTimeContext(), timer.getTimestamp(), TimeDomain.EVENT_TIME, timerService, collector);
 	}
 
 	@Override
 	public void onProcessingTime(InternalTimer<K, VoidNamespace> timer) throws Exception {
-		collector.setAbsoluteTimestamp(timer.getTimestamp());
-		userFunction.onTimer(timer.getTimestamp(), TimeDomain.PROCESSING_TIME, timerService, collector);
+		collector.setAbsoluteTimestamp(timer.getTimeContext(), timer.getTimestamp());
+		userFunction.onTimer(timer.getTimeContext(), timer.getTimestamp(), TimeDomain.PROCESSING_TIME, timerService, collector);
 	}
 
 	protected TimestampedCollector<OUT> getCollector() {

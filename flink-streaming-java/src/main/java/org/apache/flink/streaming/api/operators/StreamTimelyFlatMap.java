@@ -61,19 +61,19 @@ public class StreamTimelyFlatMap<K, IN, OUT>
 
 	@Override
 	public void onEventTime(InternalTimer<K, VoidNamespace> timer) throws Exception {
-		collector.setAbsoluteTimestamp(timer.getTimestamp());
+		collector.setAbsoluteTimestamp(timer.getTimeContext(), timer.getTimestamp());
 		userFunction.onTimer(timer.getTimestamp(), TimeDomain.EVENT_TIME, timerService, collector);
 	}
 
 	@Override
 	public void onProcessingTime(InternalTimer<K, VoidNamespace> timer) throws Exception {
-		collector.setAbsoluteTimestamp(timer.getTimestamp());
+		collector.setAbsoluteTimestamp(timer.getTimeContext(), timer.getTimestamp());
 		userFunction.onTimer(timer.getTimestamp(), TimeDomain.PROCESSING_TIME, timerService, collector);
 	}
 
 	@Override
 	public void processElement(StreamRecord<IN> element) throws Exception {
 		collector.setTimestamp(element);
-		userFunction.flatMap(element.getValue(), timerService, collector);
+		userFunction.flatMap(element.getValue(), timerService, element.getContext(), collector);
 	}
 }

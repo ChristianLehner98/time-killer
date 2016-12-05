@@ -25,6 +25,7 @@ import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.util.Collector;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * Base interface for timely flatMap functions. FlatMap functions take elements and transform them,
@@ -59,7 +60,7 @@ public interface TimelyFlatMapFunction<I, O> extends Function, Serializable {
 	 * @throws Exception This method may throw exceptions. Throwing an exception will cause the operation
 	 *                   to fail and may trigger recovery.
 	 */
-	void flatMap(I value, TimerService timerService, Collector<O> out) throws Exception;
+	void flatMap(I value, TimerService timerService, List<Long> timeContext, Collector<O> out) throws Exception;
 
 	/**
 	 * Called when a timer set using {@link TimerService} fires.

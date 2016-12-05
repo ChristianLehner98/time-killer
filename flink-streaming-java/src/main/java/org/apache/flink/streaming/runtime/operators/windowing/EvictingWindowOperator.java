@@ -236,7 +236,7 @@ public class EvictingWindowOperator<K, IN, OUT, W extends Window> extends Window
 			return;
 		}
 
-		TriggerResult triggerResult = context.onEventTime(timer.getTimestamp());
+		TriggerResult triggerResult = context.onEventTime(timer.getTimeContext(), timer.getTimestamp());
 		if (triggerResult.isFire()) {
 			fire(context.window, contents);
 		}
@@ -285,7 +285,7 @@ public class EvictingWindowOperator<K, IN, OUT, W extends Window> extends Window
 	}
 
 	private void fire(W window, Iterable<StreamRecord<IN>> contents) throws Exception {
-		timestampedCollector.setAbsoluteTimestamp(window.maxTimestamp());
+		timestampedCollector.setAbsoluteTimestamp(window.getTimeContext(), window.maxTimestamp());
 
 		// Work around type system restrictions...
 		int toEvict = evictor.evict((Iterable) contents, Iterables.size(contents), context.window);

@@ -75,12 +75,12 @@ public class GlobalWindows extends WindowAssigner<Object, GlobalWindow> {
 		private static final long serialVersionUID = 1L;
 
 		@Override
-		public TriggerResult onElement(Object element, long timestamp, GlobalWindow window, TriggerContext ctx) {
+		public TriggerResult onElement(Object element, List<Long> timeContext, long timestamp, GlobalWindow window, TriggerContext ctx) {
 			return TriggerResult.CONTINUE;
 		}
 
 		@Override
-		public TriggerResult onEventTime(long time, GlobalWindow window, TriggerContext ctx) {
+		public TriggerResult onEventTime(List<Long> timeContext, long time, GlobalWindow window, TriggerContext ctx) {
 			return TriggerResult.CONTINUE;
 		}
 

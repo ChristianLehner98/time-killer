@@ -2417,18 +2417,18 @@ public class WindowOperatorTest extends TestLogger {
 		}
 
 		@Override
-		public TriggerResult onElement(Object element, long timestamp, TimeWindow window, TriggerContext ctx) throws Exception {
-			if (window.maxTimestamp() <= ctx.getCurrentWatermark()) {
+		public TriggerResult onElement(Object element, List<Long> timeContext, long timestamp, TimeWindow window, TriggerContext ctx) throws Exception {
+			if (window.maxTimestamp() <= ctx.getCurrentWatermark(timeContext)) {
 				// if the watermark is already past the window fire immediately
 				return TriggerResult.FIRE;
 			} else {
-				ctx.registerEventTimeTimer(window.maxTimestamp());
+				ctx.registerEventTimeTimer(timeContext, window.maxTimestamp());
 				return TriggerResult.CONTINUE;
 			}
 		}
 
 		@Override
-		public TriggerResult onEventTime(long time, TimeWindow window, TriggerContext ctx) {
+		public TriggerResult onEventTime(List<Long> timeContext, long time, TimeWindow window, TriggerContext ctx) {
 			return time == window.maxTimestamp() || time == window.maxTimestamp() + cleanupTime ?
 				TriggerResult.FIRE_AND_PURGE :
 				TriggerResult.CONTINUE;
@@ -2441,7 +2441,7 @@ public class WindowOperatorTest extends TestLogger {
 
 		@Override
 		public void clear(TimeWindow window, TriggerContext ctx) throws Exception {
-			ctx.deleteEventTimeTimer(window.maxTimestamp());
+			ctx.deleteEventTimeTimer(window.getTimeContext(), window.maxTimestamp());
 		}
 
 		@Override
@@ -2452,7 +2452,7 @@ public class WindowOperatorTest extends TestLogger {
 		@Override
 		public TriggerResult onMerge(TimeWindow window,
 									 OnMergeContext ctx) {
-			ctx.registerEventTimeTimer(window.maxTimestamp());
+			ctx.registerEventTimeTimer(window.getTimeContext(), window.maxTimestamp());
 			return TriggerResult.CONTINUE;
 		}
 

@@ -36,6 +36,7 @@ import org.apache.flink.util.Collector;
 import org.apache.flink.util.TestLogger;
 import org.junit.Test;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static org.junit.Assert.assertEquals;
@@ -298,9 +299,9 @@ public class TimelyFlatMapTest extends TestLogger {
 		}
 
 		@Override
-		public void flatMap(Integer value, TimerService timerService, Collector<String> out) throws Exception {
+		public void flatMap(Integer value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
 			if (timeDomain.equals(TimeDomain.EVENT_TIME)) {
-				out.collect(value + "TIME:" + timerService.currentWatermark());
+				out.collect(value + "TIME:" + timerService.currentWatermark(timeContext));
 			} else {
 				out.collect(value + "TIME:" + timerService.currentProcessingTime());
 			}
@@ -326,10 +327,10 @@ public class TimelyFlatMapTest extends TestLogger {
 		}
 
 		@Override
-		public void flatMap(Integer value, TimerService timerService, Collector<Integer> out) throws Exception {
+		public void flatMap(Integer value, TimerService timerService, List<Long> timeContext, Collector<Integer> out) throws Exception {
 			out.collect(value);
 			if (timeDomain.equals(TimeDomain.EVENT_TIME)) {
-				timerService.registerEventTimeTimer(timerService.currentWatermark() + 5);
+				timerService.registerEventTimeTimer(timeContext, timerService.currentWatermark(timeContext) + 5);
 			} else {
 				timerService.registerProcessingTimeTimer(timerService.currentProcessingTime() + 5);
 			}
@@ -361,11 +362,11 @@ public class TimelyFlatMapTest extends TestLogger {
 		}
 
 		@Override
-		public void flatMap(Integer value, TimerService timerService, Collector<String> out) throws Exception {
+		public void flatMap(Integer value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT:" + value);
 			getRuntimeContext().getState(state).update(value);
 			if (timeDomain.equals(TimeDomain.EVENT_TIME)) {
-				timerService.registerEventTimeTimer(timerService.currentWatermark() + 5);
+				timerService.registerEventTimeTimer(timeContext, timerService.currentWatermark(timeContext) + 5);
 			} else {
 				timerService.registerProcessingTimeTimer(timerService.currentProcessingTime() + 5);
 			}
@@ -387,9 +388,9 @@ public class TimelyFlatMapTest extends TestLogger {
 		private static final long serialVersionUID = 1L;
 
 		@Override
-		public void flatMap(Integer value, TimerService timerService, Collector<String> out) throws Exception {
+		public void flatMap(Integer value, TimerService timerService, List<Long> timeContext, Collector<String> out) throws Exception {
 			timerService.registerProcessingTimeTimer(5);
-			timerService.registerEventTimeTimer(6);
+			timerService.registerEventTimeTimer(timeContext, 6);
 
 		}
 

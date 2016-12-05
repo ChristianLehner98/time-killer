@@ -36,6 +36,8 @@ import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeCallback;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
+import java.util.LinkedList;
+
 import static java.util.Objects.requireNonNull;
 
 @Internal
@@ -228,7 +230,8 @@ public abstract class AbstractAlignedProcessingTimeWindowOperator<KEY, IN, OUT, 
 	}
 	
 	private void computeWindow(long timestamp) throws Exception {
-		out.setAbsoluteTimestamp(timestamp);
+		// TODO this is only for making stuff work and is not correct code :-)
+		out.setAbsoluteTimestamp(new LinkedList<Long>(), timestamp);
 		panes.truncatePanes(numPanesPerWindow);
 		panes.evaluateWindow(out, new TimeWindow(timestamp - windowSize, timestamp), this);
 	}

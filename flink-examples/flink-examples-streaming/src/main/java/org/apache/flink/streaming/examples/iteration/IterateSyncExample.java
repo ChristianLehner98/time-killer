@@ -1,7 +1,9 @@
 package org.apache.flink.streaming.examples.iteration;
 
+import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.examples.java.graph.util.PageRankData;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.*;
@@ -25,7 +27,7 @@ public class IterateSyncExample {
 		example.run();
 	}
 
-	public IterateSyncExample() {
+	public IterateSyncExample() throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
 		DataStream<Tuple2<Long,List<Long>>> inputStream = env.addSource(new PageRankSource(4));
@@ -37,7 +39,7 @@ public class IterateSyncExample {
 				public KeyedStream feedback(DataStream input) {
 					return input.keyBy(0).timeWindow(Time.milliseconds(1)).sum(0).keyBy(0);
 				}
-			}, new Tuple2<Long, Double>().getClass());
+			}, new TupleTypeInfo<Tuple2<Long, Double>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO));
 	}
 
 	protected void run() throws Exception {

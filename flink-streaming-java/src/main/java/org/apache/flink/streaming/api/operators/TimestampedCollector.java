@@ -56,6 +56,7 @@ public class TimestampedCollector<T> implements Collector<T> {
 	public void setTimestamp(StreamRecord<?> timestampBase) {
 		if (timestampBase.hasTimestamp()) {
 			reuse.setTimestamp(timestampBase.getTimestamp());
+			reuse.setContext(timestampBase.getContext());
 		} else {
 			reuse.eraseTimestamp();
 		}
