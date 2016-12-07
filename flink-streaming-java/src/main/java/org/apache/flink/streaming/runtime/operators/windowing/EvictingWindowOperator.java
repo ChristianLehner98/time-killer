@@ -40,6 +40,7 @@ import org.apache.flink.streaming.runtime.operators.windowing.functions.Internal
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
 import java.util.Collection;
+import java.util.List;
 
 import static java.util.Objects.requireNonNull;
 
@@ -344,8 +345,8 @@ public class EvictingWindowOperator<K, IN, OUT, W extends Window> extends Window
 		}
 
 		@Override
-		public long getCurrentWatermark() {
-			return internalTimerService.currentWatermark();
+		public long getCurrentWatermark(List<Long> timeContext) {
+			return internalTimerService.currentWatermark(timeContext);
 		}
 
 		@Override

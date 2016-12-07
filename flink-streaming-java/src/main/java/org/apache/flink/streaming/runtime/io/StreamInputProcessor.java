@@ -208,25 +208,19 @@ public class StreamInputProcessor<IN> {
 		}
 	}
 
-
-	public void setReporter(AccumulatorRegistry.Reporter reporter) {
-		for (RecordDeserializer<?> deserializer : recordDeserializers) {
-			deserializer.setReporter(reporter);
-		}
-	}
-
 	/**
 	 * Sets the metric group for this StreamInputProcessor.
 	 *
 	 * @param metrics metric group
 	 */
 	public void setMetricGroup(TaskIOMetricGroup metrics) {
-		metrics.gauge("currentLowWatermark", new Gauge<Long>() {
+	/*	metrics.gauge("currentLowWatermark", new Gauge<Long>() {
 			@Override
 			public Long getValue() {
 				return lastEmittedWatermark;
 			}
-		});
+		});*/
+	}
 
 	public void cleanup() throws IOException {
 		// clear the buffers first. this part should not ever fail

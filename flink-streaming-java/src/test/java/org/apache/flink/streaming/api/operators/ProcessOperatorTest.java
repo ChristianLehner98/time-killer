@@ -300,7 +300,7 @@ public class ProcessOperatorTest extends TestLogger {
 		@Override
 		public void processElement(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			if (timeDomain.equals(TimeDomain.EVENT_TIME)) {
-				out.collect(value + "TIME:" + ctx.timerService().currentWatermark(timeContext,) + " TS:" + ctx.timestamp());
+				out.collect(value + "TIME:" + ctx.timerService().currentWatermark(timeContext) + " TS:" + ctx.timestamp());
 			} else {
 				out.collect(value + "TIME:" + ctx.timerService().currentProcessingTime() + " TS:" + ctx.timestamp());
 			}
@@ -308,6 +308,7 @@ public class ProcessOperatorTest extends TestLogger {
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<String> out) throws Exception {
@@ -336,6 +337,7 @@ public class ProcessOperatorTest extends TestLogger {
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<Integer> out) throws Exception {
@@ -371,6 +373,7 @@ public class ProcessOperatorTest extends TestLogger {
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<String> out) throws Exception {
@@ -391,6 +394,7 @@ public class ProcessOperatorTest extends TestLogger {
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<String> out) throws Exception {

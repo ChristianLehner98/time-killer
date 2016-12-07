@@ -51,7 +51,7 @@ public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
 
 		// create feedback edge
 		CoFeedbackTransformation<R> coFeedbackTransformation = new CoFeedbackTransformation<>(input.getInput().getParallelism(),
-			feedbackType, waitTime, input.getInput().getTransformation().getScopeLevel());
+			feedbackType, waitTime, input.getInput().getTransformation().getScope());
 
 		// create feedback source
 		KeyedStream<F,K> feedbackSourceStream = feedbackBuilder.feedback(new DataStream<R>(input.getExecutionEnvironment(), coFeedbackTransformation));

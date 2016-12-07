@@ -54,11 +54,11 @@ public class ContinuousEventTimeTrigger<W extends Window> extends Trigger<Object
 	@Override
 	public TriggerResult onElement(Object element, List<Long> timeContext, long timestamp, W window, TriggerContext ctx) throws Exception {
 
-		if (window.maxTimestamp() <= ctx.getCurrentWatermark()) {
+		if (window.maxTimestamp() <= ctx.getCurrentWatermark(timeContext)) {
 			// if the watermark is already past the window fire immediately
 			return TriggerResult.FIRE;
 		} else {
-			ctx.registerEventTimeTimer(window.maxTimestamp());
+			ctx.registerEventTimeTimer(timeContext, window.maxTimestamp());
 		}
 
 		ReducingState<Long> fireTimestamp = ctx.getPartitionedState(stateDesc);

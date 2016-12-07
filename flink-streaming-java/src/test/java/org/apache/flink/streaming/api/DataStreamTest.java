@@ -668,12 +668,14 @@ public class DataStreamTest {
 			public void processElement(
 					Long value,
 					Context ctx,
+					List<Long> timeContext,
 					Collector<Integer> out) throws Exception {
 
 			}
 
 			@Override
 			public void onTimer(
+					List<Long> timeContext,
 					long timestamp,
 					OnTimerContext ctx,
 					Collector<Integer> out) throws Exception {

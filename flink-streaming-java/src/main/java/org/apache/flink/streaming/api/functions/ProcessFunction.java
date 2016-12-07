@@ -24,6 +24,8 @@ import org.apache.flink.streaming.api.TimeDomain;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.util.Collector;
 
+import java.util.List;
+
 /**
  * A function that processes elements of a stream.
  *
@@ -59,7 +61,7 @@ public interface ProcessFunction<I, O> extends Function {
 	 * @throws Exception This method may throw exceptions. Throwing an exception will cause the operation
 	 *                   to fail and may trigger recovery.
 	 */
-	void processElement(I value, Context ctx, Collector<O> out) throws Exception;
+	void processElement(I value, Context ctx, List<Long> timeContext, Collector<O> out) throws Exception;
 
 	/**
 	 * Called when a timer set using {@link TimerService} fires.
@@ -74,11 +76,11 @@ public interface ProcessFunction<I, O> extends Function {
 	 * @throws Exception This method may throw exceptions. Throwing an exception will cause the operation
 	 *                   to fail and may trigger recovery.
 	 */
-	void onTimer(long timestamp, OnTimerContext ctx, Collector<O> out) throws Exception ;
+	void onTimer(List<Long> timeContext, long timestamp, OnTimerContext ctx, Collector<O> out) throws Exception ;
 
 	/**
-	 * Information available in an invocation of {@link #processElement(Object, Context, Collector)}
-	 * or {@link #onTimer(long, OnTimerContext, Collector)}.
+	 * Information available in an invocation of {@link #processElement(Object, Context, List, Collector)}
+	 * or {@link #onTimer(List, long, OnTimerContext, Collector)}.
 	 */
 	interface Context {
 
@@ -97,7 +99,7 @@ public interface ProcessFunction<I, O> extends Function {
 	}
 
 	/**
-	 * Information available in an invocation of {@link #onTimer(long, OnTimerContext, Collector)}.
+	 * Information available in an invocation of {@link #onTimer(List, long, OnTimerContext, Collector)}.
 	 */
 	interface OnTimerContext extends Context {
 		/**

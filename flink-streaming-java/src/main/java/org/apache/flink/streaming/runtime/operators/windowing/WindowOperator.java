@@ -179,7 +179,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	}
 
 	@Override
-	public final void open () throws Exception {
+	public void open () throws Exception {
 		open("window-timers");
 	}
 
@@ -189,7 +189,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 		timestampedCollector = new TimestampedCollector<>(output);
 
 		internalTimerService =
-				getInternalTimerService(timerServiceName, keySerializer, windowSerializer, this);
+				getInternalTimerService(timerServiceName, windowSerializer, this);
 
 		context = new Context(null, null);
 

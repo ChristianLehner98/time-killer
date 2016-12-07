@@ -58,7 +58,6 @@ public class CoFeedbackTransformation<F> extends StreamTransformation<F> {
 
 	private final List<StreamTransformation<F>> feedbackEdges;
 
-	private final int scopeLevel;
 	private final Long waitTime;
 
 	/**
@@ -76,7 +75,6 @@ public class CoFeedbackTransformation<F> extends StreamTransformation<F> {
 		super("CoFeedback", feedbackType, parallelism, scope);
 		this.waitTime = waitTime;
 		this.feedbackEdges = Lists.newArrayList();
-		this.scopeLevel = scopeLevel;
 	}
 
 	/**

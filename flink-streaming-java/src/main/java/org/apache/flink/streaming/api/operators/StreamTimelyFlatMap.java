@@ -54,7 +54,7 @@ public class StreamTimelyFlatMap<K, IN, OUT>
 		collector = new TimestampedCollector<>(output);
 
 		InternalTimerService<VoidNamespace> internalTimerService =
-				getInternalTimerService("user-timers", keySerializer, VoidNamespaceSerializer.INSTANCE, this);
+				getInternalTimerService("user-timers", VoidNamespaceSerializer.INSTANCE, this);
 
 		this.timerService = new SimpleTimerService(internalTimerService);
 	}

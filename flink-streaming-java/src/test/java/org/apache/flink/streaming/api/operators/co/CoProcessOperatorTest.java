@@ -524,7 +524,7 @@ public class CoProcessOperatorTest extends TestLogger {
 
 		@Override
 		public void processElement2(String value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
-			ctx.timerService().registerProcessingTimeTimer(timeContext, 5);
+			ctx.timerService().registerProcessingTimeTimer(5);
 		}
 
 

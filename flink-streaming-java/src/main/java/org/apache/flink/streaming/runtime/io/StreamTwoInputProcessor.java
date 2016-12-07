@@ -262,12 +262,6 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 			}
 		}
 	}
-	
-	public void setReporter(AccumulatorRegistry.Reporter reporter) {
-		for (RecordDeserializer<?> deserializer : recordDeserializers) {
-			deserializer.setReporter(reporter);
-		}
-	}
 
 	/**
 	 * Sets the metric group for this StreamTwoInputProcessor.
