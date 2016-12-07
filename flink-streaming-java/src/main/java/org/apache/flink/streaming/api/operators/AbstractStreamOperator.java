@@ -761,7 +761,7 @@ public abstract class AbstractStreamOperator<OUT>
 	}
 
 	@Override
-	public int getContextLevel() { return 0; }
+	public int getContextLevel() { return container.getScope().getLevel(); }
 
 	// ------------------------------------------------------------------------
 	//  Watermark handling
