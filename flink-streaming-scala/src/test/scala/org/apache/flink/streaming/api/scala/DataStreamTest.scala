@@ -327,8 +327,9 @@ class DataStreamTest extends StreamingMultipleProgramsTestBase {
     val src = env.generateSequence(0, 0)
 
     val processFunction = new ProcessFunction[Long, Int] {
-      override def processElement(value: Long, ctx: Context, out: Collector[Int]): Unit = ???
+      override def processElement(value: Long, ctx: Context, timeContext: java.util.List[java.lang.Long], out: Collector[Int]): Unit = ???
       override def onTimer(
+          timeContext: java.util.List[java.lang.Long],
           timestamp: Long,
           ctx: OnTimerContext,
           out: Collector[Int]): Unit = ???

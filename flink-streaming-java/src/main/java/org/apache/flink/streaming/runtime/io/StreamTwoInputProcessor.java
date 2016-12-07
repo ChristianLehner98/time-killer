@@ -194,7 +194,7 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 							continue;
 						} else if (recordOrWatermark.isLatencyMarker()) {
 							synchronized (lock) {
-								streamOperator.processLatencyMarker2(recordOrWatermark.asLatencyMarker());
+								streamOperator.processLatencyMarker1(recordOrWatermark.asLatencyMarker());
 							}
 							continue;
 						}
