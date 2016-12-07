@@ -19,6 +19,7 @@ package org.apache.flink.streaming.runtime.streamrecord;
 
 import org.apache.flink.annotation.Internal;
 
+import java.io.Serializable;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -28,7 +29,7 @@ import java.util.List;
  * @param <T> The type encapsulated with the stream record.
  */
 @Internal
-public final class StreamRecord<T> extends StreamElement {
+public final class StreamRecord<T> extends StreamElement implements Serializable {
 	
 	/** The actual value held by this record */
 	private T value;
@@ -47,6 +48,7 @@ public final class StreamRecord<T> extends StreamElement {
 	 */
 	public StreamRecord(T value) {
 		this.value = value;
+		this.context = new LinkedList<>();
 	}
 
 	/**

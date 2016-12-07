@@ -2,6 +2,7 @@ package org.apache.flink.streaming.api.datastream;
 
 
 import org.apache.flink.annotation.Public;
+import org.apache.flink.api.java.typeutils.EitherTypeInfo;
 import org.apache.flink.streaming.api.functions.windowing.CoWindowTerminateFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.state.ListStateDescriptor;
@@ -31,6 +32,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.types.Either;
 import org.apache.flink.util.Collector;
 
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -38,11 +40,6 @@ import static org.apache.flink.streaming.api.windowing.assigners.TumblingEventTi
 
 @Public
 public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
-
-	private StreamExecutionEnvironment environment;
-	CoWindowTerminateFunction<IN,F,S,R,K,IN_W> coWinTerm;
-	private CoFeedbackTransformation<R> coFeedbackTransformation;
-
 	private DataStream<S> outStream;
 
 	public IterativeWindowStream(WindowedStream<IN, K,IN_W> input,
@@ -50,15 +47,14 @@ public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
 								 FeedbackBuilder<R> feedbackBuilder,
 								 TypeInformation<R> feedbackType,
 								 long waitTime) throws Exception {
-		environment = input.getExecutionEnvironment();
 		WindowedStream<IN, K, IN_W> windowedStream1 = input;
 
 		// create feedback edge
-		coFeedbackTransformation = new CoFeedbackTransformation(input.getInput().getParallelism(),
-			feedbackType, waitTime);
+		CoFeedbackTransformation<R> coFeedbackTransformation = new CoFeedbackTransformation<>(input.getInput().getParallelism(),
+			feedbackType, waitTime, input.getInput().getTransformation().getScopeLevel());
 
 		// create feedback source
-		KeyedStream<F,K> feedbackSourceStream = feedbackBuilder.feedback(new DataStream<R>(environment, coFeedbackTransformation));
+		KeyedStream<F,K> feedbackSourceStream = feedbackBuilder.feedback(new DataStream<R>(input.getExecutionEnvironment(), coFeedbackTransformation));
 		WindowAssigner assinger = TumblingEventTimeWindows.of(Time.milliseconds(1));
 		WindowedStream<F, K, TimeWindow> windowedStream2 = new WindowedStream<>(feedbackSourceStream, assinger);
 
@@ -71,8 +67,23 @@ public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
 	public Tuple2<DataStream<R>, DataStream<S>> applyCoWinTerm(CoWindowTerminateFunction coWinTerm,
 															   WindowedStream<IN, K, IN_W> windowedStream1,
 															   WindowedStream<F, K, TimeWindow> windowedStream2) throws Exception {
-		TwoInputTransformation<IN,F,Either<R,S>> transformation = getTransformation(coWinTerm,windowedStream1,windowedStream2);
-		DataStream<Either<R,S>> combinedOutputStream = new SingleOutputStreamOperator<Either<R,S>>(environment, transformation);
+
+		TypeInformation<S> outTypeInfo = TypeExtractor.createTypeInfo(CoWindowTerminateFunction.class,
+			coWinTerm.getClass(), 2, windowedStream1.getInputType(), windowedStream2.getInputType());
+		TypeInformation<R> intermediateFeedbackTypeInfo = TypeExtractor.createTypeInfo(CoWindowTerminateFunction.class,
+			coWinTerm.getClass(), 1, windowedStream1.getInputType(), windowedStream2.getInputType());
+
+		TwoInputTransformation<IN,F,Either<R,S>> transformation = getTransformation(
+			coWinTerm,
+			windowedStream1,
+			windowedStream2,
+			outTypeInfo,
+			intermediateFeedbackTypeInfo);
+		// TODO check if this is necessary
+		transformation.setStateKeySelectors(windowedStream1.getInput().getKeySelector(), windowedStream2.getInput().getKeySelector());
+		transformation.setStateKeyType(windowedStream1.getInput().getKeyType());
+
+		DataStream<Either<R,S>> combinedOutputStream = new SingleOutputStreamOperator<Either<R,S>>(windowedStream1.getExecutionEnvironment(), transformation);
 
 		SplitStream<Either<R,S>> splitStream = combinedOutputStream.split(new OutputSelector<Either<R, S>>() {
 			@Override
@@ -91,7 +102,12 @@ public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
 			public S map(Either<R, S> value) throws Exception {
 				return value.right();
 			}
-		});
+		}); //
+
+		feedbackStream.getTransformation().setParallelism(transformation.getParallelism());
+		feedbackStream.getTransformation().setOutputType(intermediateFeedbackTypeInfo);
+		forwardStream.getTransformation().setParallelism(transformation.getParallelism());
+		forwardStream.getTransformation().setOutputType(outTypeInfo);
 
 		return new Tuple2(feedbackStream, forwardStream);
 	}
@@ -101,53 +117,44 @@ public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
 	}
 
 	// TODO does the (required) final do harm?
-	public <R,S> TwoInputTransformation<IN,F,Either<R,S>> getTransformation(
+	public TwoInputTransformation<IN,F,Either<R,S>> getTransformation(
 		final CoWindowTerminateFunction<IN,F,S,R,K,IN_W> coWinTerm,
 		WindowedStream<IN, K, IN_W> windowedStream1,
-		WindowedStream<F, K, TimeWindow> windowedStream2) throws Exception {
+		WindowedStream<F, K, TimeWindow> windowedStream2,
+		TypeInformation<S> outTypeInfo,
+		TypeInformation<R> intermediateFeedbackTypeInfo) throws Exception {
 
-		//TODO: is this correct?!
-		TypeInformation<Either<R,S>> outTypeInfo = TypeExtractor.getBinaryOperatorReturnType(coWinTerm,
-			CoWindowTerminateFunction.class, false, true, windowedStream1.getInputType(),
-			windowedStream2.getInputType(), Utils.getCallLocationName(), true);
+		TypeInformation<Either<R,S>> eitherTypeInfo = new EitherTypeInfo<>(intermediateFeedbackTypeInfo, outTypeInfo);
 
 		Tuple2<String, WindowOperator> op1 =
-			getWindowOperator(windowedStream1, new WindowFunction<IN, Either<R,S>, K, IN_W>() {
-				public void apply(K key, IN_W window, Iterable<IN> input, Collector<Either<R,S>> out) throws Exception{
-					coWinTerm.apply1(key,window,input,out);
-				}
-			}, outTypeInfo);
+			getWindowOperator(windowedStream1, new WrappedWindowFunction1<IN, Either<R,S>, K, IN_W>(coWinTerm), eitherTypeInfo);
 		Tuple2<String, WindowOperator> op2 =
-			getWindowOperator(windowedStream2, new WindowFunction<F, Either<R,S>, K, TimeWindow>() {
-				public void apply(K key, TimeWindow window, Iterable<F> input, Collector<Either<R,S>> out) throws Exception {
-					coWinTerm.apply2(key,window,input,out);
-				}
-			}, outTypeInfo);
+			getWindowOperator(windowedStream2, new WrappedWindowFunction2<F, Either<R,S>, K, TimeWindow>(coWinTerm), eitherTypeInfo);
 
 		String opName = "TwoWindowTerminate(" + op1.f0 + ", " + op2.f0 + ")";
 		TwoWindowTerminateOperator combinedOperator = new TwoWindowTerminateOperator(op1.f1, op2.f1, coWinTerm);
-		TwoInputTransformation<IN,F,Either<R,S>> transformation = new TwoInputTransformation(
+		return new TwoInputTransformation<>(
 			windowedStream1.getInput().getTransformation(),
 			windowedStream2.getInput().getTransformation(),
 			opName,
 			combinedOperator,
-			outTypeInfo,
+			eitherTypeInfo,
 			windowedStream1.getInput().getParallelism()
 		);
-		return transformation;
 	}
 
 	// rougly the same like WindowedStream#apply(Windowfunction, resultType) but for two window inputs
-	public <R, T, WIN extends Window> Tuple2<String, WindowOperator>
+	public <T, WIN extends Window> Tuple2<String, WindowOperator>
 			getWindowOperator(WindowedStream<T, K, WIN> windowedStream,
-						  WindowFunction<T, R, K, WIN> function,
-						  TypeInformation<R> resultType) {
+						  WindowFunction<T, Either<R,S>, K, WIN> function,
+						  TypeInformation<Either<R,S>> resultType) {
 		KeyedStream<T, K> input = windowedStream.getInput();
 		WindowAssigner windowAssigner = windowedStream.getWindowAssigner();
 		StreamExecutionEnvironment environment = windowedStream.getExecutionEnvironment();
 
 		//clean the closure
-		function = input.getExecutionEnvironment().clean(function);
+		// TODO is it ok to skip this???
+		//function = input.getExecutionEnvironment().clean(function);
 
 		String callLocation = Utils.getCallLocationName();
 		String udfName = "WindowedStream." + callLocation;
@@ -155,9 +162,9 @@ public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
 		String opName;
 		KeySelector<T, K> keySel = input.getKeySelector();
 
-		WindowOperator<K, T, Iterable<T>, R, WIN> operator;
+		WindowOperator<K, T, Iterable<T>, Either<R,S>, WIN> operator;
 
-		if (windowedStream.evictor != null) {
+		if (windowedStream.getEvictor() != null) {
 			@SuppressWarnings({"unchecked", "rawtypes"})
 			TypeSerializer<StreamRecord<T>> streamRecordSerializer =
 				(TypeSerializer<StreamRecord<T>>) new StreamElementSerializer(input.getType().createSerializer(environment.getConfig()));
@@ -165,7 +172,7 @@ public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
 			ListStateDescriptor<StreamRecord<T>> stateDesc =
 				new ListStateDescriptor<>("window-contents", streamRecordSerializer);
 
-			opName = "TriggerWindow(" + windowAssigner + ", " + stateDesc + ", " + windowedStream.trigger + ", " + windowedStream.evictor + ", " + udfName + ")";
+			opName = "TriggerWindow(" + windowAssigner + ", " + stateDesc + ", " + windowedStream.getTrigger() + ", " + windowedStream.getEvictor() + ", " + udfName + ")";
 
 			operator =
 				new EvictingWindowOperator<>(windowAssigner,
@@ -174,15 +181,15 @@ public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
 					input.getKeyType().createSerializer(environment.getConfig()),
 					stateDesc,
 					new InternalIterableWindowFunction<>(function),
-					windowedStream.trigger,
-					windowedStream.evictor,
-					windowedStream.allowedLateness);
+					windowedStream.getTrigger(),
+					windowedStream.getEvictor(),
+					windowedStream.getAllowedLateness());
 
 		} else {
 			ListStateDescriptor<T> stateDesc = new ListStateDescriptor<>("window-contents",
 				input.getType().createSerializer(environment.getConfig()));
 
-			opName = "TriggerWindow(" + windowAssigner + ", " + stateDesc + ", " + windowedStream.trigger + ", " + udfName + ")";
+			opName = "TriggerWindow(" + windowAssigner + ", " + stateDesc + ", " + windowedStream.getTrigger() + ", " + udfName + ")";
 
 			operator =
 				new WindowOperator<>(windowAssigner,
@@ -191,10 +198,35 @@ public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
 					input.getKeyType().createSerializer(environment.getConfig()),
 					stateDesc,
 					new InternalIterableWindowFunction<>(function),
-					windowedStream.trigger,
-					windowedStream.allowedLateness);
+					windowedStream.getTrigger(),
+					windowedStream.getAllowedLateness());
 		}
 
 		return new Tuple2(opName, operator);
+	}
+
+	private static class WrappedWindowFunction1<IN, OUT, K, W extends Window> implements WindowFunction<IN,OUT,K,W> {
+
+		CoWindowTerminateFunction coWinTerm;
+
+		public WrappedWindowFunction1(CoWindowTerminateFunction coWinTerm) {
+			this.coWinTerm = coWinTerm;
+		}
+
+		public void apply(K key, W window, Iterable<IN> input, Collector<OUT> out) throws Exception {
+			coWinTerm.apply1(key,window,input,out);
+		}
+	}
+	private static class WrappedWindowFunction2<IN, OUT, K, W extends TimeWindow> implements WindowFunction<IN,OUT,K,W> {
+
+		CoWindowTerminateFunction coWinTerm;
+
+		public WrappedWindowFunction2(CoWindowTerminateFunction coWinTerm) {
+			this.coWinTerm = coWinTerm;
+		}
+
+		public void apply(K key, W window, Iterable<IN> input, Collector<OUT> out) throws Exception {
+			coWinTerm.apply2(key,window,input,out);
+		}
 	}
 }

@@ -5,6 +5,9 @@ import org.apache.flink.api.common.state.AppendingState;
 import org.apache.flink.api.common.state.StateDescriptor;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.runtime.state.DefaultKeyedStateStore;
+import org.apache.flink.runtime.state.KeyGroupRange;
+import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.streaming.api.functions.windowing.TerminationFunction;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
@@ -20,6 +23,7 @@ import org.apache.flink.streaming.runtime.tasks.OperatorStateHandles;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.types.Either;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,11 +31,13 @@ import java.util.Map;
 @Internal
 public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extends Window, W2 extends Window>
 	extends AbstractStreamOperator<Either<R,S>>
-	implements TwoInputStreamOperator<IN1, IN2, Either<R,S>> {
+	implements TwoInputStreamOperator<IN1, IN2, Either<R,S>>, Serializable {
 
 	WindowOperator<K, IN1, ACC1, Either<R,S>, W1> winOp1;
 	WindowOperator<K, IN2, ACC2, Either<R,S>, W2> winOp2;
 	TerminationFunction terminationFunction;
+
+	StreamTask<?, ?> containingTask;
 
 	private StreamInputProgressHandler progressHandler;
 	private Map<List<Long>,Long> iterationIndices = new HashMap<>();
@@ -46,43 +52,58 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 
 	@Override
 	public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<Either<R,S>>> output) {
-		// setup() both with own output
-		winOp1.setup(containingTask, config, output);
-		winOp2.setup(containingTask, config, output);
-
-		OperatorStateHandles stateHandles = null;
-		try {
-			winOp1.initializeState(stateHandles);
-			winOp2.initializeState(stateHandles);
-		} catch(Exception e) {}
-
 		super.setup(containingTask, config, output);
+
+		// setup() both with own output
+		StreamConfig config1 = new StreamConfig(config.getConfiguration().clone());
+		config1.setOperatorName("WinOp1");
+		StreamConfig config2 = new StreamConfig(config.getConfiguration().clone());
+		config2.setOperatorName("WinOp2");
+		winOp1.setup(containingTask, config1, output);
+		winOp2.setup(containingTask, config2, output);
+
+		this.containingTask = containingTask;
 	}
 
 	@Override
 	public final void open() throws Exception {
-		winOp1.open();
-		winOp2.open();
+		OperatorStateHandles stateHandles = null;
+		try {
+			winOp1.getOperatorConfig().setStateKeySerializer(config.getStateKeySerializer(containingTask.getUserCodeClassLoader()));
+			winOp2.getOperatorConfig().setStateKeySerializer(config.getStateKeySerializer(containingTask.getUserCodeClassLoader()));
+
+			// TODO?
+			//winOp1.getOperatorConfig().setStatePartitioner(getOperatorConfig().getStatePartitioner());
+			//node.setStatePartitioner1(keySelector1);
+			//node.setStatePartitioner2(keySelector2);
+
+			winOp1.initializeState(stateHandles);
+			winOp2.initializeState(stateHandles);
+		} catch(Exception e) {
+			System.out.println("hello");
+		}
 		super.open();
+		winOp1.open("window-timers1");
+		winOp2.open("window-timers2");
 	}
 
 	@Override
 	public final void close() throws Exception {
+		super.close();
 		winOp1.close();
 		winOp2.close();
-		super.close();
 	}
 
 	@Override
 	public void dispose() throws Exception {
+		super.dispose();
 		winOp1.dispose();
 		winOp2.dispose();
-		super.dispose();
 	}
 
 	public void processElement1(StreamRecord<IN1> element) throws Exception {
 		Long i = iterationIndices.get(element.getContext());
-		if(i != null) {
+		if(i == null) {
 			iterationIndices.put(element.getContext(), 0L);
 			i = 0L;
 		}

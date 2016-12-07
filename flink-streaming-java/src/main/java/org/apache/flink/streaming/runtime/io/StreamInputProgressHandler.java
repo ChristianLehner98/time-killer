@@ -4,12 +4,11 @@ package org.apache.flink.streaming.runtime.io;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 
+import java.io.Serializable;
 import java.util.*;
 
-public class StreamInputProgressHandler {
+public class StreamInputProgressHandler implements Serializable {
 	private int numberOfInputChannels;
-
-	private SortedSet<Watermark> watermarkBuffer;
 
 	private Map<List<Long>,Long>[] watermarks;
 	private Map<List<Long>,Long> lastEmittedWatermarks = new HashMap<>();
@@ -23,6 +22,7 @@ public class StreamInputProgressHandler {
 	}
 
 	public StreamElement adaptTimestamp(StreamElement element, int operatorLevel) {
+		if(element.isLatencyMarker()) return element;
 		int elementLevel = getContextSize(element);
 		if(elementLevel == operatorLevel) return element;
 		else if(elementLevel == operatorLevel-1) addTimestamp(element);

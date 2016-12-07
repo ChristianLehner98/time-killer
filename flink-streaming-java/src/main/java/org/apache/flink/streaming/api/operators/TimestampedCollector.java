@@ -22,6 +22,7 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.Collector;
 
+import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -34,7 +35,7 @@ import java.util.List;
  * @param <T> The type of the elements that can be emitted.
  */
 @Internal
-public class TimestampedCollector<T> implements Collector<T> {
+public class TimestampedCollector<T> implements Collector<T>, Serializable {
 	
 	private final Output<StreamRecord<T>> output;
 

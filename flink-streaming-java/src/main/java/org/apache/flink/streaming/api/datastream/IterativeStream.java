@@ -159,7 +159,8 @@ public class IterativeStream<T> extends SingleOutputStreamOperator<T> {
 					new DataStream<>(input.getExecutionEnvironment(),
 							new CoFeedbackTransformation<>(input.getParallelism(),
 									feedbackType,
-									waitTime)));
+									waitTime,
+								    input.getTransformation().getScopeLevel())));
 			this.coFeedbackTransformation = (CoFeedbackTransformation<F>) getSecondInput().getTransformation();
 		}
 

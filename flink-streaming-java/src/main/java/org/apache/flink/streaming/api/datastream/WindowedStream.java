@@ -60,6 +60,7 @@ import org.apache.flink.streaming.runtime.operators.windowing.WindowOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
+import java.io.Serializable;
 import java.util.*;
 
 /**
@@ -721,46 +722,45 @@ public class WindowedStream<T, K, W extends Window> {
 	//TODO Maybe put superstep counter for simplicity
 
 	public <OUT,F,R> DataStream<OUT> iterateSync(CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun,
-												 FeedbackBuilder feedbackBuilder,
+												 FeedbackBuilder<R> feedbackBuilder,
 												 TypeInformation<R> feedbackType) throws Exception {
 		// add watermark filler
-		OneInputTransformation<T, T> watermarkfiller = new OneInputTransformation(
-			this.input.getTransformation(),
+		OneInputTransformation<T, T> watermarkfiller = new OneInputTransformation<T,T>(
+			input.getTransformation(),
 			"OneWatermarkPerContext",
-			new WindowedStreamWatermarkFiller(),
-			this.input.getTransformation().getOutputType(),
-			this.input.getTransformation().getParallelism()
+			new WindowedStreamWatermarkFiller<T>(),
+			input.getTransformation().getOutputType(),
+			input.getTransformation().getParallelism()
 		);
 
-		DataStream<T> scopedStreamInput = new SingleOutputStreamOperator<>(input.getExecutionEnvironment(),
-			new ScopeTransformation(watermarkfiller, ScopeTransformation.SCOPE_TYPE.INGRESS));
+		DataStream<T> scopedStreamInput = new SingleOutputStreamOperator<T>(input.getExecutionEnvironment(),
+			new ScopeTransformation<T>(watermarkfiller, ScopeTransformation.SCOPE_TYPE.INGRESS));
 
 		// TODO input.getExecutionEnvironment or this.getExecutionEnvironment() ??
 		// TODO is this a correct way to do this?
 		WindowedStream<T,K,W> scopedWindowStream = new WindowedStream<>(
-			new KeyedStream<T, K>(scopedStreamInput, input.getKeySelector(),
-				input.getKeyType()), this.getWindowAssigner());
+			new KeyedStream<>(scopedStreamInput, input.getKeySelector(),
+				input.getKeyType()), getWindowAssigner());
 
 		IterativeWindowStream<T,W,F,K,R,OUT> iterativeStream = new IterativeWindowStream<>(
 			scopedWindowStream, coWinTermFun, feedbackBuilder, feedbackType, 0);
 
 		DataStream<OUT> outStream = iterativeStream.loop();
 
-		ScopeTransformation egressTransformation = new ScopeTransformation(outStream.getTransformation(), ScopeTransformation.SCOPE_TYPE.EGRESS);
+		ScopeTransformation<OUT> egressTransformation = new ScopeTransformation<>(outStream.getTransformation(), ScopeTransformation.SCOPE_TYPE.EGRESS);
 
 		// TODO add watermarkSequencializer
 
 		return new SingleOutputStreamOperator<>(outStream.environment, egressTransformation);
 	}
 
-	private class WindowedStreamWatermarkFiller<IN>
+	private static class WindowedStreamWatermarkFiller<IN>
 		extends AbstractStreamOperator<IN>
 		implements OneInputStreamOperator<IN, IN> {
 
 		private static final long serialVersionUID = 1L;
 
-		private Map<List<Long>,SortedMap<Long,List<StreamRecord>>> recordsByContext = new HashMap<>();
-		private Map<List<Long>, Long> lastEmittedTimestamps = new HashMap<>();
+		private Map<List<Long>,SortedMap<Long,List<StreamRecord<IN>>>> recordsByContext = new HashMap<>();
 		private Long sequenceID = 0L;
 
 		public WindowedStreamWatermarkFiller() {
@@ -769,13 +769,9 @@ public class WindowedStream<T, K, W extends Window> {
 
 		@Override
 		public void processElement(StreamRecord<IN> element) throws Exception {
-			SortedMap<Long, List<StreamRecord>> elements = recordsByContext.get(element.getContext());
-			if(elements == null) {
-				elements = new TreeMap<>();
-				recordsByContext.put(element.getContext(), elements);
-			}
+			SortedMap<Long, List<StreamRecord<IN>>> elements = getElements(element.getContext());
 
-			List<StreamRecord> elementsWithSameTimestamp = elements.get(element.getTimestamp());
+			List<StreamRecord<IN>> elementsWithSameTimestamp = elements.get(element.getTimestamp());
 			if(elementsWithSameTimestamp == null) {
 				elementsWithSameTimestamp = new LinkedList<>();
 				elements.put(element.getTimestamp(), elementsWithSameTimestamp);
@@ -789,24 +785,29 @@ public class WindowedStream<T, K, W extends Window> {
 			// in order to emit them again in the right order after an iteration
 			watermark.pushSequenceID(sequenceID++);
 
-			Long currentTimestamp = lastEmittedTimestamps.get(watermark.getContext());
-			if(currentTimestamp == null) currentTimestamp = 0l;
+			SortedMap<Long,List<StreamRecord<IN>>> elements = getElements(watermark.getContext());
+			for(Iterator<Map.Entry<Long,List<StreamRecord<IN>>>> it = elements.entrySet().iterator(); it.hasNext();) {
+				Map.Entry<Long,List<StreamRecord<IN>>> current = it.next();
+				if(current.getKey() > watermark.getTimestamp()) continue;
 
-			SortedMap<Long,List<StreamRecord>> elements = recordsByContext.get(watermark.getContext());
-			for(Iterator<Map.Entry<Long,List<StreamRecord>>> it = elements.entrySet().iterator(); it.hasNext();) {
-				Map.Entry<Long,List<StreamRecord>> current = it.next();
-				if(current.getKey() > watermark.getTimestamp()) break;
-
-				for(StreamRecord record : current.getValue()) {
+				for(StreamRecord<IN> record : current.getValue()) {
 					output.collect(record);
 				}
-				if(current.getKey() < watermark.getTimestamp()) {
-					// create "iteration only" watermark, because there is no real watermark for this context
+				if(current.getKey() != watermark.getTimestamp()) {
 					output.emitWatermark(new Watermark(watermark.getContext(), current.getKey(), true));
 				}
 				it.remove();
 			}
 			output.emitWatermark(watermark);
+		}
+
+		private SortedMap<Long, List<StreamRecord<IN>>> getElements(List<Long> context) {
+			SortedMap<Long, List<StreamRecord<IN>>> elements = recordsByContext.get(context);
+			if(elements == null) {
+				elements = new TreeMap<>();
+				recordsByContext.put(context, elements);
+			}
+			return elements;
 		}
 	}
 
@@ -895,9 +896,13 @@ public class WindowedStream<T, K, W extends Window> {
 		return input;
 	}
 
-	protected WindowAssigner<? super T, W> getWindowAssigner() {
+	public WindowAssigner<? super T, W> getWindowAssigner() {
 		return windowAssigner;
 	}
+
+	public Trigger<? super T, ? super W> getTrigger() { return trigger; }
+	public Evictor<? super T, ? super W> getEvictor() { return evictor; }
+	public long getAllowedLateness() { return allowedLateness; }
 
 	public TypeInformation<T> getInputType() {
 		return input.getType();

@@ -173,6 +173,7 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 				if (result.isFullRecord()) {
 					if (currentChannel < numInputChannels1) {
 						StreamElement recordOrWatermark = deserializationDelegate1.getInstance();
+						recordOrWatermark = progressHandler1.adaptTimestamp(recordOrWatermark, streamOperator.getContextLevel());
 						if (recordOrWatermark.isWatermark()) {
 							Watermark next = progressHandler1.getNextWatermark(
 								recordOrWatermark.asWatermark(), currentChannel);
@@ -180,6 +181,11 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 								synchronized (lock) {
 									streamOperator.processWatermark1(next);
 								}
+							}
+							continue;
+						} else if (recordOrWatermark.isLatencyMarker()) {
+							synchronized (lock) {
+								streamOperator.processLatencyMarker2(recordOrWatermark.asLatencyMarker());
 							}
 							continue;
 						}
@@ -194,6 +200,7 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 					}
 					else {
 						StreamElement recordOrWatermark = deserializationDelegate2.getInstance();
+						recordOrWatermark = progressHandler2.adaptTimestamp(recordOrWatermark, streamOperator.getContextLevel());
 						if (recordOrWatermark.isWatermark()) {
 							Watermark next = progressHandler2.getNextWatermark(
 								recordOrWatermark.asWatermark(), currentChannel-numInputChannels1);

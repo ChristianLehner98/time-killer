@@ -122,7 +122,7 @@ public abstract class AbstractStreamOperator<OUT>
 	private transient KeySelector<?, ?> stateKeySelector2;
 
 	/** Backend for keyed state. This might be empty if we're not on a keyed stream. */
-	private transient AbstractKeyedStateBackend<?> keyedStateBackend;
+	protected transient AbstractKeyedStateBackend<?> keyedStateBackend;
 
 	/** Keyed state store view on the keyed backend */
 	private transient DefaultKeyedStateStore keyedStateStore;
@@ -276,11 +276,14 @@ public abstract class AbstractStreamOperator<OUT>
 						container.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks(),
 						container.getEnvironment().getTaskInfo().getIndexOfThisSubtask());
 
-				this.keyedStateBackend = container.createKeyedStateBackend(
+				if(container.getKeyedStateBackend() == null) {
+					this.keyedStateBackend = container.createKeyedStateBackend(
 						keySerializer,
 						container.getEnvironment().getTaskInfo().getNumberOfKeyGroups(),
 						subTaskKeyGroupRange);
-
+				} else {
+					this.keyedStateBackend = container.getKeyedStateBackend();
+				}
 				this.keyedStateStore = new DefaultKeyedStateStore(keyedStateBackend, getExecutionConfig());
 			}
 

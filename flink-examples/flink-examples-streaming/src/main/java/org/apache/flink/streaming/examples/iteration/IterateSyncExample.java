@@ -16,6 +16,7 @@ import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.types.Either;
 import org.apache.flink.util.Collector;
 
+import java.io.Serializable;
 import java.util.*;
 
 public class IterateSyncExample {
@@ -34,19 +35,21 @@ public class IterateSyncExample {
 		inputStream
 			.keyBy(0)
 			.timeWindow(Time.milliseconds(1))
-			.iterateSync(new MyCoWindowTerminateFunction(), new FeedbackBuilder() {
-				@Override
-				public KeyedStream feedback(DataStream input) {
-					return input.keyBy(0).timeWindow(Time.milliseconds(1)).sum(0).keyBy(0);
-				}
-			}, new TupleTypeInfo<Tuple2<Long, Double>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO));
+			.iterateSync(new MyCoWindowTerminateFunction(), new MyFeedbackBuilder(), new TupleTypeInfo<Tuple2<Long, Double>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO));
 	}
 
 	protected void run() throws Exception {
 		env.execute("Streaming Sync Iteration Example");
 	}
 
-	private class PageRankSource implements SourceFunction<Tuple2<Long,List<Long>>> {
+	private static class MyFeedbackBuilder implements FeedbackBuilder {
+		@Override
+		public KeyedStream feedback(DataStream input) {
+			return input.keyBy(0).timeWindow(Time.milliseconds(1)).sum(0).keyBy(0);
+		}
+	}
+
+	private static class PageRankSource implements SourceFunction<Tuple2<Long,List<Long>>> {
 		private int numberOfGraphs;
 
 		public PageRankSource(int numberOfGraphs) {
@@ -84,7 +87,7 @@ public class IterateSyncExample {
 		}
 	}
 
-	private class MyCoWindowTerminateFunction implements CoWindowTerminateFunction<Tuple2<Long, List<Long>>, Tuple2<Long, Double>, Tuple2<Long,Double>, Tuple2<Long, Double>, Tuple, TimeWindow> {
+	private static class MyCoWindowTerminateFunction implements CoWindowTerminateFunction<Tuple2<Long, List<Long>>, Tuple2<Long, Double>, Tuple2<Long,Double>, Tuple2<Long, Double>, Tuple, TimeWindow>, Serializable {
 		Map<List<Long>,Map<Long, List<Long>>> neighboursPerContext = new HashMap<>();
 		Map<List<Long>,Map<Long,Double>> pageRanksPerContext = new HashMap<>();
 

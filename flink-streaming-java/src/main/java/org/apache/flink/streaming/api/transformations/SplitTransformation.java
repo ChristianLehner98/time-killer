@@ -22,6 +22,7 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
 
@@ -37,7 +38,7 @@ import java.util.List;
  * @param <T> The type of the elements that result from this {@code SplitTransformation}
  */
 @Internal
-public class SplitTransformation<T> extends StreamTransformation<T> {
+public class SplitTransformation<T> extends StreamTransformation<T> implements Serializable {
 
 	private final StreamTransformation<T> input;
 

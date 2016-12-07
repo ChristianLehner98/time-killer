@@ -36,10 +36,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.api.java.typeutils.runtime.TupleSerializer;
 import org.apache.flink.metrics.MetricGroup;
-import org.apache.flink.runtime.state.StateInitializationContext;
-import org.apache.flink.runtime.state.StateSnapshotContext;
-import org.apache.flink.runtime.state.VoidNamespace;
-import org.apache.flink.runtime.state.VoidNamespaceSerializer;
+import org.apache.flink.runtime.state.*;
 import org.apache.flink.streaming.api.operators.Triggerable;
 import org.apache.flink.streaming.api.operators.AbstractUdfStreamOperator;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
@@ -175,13 +172,17 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	}
 
 	@Override
-	public final void open() throws Exception {
+	public final void open () throws Exception {
+		open("window-timers");
+	}
+
+	public final void open(String timerServiceName) throws Exception {
 		super.open();
 
 		timestampedCollector = new TimestampedCollector<>(output);
 
 		internalTimerService =
-				getInternalTimerService("window-timers", keySerializer, windowSerializer, this);
+				getInternalTimerService(timerServiceName, keySerializer, windowSerializer, this);
 
 		context = new Context(null, null);
 
@@ -766,4 +767,5 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	public StateDescriptor<? extends AppendingState<IN, ACC>, ?> getStateDescriptor() {
 		return windowStateDescriptor;
 	}
+
 }

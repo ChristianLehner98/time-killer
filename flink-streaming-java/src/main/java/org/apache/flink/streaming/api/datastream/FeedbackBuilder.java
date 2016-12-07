@@ -1,5 +1,7 @@
 package org.apache.flink.streaming.api.datastream;
 
-public interface FeedbackBuilder<R> {
+import java.io.Serializable;
+
+public interface FeedbackBuilder<R> extends Serializable {
 	<F,K> KeyedStream<F,K> feedback(DataStream<R> input);
 }
