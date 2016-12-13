@@ -148,6 +148,7 @@ public final class StreamElementSerializer<T> extends TypeSerializer<StreamEleme
 		}
 		else if (tag == TAG_WATERMARK) {
 			target.writeLong(source.readLong());
+			target.writeBoolean(source.readBoolean());
 			int contextSize = source.readInt();
 			target.writeInt(contextSize);
 			for(int i=0; i<contextSize; i++) {
@@ -183,6 +184,7 @@ public final class StreamElementSerializer<T> extends TypeSerializer<StreamEleme
 		else if (value.isWatermark()) {
 			target.write(TAG_WATERMARK);
 			target.writeLong(value.asWatermark().getTimestamp());
+			target.writeBoolean(value.asWatermark().iterationDone());
 			target.writeInt(value.asWatermark().getContext().size());
 			for(long contextElement : value.asWatermark().getContext()) {
 				target.writeLong(contextElement);
@@ -216,12 +218,13 @@ public final class StreamElementSerializer<T> extends TypeSerializer<StreamEleme
 		}
 		else if (tag == TAG_WATERMARK) {
 			long timestamp = source.readLong();
+			boolean iterationDone = source.readBoolean();
 			List<Long> context = new LinkedList<>();
 			int arraySize = source.readInt();
 			for(int i=0; i<arraySize; i++) {
 				context.add(source.readLong());
 			}
-			return new Watermark(context, timestamp);
+			return new Watermark(context, timestamp, iterationDone);
 		}
 		else if (tag == TAG_LATENCY_MARKER) {
 			return new LatencyMarker(source.readLong(), source.readInt(), source.readInt());
@@ -254,12 +257,13 @@ public final class StreamElementSerializer<T> extends TypeSerializer<StreamEleme
 		}
 		else if (tag == TAG_WATERMARK) {
 			long timestamp = source.readLong();
+			boolean iterationDone = source.readBoolean();
 			List<Long> context = new LinkedList<>();
 			int arraySize = source.readInt();
 			for(int i=0; i<arraySize; i++) {
 				context.add(source.readLong());
 			}
-			return new Watermark(context, timestamp);
+			return new Watermark(context, timestamp, iterationDone);
 		}
 		else if (tag == TAG_LATENCY_MARKER) {
 			return new LatencyMarker(source.readLong(), source.readInt(), source.readInt());

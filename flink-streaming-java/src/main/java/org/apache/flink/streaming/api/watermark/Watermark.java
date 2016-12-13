@@ -57,7 +57,7 @@ public final class Watermark extends StreamElement {
 	private long timestamp;
 	private final List<Long> context;
 	private final Stack<Long> sequenceIDs = new Stack<>();
-	private boolean iterationOnly = false;
+	private boolean iterationDone = false;
 
 	/**
 	 * Creates a new watermark with the given timestamp in milliseconds.
@@ -86,10 +86,10 @@ public final class Watermark extends StreamElement {
 	/**
 	 * Creates a new watermark with the given timestamp in milliseconds and a context.
 	 */
-	public Watermark(List<Long> context, long timestamp, boolean iterationOnly) {
+	public Watermark(List<Long> context, long timestamp, boolean iterationDone) {
 		this.timestamp = timestamp;
 		this.context = new LinkedList(context);
-		this.iterationOnly = iterationOnly;
+		this.iterationDone = iterationDone;
 	}
 
 	/**
@@ -124,6 +124,11 @@ public final class Watermark extends StreamElement {
 	}
 	public void pushSequenceID(Long seqID) {
 		sequenceIDs.push(seqID);
+	}
+
+	public boolean iterationDone() { return iterationDone; }
+	public void setIterationDone(boolean iterationDone) {
+		this.iterationDone = iterationDone;
 	}
 
 	// ------------------------------------------------------------------------

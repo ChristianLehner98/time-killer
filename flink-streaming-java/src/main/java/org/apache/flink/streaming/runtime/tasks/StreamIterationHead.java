@@ -33,6 +33,8 @@ import org.apache.flink.streaming.runtime.io.BlockingQueueBroker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationProgressStrategy;
+import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
+import org.apache.flink.streaming.runtime.tasks.progress.StreamStructuredIterationTermination;
 import org.apache.flink.streaming.runtime.tasks.progress.StructuredIterationProgressStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +45,7 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 	private static final Logger LOG = LoggerFactory.getLogger(StreamIterationHead.class);
 
 	private volatile boolean running = true;
+	private StreamIterationTermination termination = new StreamStructuredIterationTermination(20);
 	// ------------------------------------------------------------------------
 
 
@@ -79,12 +82,19 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 				if (nextElement != null) {
 					if(nextElement.isWatermark()) {
 						Watermark mark = nextElement.asWatermark();
+
+						termination.observeWatermark(mark);
+						if(termination.terminate(mark.getContext())) {
+							mark.setIterationDone(true);
+						}
+
 						mark.forwardTimestamp();
 						for (RecordWriterOutput<OUT> output : outputs) {
 							output.emitWatermark(mark);
 						}
 					} else if(nextElement.isRecord()) {
 						StreamRecord record = nextElement.asRecord();
+						termination.observeRecord(record);
 						record.forwardTimestamp();
 						for (RecordWriterOutput<OUT> output : outputs) {
 

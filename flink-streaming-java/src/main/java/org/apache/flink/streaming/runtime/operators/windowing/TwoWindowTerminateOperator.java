@@ -1,22 +1,11 @@
 package org.apache.flink.streaming.runtime.operators.windowing;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.api.common.state.AppendingState;
-import org.apache.flink.api.common.state.StateDescriptor;
-import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.runtime.state.DefaultKeyedStateStore;
-import org.apache.flink.runtime.state.KeyGroupRange;
-import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.streaming.api.functions.windowing.TerminationFunction;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
-import org.apache.flink.streaming.api.windowing.assigners.WindowAssigner;
-import org.apache.flink.streaming.api.windowing.triggers.Trigger;
 import org.apache.flink.streaming.api.windowing.windows.Window;
-import org.apache.flink.streaming.runtime.io.StreamInputProgressHandler;
-import org.apache.flink.streaming.runtime.operators.windowing.functions.InternalWindowFunction;
 import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.OperatorStateHandles;
@@ -25,9 +14,7 @@ import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTerminat
 import org.apache.flink.types.Either;
 
 import java.io.Serializable;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Internal
 public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extends Window, W2 extends Window>
@@ -37,7 +24,8 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	WindowOperator<K, IN1, ACC1, Either<R,S>, W1> winOp1;
 	WindowOperator<K, IN2, ACC2, Either<R,S>, W2> winOp2;
 	TerminationFunction terminationFunction;
-	StreamIterationTermination terminationStrategy;
+	Set<List<Long>> activeIterations = new HashSet<>();
+	//StreamIterationTermination terminationStrategy;
 
 	StreamTask<?, ?> containingTask;
 
@@ -50,7 +38,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 		this.winOp1 = winOp1;
 		this.winOp2 = winOp2;
 		this.terminationFunction = terminationFunction;
-		this.terminationStrategy = terminationStrategy;
+		//this.terminationStrategy = terminationStrategy;
 	}
 
 	@Override
@@ -99,40 +87,45 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	}
 
 	public void processElement1(StreamRecord<IN1> element) throws Exception {
-		terminationStrategy.observeRecord(element);
-		if(terminationStrategy.terminate(element.getContext())) {
-			collector.setAbsoluteTimestamp(element.getContext(), element.getTimestamp());
-		} else {
+		//terminationStrategy.observeRecord(element);
+		//if(terminationStrategy.terminate(element.getContext())) {
+		//	collector.setAbsoluteTimestamp(element.getContext(), element.getTimestamp());
+		//} else {
+			activeIterations.add(element.getContext());
 			winOp1.processElement(element);
-		}
+		//}
 	}
 	public void processElement2(StreamRecord<IN2> element) throws Exception {
-		terminationStrategy.observeRecord(element);
-		if(terminationStrategy.terminate(element.getContext())) {
-			collector.setAbsoluteTimestamp(element.getContext(), element.getTimestamp());
-		} else {
+		//terminationStrategy.observeRecord(element);
+		//if(terminationStrategy.terminate(element.getContext())) {
+		//	collector.setAbsoluteTimestamp(element.getContext(), element.getTimestamp());
+		//} else {
+		if(activeIterations.contains(element.getContext())) {
 			winOp2.processElement(element);
 		}
+		//}
 	}
 
 	public void processWatermark1(Watermark mark) throws Exception {
-		terminationStrategy.observeWatermark(mark);
-		if(terminationStrategy.terminate(mark.getContext())) {
-			winOp1.processWatermark(new Watermark(mark.getContext(), Long.MAX_VALUE));
-			if(mark.getContext().get(mark.getContext().size()-1) != Long.MAX_VALUE ) {
-				terminationFunction.onTermination(mark.getContext(), collector);
-			}
-		} else {
+		//terminationStrategy.observeWatermark(mark);
+		//if(terminationStrategy.terminate(mark.getContext())) {
+		//	winOp1.processWatermark(new Watermark(mark.getContext(), Long.MAX_VALUE));
+		//	if(mark.getContext().get(mark.getContext().size()-1) != Long.MAX_VALUE ) {
+		//		terminationFunction.onTermination(mark.getContext(), collector);
+		//	}
+		//} else {
 			winOp1.processWatermark(mark);
-		}
+		//}
 	}
 	public void processWatermark2(Watermark mark) throws Exception {
-		terminationStrategy.observeWatermark(mark);
-		if(terminationStrategy.terminate(mark.getContext())) {
-			winOp2.processWatermark(new Watermark(mark.getContext(), Long.MAX_VALUE));
+		//terminationStrategy.observeWatermark(mark);
+		//if(terminationStrategy.terminate(mark.getContext())) {
+		if(mark.iterationDone()) {
+			activeIterations.remove(mark.getContext());
 			if(mark.getContext().get(mark.getContext().size()-1) != Long.MAX_VALUE ) {
 				terminationFunction.onTermination(mark.getContext(), collector);
 			}
+			winOp2.processWatermark(new Watermark(mark.getContext(), Long.MAX_VALUE));
 		} else {
 			winOp2.processWatermark(mark);
 		}
