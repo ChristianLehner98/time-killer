@@ -115,6 +115,10 @@ public final class Watermark extends StreamElement {
 		}
 	}
 
+	public void forwardTimestamp() {
+		timestamp = timestamp + 1;
+	}
+
 	public Long popSequenceID() {
 		return sequenceIDs.pop();
 	}

@@ -13,10 +13,6 @@ import java.util.List;
 @Public
 public interface CoWindowTerminateFunction<IN,F_IN,OUT,F_OUT,KEY,W_IN extends Window> extends TerminationFunction<Either<F_OUT,OUT>>, Serializable {
 	void apply1(KEY key, W_IN window, Iterable<IN> input, Collector<Either<F_OUT,OUT>> out) throws Exception;
-
-	// TODO add i?
 	void apply2(KEY key, TimeWindow window, Iterable<F_IN> input, Collector<Either<F_OUT,OUT>> out) throws Exception;
-
-	boolean terminate(long i);
 	void onTermination(List<Long> timeContext, Collector<Either<F_OUT,OUT>> out) throws Exception;
 }

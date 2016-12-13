@@ -8,13 +8,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class FixpointProgressStrategy implements StreamIterationProgressStrategy{
+public class FixpointProgressStrategy extends StreamIterationProgressStrategy{
 	private Map<List<Long>, Tuple2<Long, Boolean>> convergedTracker = new HashMap<>();
 
-	public void observe(StreamRecord element) {
-		List<Long> context = element.asRecord().getContext();
+	public StreamRecord observe(StreamRecord record) {
+		List<Long> context = record.getContext();
 		Tuple2<Long, Boolean> converged = convergedTracker.get(context);
 		if (converged != null) converged.f1 = false;
+
+		record.forwardTimestamp();
+		return record;
 	}
 
 	public Watermark getNextWatermark(Watermark watermark) {
@@ -33,7 +36,8 @@ public class FixpointProgressStrategy implements StreamIterationProgressStrategy
 			// back or gets replaced by a higher one
 			convergedTracker.put(context, new Tuple2(timestamp, true));
 
-			// also we need to forward the watermark unchanged
+			// also we need to forward the watermark with the next timestamp
+			watermark.forwardTimestamp();
 			return watermark;
 		} else if (timestamp > converged.f0 && converged.f1) {
 			// a tracked watermark came back and

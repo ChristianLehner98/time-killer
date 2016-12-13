@@ -21,6 +21,7 @@ import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.OperatorStateHandles;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
 import org.apache.flink.types.Either;
 
 import java.io.Serializable;
@@ -36,18 +37,20 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	WindowOperator<K, IN1, ACC1, Either<R,S>, W1> winOp1;
 	WindowOperator<K, IN2, ACC2, Either<R,S>, W2> winOp2;
 	TerminationFunction terminationFunction;
+	StreamIterationTermination terminationStrategy;
 
 	StreamTask<?, ?> containingTask;
 
-	private StreamInputProgressHandler progressHandler;
-	private Map<List<Long>,Long> iterationIndices = new HashMap<>();
-	TimestampedCollector<Either<R,S>> collector = new TimestampedCollector<>(output);
+	TimestampedCollector<Either<R,S>> collector;
 
-	public TwoWindowTerminateOperator(WindowOperator winOp1, WindowOperator winOp2, TerminationFunction terminationFunction) {
+	public TwoWindowTerminateOperator(WindowOperator winOp1,
+									  WindowOperator winOp2,
+									  TerminationFunction terminationFunction,
+									  StreamIterationTermination terminationStrategy) {
 		this.winOp1 = winOp1;
 		this.winOp2 = winOp2;
 		this.terminationFunction = terminationFunction;
-		progressHandler = new StreamInputProgressHandler(2);
+		this.terminationStrategy = terminationStrategy;
 	}
 
 	@Override
@@ -67,21 +70,15 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 
 	@Override
 	public final void open() throws Exception {
+		collector = new TimestampedCollector<>(output);
+
 		OperatorStateHandles stateHandles = null;
-		try {
-			winOp1.getOperatorConfig().setStateKeySerializer(config.getStateKeySerializer(containingTask.getUserCodeClassLoader()));
-			winOp2.getOperatorConfig().setStateKeySerializer(config.getStateKeySerializer(containingTask.getUserCodeClassLoader()));
+		winOp1.getOperatorConfig().setStateKeySerializer(config.getStateKeySerializer(containingTask.getUserCodeClassLoader()));
+		winOp2.getOperatorConfig().setStateKeySerializer(config.getStateKeySerializer(containingTask.getUserCodeClassLoader()));
 
-			// TODO?
-			//winOp1.getOperatorConfig().setStatePartitioner(getOperatorConfig().getStatePartitioner());
-			//node.setStatePartitioner1(keySelector1);
-			//node.setStatePartitioner2(keySelector2);
+		winOp1.initializeState(stateHandles);
+		winOp2.initializeState(stateHandles);
 
-			winOp1.initializeState(stateHandles);
-			winOp2.initializeState(stateHandles);
-		} catch(Exception e) {
-			System.out.println("hello");
-		}
 		super.open();
 		winOp1.open("window-timers1");
 		winOp2.open("window-timers2");
@@ -102,48 +99,42 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	}
 
 	public void processElement1(StreamRecord<IN1> element) throws Exception {
-		Long i = iterationIndices.get(element.getContext());
-		if(i == null) {
-			iterationIndices.put(element.getContext(), 0L);
-			i = 0L;
-		}
-
-		if(terminationFunction.terminate(i)) {
+		terminationStrategy.observeRecord(element);
+		if(terminationStrategy.terminate(element.getContext())) {
 			collector.setAbsoluteTimestamp(element.getContext(), element.getTimestamp());
-			terminationFunction.onTermination(element.getContext(), collector);
 		} else {
 			winOp1.processElement(element);
 		}
 	}
 	public void processElement2(StreamRecord<IN2> element) throws Exception {
-		Long i = iterationIndices.get(element.getContext());
-		if(terminationFunction.terminate(i) || i == null) {
+		terminationStrategy.observeRecord(element);
+		if(terminationStrategy.terminate(element.getContext())) {
 			collector.setAbsoluteTimestamp(element.getContext(), element.getTimestamp());
-			terminationFunction.onTermination(element.getContext(), collector);
 		} else {
 			winOp2.processElement(element);
 		}
 	}
 
 	public void processWatermark1(Watermark mark) throws Exception {
-		//watermarks need to be treated together because we're unioning here!
-		Watermark next = progressHandler.getNextWatermark(mark, 0);
-		if(next != null) {
-			iterationIndices.put(mark.getContext(), mark.getTimestamp());
-			winOp2.processWatermark(mark);
+		terminationStrategy.observeWatermark(mark);
+		if(terminationStrategy.terminate(mark.getContext())) {
+			winOp1.processWatermark(new Watermark(mark.getContext(), Long.MAX_VALUE));
+			if(mark.getContext().get(mark.getContext().size()-1) != Long.MAX_VALUE ) {
+				terminationFunction.onTermination(mark.getContext(), collector);
+			}
+		} else {
+			winOp1.processWatermark(mark);
 		}
 	}
 	public void processWatermark2(Watermark mark) throws Exception {
-		//watermarks need to be treated together because we're unioning here!
-		Watermark next = progressHandler.getNextWatermark(mark, 1);
-		if(next != null) {
-			Long i = iterationIndices.get(mark.getContext());
-			if(mark.getTimestamp() == Long.MAX_VALUE || (i != null && terminationFunction.terminate(i))) {
-				iterationIndices.remove(mark.getContext());
-			} else {
-				winOp2.processWatermark(mark);
-				iterationIndices.put(mark.getContext(), mark.getTimestamp());
+		terminationStrategy.observeWatermark(mark);
+		if(terminationStrategy.terminate(mark.getContext())) {
+			winOp2.processWatermark(new Watermark(mark.getContext(), Long.MAX_VALUE));
+			if(mark.getContext().get(mark.getContext().size()-1) != Long.MAX_VALUE ) {
+				terminationFunction.onTermination(mark.getContext(), collector);
 			}
+		} else {
+			winOp2.processWatermark(mark);
 		}
 	}
 

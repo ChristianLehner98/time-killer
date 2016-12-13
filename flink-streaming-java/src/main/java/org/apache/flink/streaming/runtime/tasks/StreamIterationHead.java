@@ -33,6 +33,7 @@ import org.apache.flink.streaming.runtime.io.BlockingQueueBroker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationProgressStrategy;
+import org.apache.flink.streaming.runtime.tasks.progress.StructuredIterationProgressStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,8 +43,6 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 	private static final Logger LOG = LoggerFactory.getLogger(StreamIterationHead.class);
 
 	private volatile boolean running = true;
-
-	private StreamIterationProgressStrategy progressStrategy;
 	// ------------------------------------------------------------------------
 
 
@@ -79,16 +78,17 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 
 				if (nextElement != null) {
 					if(nextElement.isWatermark()) {
-						Watermark next = progressStrategy.getNextWatermark(nextElement.asWatermark());
-						if(next != null) {
-							for (RecordWriterOutput<OUT> output : outputs) {
-								output.emitWatermark(next);
-							}
-						}
-					} else {
-						progressStrategy.observe(nextElement.asRecord());
+						Watermark mark = nextElement.asWatermark();
+						mark.forwardTimestamp();
 						for (RecordWriterOutput<OUT> output : outputs) {
-							output.collect((StreamRecord<OUT>) nextElement);
+							output.emitWatermark(mark);
+						}
+					} else if(nextElement.isRecord()) {
+						StreamRecord record = nextElement.asRecord();
+						record.forwardTimestamp();
+						for (RecordWriterOutput<OUT> output : outputs) {
+
+							output.collect(record);
 						}
 					}
 				}
@@ -138,9 +138,5 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 	 */
 	public static String createBrokerIdString(JobID jid, String iterationID, int subtaskIndex) {
 		return jid + "-" + iterationID + "-" + subtaskIndex;
-	}
-
-	public void setProgressStrategy(StreamIterationProgressStrategy progressStrategy) {
-		this.progressStrategy = progressStrategy;
 	}
 }

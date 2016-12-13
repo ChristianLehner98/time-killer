@@ -59,6 +59,7 @@ import org.apache.flink.streaming.runtime.operators.windowing.functions.Internal
 import org.apache.flink.streaming.runtime.operators.windowing.WindowOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
 
 import java.io.Serializable;
 import java.util.*;
@@ -924,9 +925,8 @@ public class WindowedStream<T, K, W extends Window> {
 		return reduce(aggregator);
 	}
 
-	//TODO Maybe put superstep counter for simplicity
-
 	public <OUT,F,R> DataStream<OUT> iterateSync(CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun,
+												 StreamIterationTermination terminationStrategy,
 												 FeedbackBuilder<R> feedbackBuilder,
 												 TypeInformation<R> feedbackType) throws Exception {
 		// add watermark filler
@@ -941,14 +941,12 @@ public class WindowedStream<T, K, W extends Window> {
 		DataStream<T> scopedStreamInput = new SingleOutputStreamOperator<T>(input.getExecutionEnvironment(),
 			new ScopeTransformation<T>(watermarkfiller, ScopeTransformation.SCOPE_TYPE.INGRESS));
 
-		// TODO input.getExecutionEnvironment or this.getExecutionEnvironment() ??
-		// TODO is this a correct way to do this?
 		WindowedStream<T,K,W> scopedWindowStream = new WindowedStream<>(
 			new KeyedStream<>(scopedStreamInput, input.getKeySelector(),
 				input.getKeyType()), getWindowAssigner());
 
 		IterativeWindowStream<T,W,F,K,R,OUT> iterativeStream = new IterativeWindowStream<>(
-			scopedWindowStream, coWinTermFun, feedbackBuilder, feedbackType, 0);
+			scopedWindowStream, coWinTermFun, terminationStrategy, feedbackBuilder, feedbackType, 0);
 
 		DataStream<OUT> outStream = iterativeStream.loop();
 

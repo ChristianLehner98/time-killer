@@ -124,6 +124,10 @@ public final class StreamRecord<T> extends StreamElement implements Serializable
 		return hasTimestamp;
 	}
 
+	public void forwardTimestamp() {
+		timestamp = timestamp + 1;
+	}
+
 	// ------------------------------------------------------------------------
 	//  Updating
 	// ------------------------------------------------------------------------
@@ -207,6 +211,7 @@ public final class StreamRecord<T> extends StreamElement implements Serializable
 	public StreamRecord<T> copy(T valueCopy) {
 		StreamRecord<T> copy = new StreamRecord<>(valueCopy);
 		copy.timestamp = this.timestamp;
+		copy.context = this.context;
 		copy.hasTimestamp = this.hasTimestamp;
 		return copy;
 	}
@@ -218,6 +223,7 @@ public final class StreamRecord<T> extends StreamElement implements Serializable
 	public void copyTo(T valueCopy, StreamRecord<T> target) {
 		target.value = valueCopy;
 		target.timestamp = this.timestamp;
+		target.context = this.context;
 		target.hasTimestamp = this.hasTimestamp;
 	}
 
@@ -233,6 +239,7 @@ public final class StreamRecord<T> extends StreamElement implements Serializable
 		else if (o != null && getClass() == o.getClass()) {
 			StreamRecord<?> that = (StreamRecord<?>) o;
 			return this.hasTimestamp == that.hasTimestamp &&
+					(!this.hasTimestamp || this.context.equals(that.context)) &&
 					(!this.hasTimestamp || this.timestamp == that.timestamp) &&
 					(this.value == null ? that.value == null : this.value.equals(that.value));
 		}
@@ -249,6 +256,6 @@ public final class StreamRecord<T> extends StreamElement implements Serializable
 
 	@Override
 	public String toString() {
-		return "Record @ " + (hasTimestamp ? timestamp : "(undef)") + " : " + value;
+		return "Record @ " + (hasTimestamp ? getFullTimestamp() : "(undef)") + " : " + value;
 	}
 }

@@ -29,6 +29,7 @@ import org.apache.flink.streaming.runtime.operators.windowing.WindowOperator;
 import org.apache.flink.streaming.runtime.operators.windowing.functions.InternalIterableWindowFunction;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
 import org.apache.flink.types.Either;
 import org.apache.flink.util.Collector;
 
@@ -41,13 +42,16 @@ import static org.apache.flink.streaming.api.windowing.assigners.TumblingEventTi
 @Public
 public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
 	private DataStream<S> outStream;
+	StreamIterationTermination terminationStrategy;
 
 	public IterativeWindowStream(WindowedStream<IN, K,IN_W> input,
 								 CoWindowTerminateFunction<IN,F,S,R,K,IN_W> coWinTerm,
+								 StreamIterationTermination terminationStrategy,
 								 FeedbackBuilder<R> feedbackBuilder,
 								 TypeInformation<R> feedbackType,
 								 long waitTime) throws Exception {
 		WindowedStream<IN, K, IN_W> windowedStream1 = input;
+		this.terminationStrategy = terminationStrategy;
 
 		// create feedback edge
 		CoFeedbackTransformation<R> coFeedbackTransformation = new CoFeedbackTransformation<>(input.getInput().getParallelism(),
@@ -132,7 +136,7 @@ public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
 			getWindowOperator(windowedStream2, new WrappedWindowFunction2<F, Either<R,S>, K, TimeWindow>(coWinTerm), eitherTypeInfo);
 
 		String opName = "TwoWindowTerminate(" + op1.f0 + ", " + op2.f0 + ")";
-		TwoWindowTerminateOperator combinedOperator = new TwoWindowTerminateOperator(op1.f1, op2.f1, coWinTerm);
+		TwoWindowTerminateOperator combinedOperator = new TwoWindowTerminateOperator(op1.f1, op2.f1, coWinTerm, terminationStrategy);
 		return new TwoInputTransformation<>(
 			windowedStream1.getInput().getTransformation(),
 			windowedStream2.getInput().getTransformation(),

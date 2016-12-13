@@ -66,7 +66,7 @@ public class StreamInputProgressHandler implements Serializable {
 		// Update local watermarks and eventually send out a new
 		Long currentMax = watermarks[currentChannel].get(context);
 		// Only go on if the current timestamp is actually higher for this context
-		if(currentMax == null || timestamp > currentMax) {
+		if(currentMax == null || (timestamp != null && timestamp > currentMax)) {
 			watermarks[currentChannel].put(context, timestamp);
 
 			// find out the minimum over all input channels for this context

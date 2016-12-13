@@ -13,8 +13,10 @@ import org.apache.flink.streaming.api.functions.windowing.CoWindowTerminateFunct
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
+import org.apache.flink.streaming.runtime.tasks.progress.StreamStructuredIterationTermination;
 import org.apache.flink.types.Either;
 import org.apache.flink.util.Collector;
+
 
 import java.io.Serializable;
 import java.util.*;
@@ -35,7 +37,11 @@ public class IterateSyncExample {
 		inputStream
 			.keyBy(0)
 			.timeWindow(Time.milliseconds(1))
-			.iterateSync(new MyCoWindowTerminateFunction(), new MyFeedbackBuilder(), new TupleTypeInfo<Tuple2<Long, Double>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO));
+			.iterateSync(new MyCoWindowTerminateFunction(),
+				new StreamStructuredIterationTermination(20),
+				new MyFeedbackBuilder(),
+				new TupleTypeInfo<Tuple2<Long, Double>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO))
+			.print();
 	}
 
 	protected void run() throws Exception {
@@ -45,7 +51,7 @@ public class IterateSyncExample {
 	private static class MyFeedbackBuilder implements FeedbackBuilder {
 		@Override
 		public KeyedStream feedback(DataStream input) {
-			return input.keyBy(0).timeWindow(Time.milliseconds(1)).sum(0).keyBy(0);
+			return input.keyBy(0);
 		}
 	}
 
@@ -96,13 +102,18 @@ public class IterateSyncExample {
 		}
 
 		@Override
-		// TODO think about putting apply1 before apply2?
 		public void apply1(Tuple key, TimeWindow win, Iterable<Tuple2<Long, List<Long>>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
-			Map<Long, List<Long>> neighbours = new HashMap<>();
-			neighboursPerContext.put(win.getTimeContext(), neighbours);
+			Map<Long, List<Long>> neighbours = neighboursPerContext.get(win.getTimeContext());
+			if(neighbours == null) {
+				neighbours = new HashMap<>();
+				neighboursPerContext.put(win.getTimeContext(), neighbours);
+			}
 
-			Map<Long,Double> pageRanks = new HashMap<>();
-			pageRanksPerContext.put(win.getTimeContext(), pageRanks);
+			Map<Long,Double> pageRanks = pageRanksPerContext.get(win.getTimeContext());
+			if(pageRanks == null) {
+				pageRanks = new HashMap<>();
+				pageRanksPerContext.put(win.getTimeContext(), pageRanks);
+			}
 
 			for(Tuple2<Long,List<Long>> entry : iterable) {
 				// save neighbours to local state
@@ -118,12 +129,19 @@ public class IterateSyncExample {
 
 		@Override
 		public void apply2(Tuple key, TimeWindow win, Iterable<Tuple2<Long, Double>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
+			Map<Long,Double> summed = new HashMap<>();
 			for(Tuple2<Long,Double> entry : iterable) {
-				List<Long> neighbourIDs = getNeighbours(win.getTimeContext(),entry.f0);
-				Double currentRank = entry.f1;
+				Double current = summed.get(entry.f0);
+				if(current == null) summed.put(entry.f0, entry.f1);
+				else summed.put(entry.f0, current+entry.f1);
+			}
+
+			for(Map.Entry<Long,Double> entry : summed.entrySet()) {
+				List<Long> neighbourIDs = getNeighbours(win.getTimeContext(),entry.getKey());
+				Double currentRank = entry.getValue();
 
 				// update current rank
-				pageRanksPerContext.get(win.getTimeContext()).put(entry.f0, currentRank);
+				pageRanksPerContext.get(win.getTimeContext()).put(entry.getKey(), currentRank);
 
 				// generate new ranks for neighbours
 				Double rankToDistribute = currentRank / (double) neighbourIDs.size();
@@ -131,12 +149,6 @@ public class IterateSyncExample {
 					collector.collect(new Either.Left(new Tuple2<>(neighbourID, rankToDistribute)));
 				}
 			}
-		}
-
-		@Override
-		public boolean terminate(long i) {
-			if (i < 20) return true;
-			return false;
 		}
 
 		@Override
