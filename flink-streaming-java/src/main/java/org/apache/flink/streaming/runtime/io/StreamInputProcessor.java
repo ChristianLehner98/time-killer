@@ -49,6 +49,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.tasks.OneInputStreamTask;
 
 /**
  * Input reader for {@link org.apache.flink.streaming.runtime.tasks.OneInputStreamTask}.
@@ -89,7 +90,8 @@ public class StreamInputProcessor<IN> {
 	public StreamInputProcessor(
 			InputGate[] inputGates,
 			TypeSerializer<IN> inputSerializer,
-			StatefulTask checkpointedTask,
+			//StatefulTask checkpointedTask,
+			OneInputStreamTask checkpointedTask,
 			CheckpointingMode checkpointMode,
 			IOManager ioManager,
 			Configuration taskManagerConfig) throws IOException {
@@ -127,7 +129,7 @@ public class StreamInputProcessor<IN> {
 					ioManager.getSpillingDirectoriesPaths());
 		}
 
-		progressHandler = new StreamInputProgressHandler(inputGate.getNumberOfInputChannels());
+		progressHandler = new StreamInputProgressHandler(inputGate.getNumberOfInputChannels(), checkpointedTask.getIndexInSubtaskGroup());
 	}
 
 	@SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")

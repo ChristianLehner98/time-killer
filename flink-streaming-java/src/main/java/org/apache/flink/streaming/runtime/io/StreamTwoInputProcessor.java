@@ -155,8 +155,8 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 		Arrays.fill(watermarks2, Long.MIN_VALUE);
 		lastEmittedWatermark2 = Long.MIN_VALUE;
 
-		progressHandler1 = new StreamInputProgressHandler(numInputChannels1);
-		progressHandler2 = new StreamInputProgressHandler(numInputChannels2);
+		progressHandler1 = new StreamInputProgressHandler(numInputChannels1,66);
+		progressHandler2 = new StreamInputProgressHandler(numInputChannels2,66);
 	}
 
 	@SuppressWarnings("unchecked")

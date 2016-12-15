@@ -33,12 +33,10 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 
 	public TwoWindowTerminateOperator(WindowOperator winOp1,
 									  WindowOperator winOp2,
-									  TerminationFunction terminationFunction,
-									  StreamIterationTermination terminationStrategy) {
+									  TerminationFunction terminationFunction) {
 		this.winOp1 = winOp1;
 		this.winOp2 = winOp2;
 		this.terminationFunction = terminationFunction;
-		//this.terminationStrategy = terminationStrategy;
 	}
 
 	@Override

@@ -8,12 +8,14 @@ import org.apache.flink.examples.java.graph.util.PageRankData;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.source.ParallelSourceFunction;
+import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.functions.windowing.CoWindowTerminateFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
-import org.apache.flink.streaming.runtime.tasks.progress.StreamStructuredIterationTermination;
+import org.apache.flink.streaming.runtime.tasks.progress.StructuredIterationTermination;
 import org.apache.flink.types.Either;
 import org.apache.flink.util.Collector;
 
@@ -32,16 +34,18 @@ public class IterateSyncExample {
 
 	public IterateSyncExample() throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
+		env.setParallelism(4);
 
 		DataStream<Tuple2<Long,List<Long>>> inputStream = env.addSource(new PageRankSource(4));
 		inputStream
 			.keyBy(0)
 			.timeWindow(Time.milliseconds(1))
 			.iterateSync(new MyCoWindowTerminateFunction(),
-				new StreamStructuredIterationTermination(20),
+				new StructuredIterationTermination(20),
 				new MyFeedbackBuilder(),
 				new TupleTypeInfo<Tuple2<Long, Double>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO))
 			.print();
+		System.out.println(env.getExecutionPlan());
 	}
 
 	protected void run() throws Exception {
@@ -55,7 +59,7 @@ public class IterateSyncExample {
 		}
 	}
 
-	private static class PageRankSource implements SourceFunction<Tuple2<Long,List<Long>>> {
+	private static class PageRankSource extends RichParallelSourceFunction<Tuple2<Long,List<Long>>> {
 		private int numberOfGraphs;
 
 		public PageRankSource(int numberOfGraphs) {
@@ -64,9 +68,14 @@ public class IterateSyncExample {
 
 		@Override
 		public void run(SourceContext<Tuple2<Long, List<Long>>> ctx) {
+			int parallelism = getRuntimeContext().getNumberOfParallelSubtasks();
+			int parallelTask = getRuntimeContext().getIndexOfThisSubtask();
+
 			for(int i=0; i<numberOfGraphs; i++) {
 				for(Tuple2<Long,List<Long>> entry : getAdjancencyList()) {
-					ctx.collectWithTimestamp(entry, i);
+					if(entry.f0 % parallelism == parallelTask) {
+						ctx.collectWithTimestamp(entry, i);
+					}
 				}
 				if(i!= 2) ctx.emitWatermark(new Watermark(i));
 			}

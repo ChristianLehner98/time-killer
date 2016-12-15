@@ -13,10 +13,14 @@ public class StreamInputProgressHandler implements Serializable {
 
 	private Map<List<Long>,Tuple2<Long,Boolean>>[] watermarks;
 	private Map<List<Long>,Long> lastEmittedWatermarks = new HashMap<>();
+	private int taskIndex;
+	private int id;
 
-	public StreamInputProgressHandler(int numberOfInputChannels) {
+	public StreamInputProgressHandler(int numberOfInputChannels, int taskIndex) {
 		this.numberOfInputChannels = numberOfInputChannels;
 		watermarks = new HashMap[numberOfInputChannels];
+		this.taskIndex = taskIndex;
+		this.id = (int) (Math.random() * 1000);
 		for(int i=0; i<numberOfInputChannels; i++) {
 			watermarks[i] = new HashMap<>();
 		}
@@ -60,6 +64,13 @@ public class StreamInputProgressHandler implements Serializable {
 
 		// Check if whole context is finished and clean up
 		if(watermark.getTimestamp() == Long.MAX_VALUE) {
+			watermarks[currentChannel].put(context, new Tuple2<>(Long.MAX_VALUE,false));
+			for(int i=0; i<numberOfInputChannels; i++) {
+				Tuple2<Long,Boolean> entry = watermarks[i].get(context);
+				if(entry == null || entry.f0 != Long.MAX_VALUE) {
+					return null;
+				}
+			}
 			watermarks[currentChannel].remove(context);
 			lastEmittedWatermarks.remove(context);
 			return null;
@@ -68,14 +79,20 @@ public class StreamInputProgressHandler implements Serializable {
 		Long currentMax = watermarks[currentChannel].get(context) != null ?
 			watermarks[currentChannel].get(context).f0 : null;
 		// Only go on if the current timestamp is actually higher for this context
-		if(currentMax == null || (timestamp != null && timestamp > currentMax)) {
-			watermarks[currentChannel].put(context, new Tuple2(timestamp,watermark.iterationDone()));
+		if(currentMax == null ||  timestamp > currentMax) {
+			watermarks[currentChannel].put(context, new Tuple2<>(timestamp,watermark.iterationDone()));
 
 			// find out the minimum over all input channels for this context
 			Long newMin = Long.MAX_VALUE;
 			boolean isDone = true;
+			//if(taskIndex == 0) {
+			//	System.out.println(watermarks[0].get(context) + " - " +
+			//		watermarks[1].get(context) + " - " +
+			//		watermarks[2].get(context) + " - " +
+			//		watermarks[3].get(context) + " - ");
+			//}
 			for(int i=0; i<numberOfInputChannels; i++) {
-				Long channelMax = watermarks[i].get(context).f0;
+				Long channelMax = watermarks[i].get(context) != null? watermarks[i].get(context).f0 : null;
 				if(channelMax == null) return null;
 
 				if(!watermarks[i].get(context).f1) isDone = false;

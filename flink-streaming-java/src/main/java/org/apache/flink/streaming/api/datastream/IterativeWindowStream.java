@@ -42,7 +42,6 @@ import static org.apache.flink.streaming.api.windowing.assigners.TumblingEventTi
 @Public
 public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
 	private DataStream<S> outStream;
-	StreamIterationTermination terminationStrategy;
 
 	public IterativeWindowStream(WindowedStream<IN, K,IN_W> input,
 								 CoWindowTerminateFunction<IN,F,S,R,K,IN_W> coWinTerm,
@@ -51,11 +50,10 @@ public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
 								 TypeInformation<R> feedbackType,
 								 long waitTime) throws Exception {
 		WindowedStream<IN, K, IN_W> windowedStream1 = input;
-		this.terminationStrategy = terminationStrategy;
 
 		// create feedback edge
 		CoFeedbackTransformation<R> coFeedbackTransformation = new CoFeedbackTransformation<>(input.getInput().getParallelism(),
-			feedbackType, waitTime, input.getInput().getTransformation().getScope());
+			feedbackType, waitTime, input.getInput().getTransformation().getScope(), terminationStrategy);
 
 		// create feedback source
 		KeyedStream<F,K> feedbackSourceStream = feedbackBuilder.feedback(new DataStream<R>(input.getExecutionEnvironment(), coFeedbackTransformation));
@@ -120,7 +118,6 @@ public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
 		return outStream;
 	}
 
-	// TODO does the (required) final do harm?
 	public TwoInputTransformation<IN,F,Either<R,S>> getTransformation(
 		final CoWindowTerminateFunction<IN,F,S,R,K,IN_W> coWinTerm,
 		WindowedStream<IN, K, IN_W> windowedStream1,
@@ -136,7 +133,7 @@ public class IterativeWindowStream<IN,IN_W extends Window,F,K,R,S> {
 			getWindowOperator(windowedStream2, new WrappedWindowFunction2<F, Either<R,S>, K, TimeWindow>(coWinTerm), eitherTypeInfo);
 
 		String opName = "TwoWindowTerminate(" + op1.f0 + ", " + op2.f0 + ")";
-		TwoWindowTerminateOperator combinedOperator = new TwoWindowTerminateOperator(op1.f1, op2.f1, coWinTerm, terminationStrategy);
+		TwoWindowTerminateOperator combinedOperator = new TwoWindowTerminateOperator(op1.f1, op2.f1, coWinTerm);
 		return new TwoInputTransformation<>(
 			windowedStream1.getInput().getTransformation(),
 			windowedStream2.getInput().getTransformation(),

@@ -143,4 +143,8 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 	public static String createBrokerIdString(JobID jid, String iterationID, int subtaskIndex) {
 		return jid + "-" + iterationID + "-" + subtaskIndex;
 	}
+
+	public void setTerminationStrategy(StreamIterationTermination termination) {
+		this.termination = termination;
+	}
 }
