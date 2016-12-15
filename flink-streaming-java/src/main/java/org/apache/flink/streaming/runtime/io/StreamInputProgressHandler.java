@@ -83,14 +83,14 @@ public class StreamInputProgressHandler implements Serializable {
 			}
 
 			if(isDone) {
-				return new Watermark(context, Long.MAX_VALUE, true);
+				return new Watermark(context, Long.MAX_VALUE, true, watermark.iterationOnly());
 			} else {
 				// if the new minimum of all channels is larger than the last emitted watermark
 				// put out a new one
 				Long lastEmitted = lastEmittedWatermarks.get(context);
 				if (lastEmitted == null || newMin > lastEmitted) {
 					lastEmittedWatermarks.put(context, newMin);
-					return new Watermark(context, newMin);
+					return new Watermark(context, newMin, false, watermark.iterationOnly());
 				}
 			}
 		}

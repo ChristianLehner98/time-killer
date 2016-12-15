@@ -22,6 +22,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 
+import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Stack;
@@ -46,7 +47,7 @@ import java.util.Stack;
  * an operator receives this it will know that no more input will be arriving in the future.
  */
 @PublicEvolving
-public final class Watermark extends StreamElement {
+public final class Watermark extends StreamElement implements Comparable<Watermark>{
 
 	/** The watermark that signifies end-of-event-time */
 	public static final Watermark MAX_WATERMARK = new Watermark(Long.MAX_VALUE);
@@ -56,8 +57,8 @@ public final class Watermark extends StreamElement {
 	/** The timestamp of the watermark in milliseconds*/
 	private long timestamp;
 	private final List<Long> context;
-	private final Stack<Long> sequenceIDs = new Stack<>();
 	private boolean iterationDone = false;
+	private boolean iterationOnly = false;
 
 	/**
 	 * Creates a new watermark with the given timestamp in milliseconds.
@@ -93,6 +94,16 @@ public final class Watermark extends StreamElement {
 	}
 
 	/**
+	 * Creates a new watermark with the given timestamp in milliseconds and a context.
+	 */
+	public Watermark(List<Long> context, long timestamp, boolean iterationDone, boolean iterationOnly) {
+		this.timestamp = timestamp;
+		this.context = new LinkedList(context);
+		this.iterationDone = iterationDone;
+		this.iterationOnly = iterationOnly;
+	}
+
+	/**
 	 * Returns the timestamp associated with this {@link Watermark} in milliseconds.
 	 */
 	public long getTimestamp() {
@@ -119,17 +130,12 @@ public final class Watermark extends StreamElement {
 		timestamp = timestamp + 1;
 	}
 
-	public Long popSequenceID() {
-		return sequenceIDs.pop();
-	}
-	public void pushSequenceID(Long seqID) {
-		sequenceIDs.push(seqID);
-	}
-
 	public boolean iterationDone() { return iterationDone; }
 	public void setIterationDone(boolean iterationDone) {
 		this.iterationDone = iterationDone;
 	}
+
+	public boolean iterationOnly() { return iterationOnly; }
 
 	// ------------------------------------------------------------------------
 
@@ -149,5 +155,10 @@ public final class Watermark extends StreamElement {
 	@Override
 	public String toString() {
 		return "Watermark @ [" + StringUtils.join(context, ", ") + ", " + timestamp + "]";
+	}
+
+	@Override
+	public int compareTo(Watermark mark) {
+		return new Long(timestamp).compareTo(mark.getTimestamp());
 	}
 }

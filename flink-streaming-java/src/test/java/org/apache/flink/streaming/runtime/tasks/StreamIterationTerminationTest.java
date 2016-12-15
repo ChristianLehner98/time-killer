@@ -3,17 +3,19 @@ package org.apache.flink.streaming.runtime.tasks;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.progress.FixpointProgressStrategy;
-import org.apache.flink.streaming.runtime.tasks.progress.StructuredIterationProgressStrategy;
+import org.apache.flink.streaming.runtime.tasks.progress.StructuredIterationTermination;
 import org.junit.Test;
 
 import java.util.LinkedList;
 import java.util.List;
 
-public class StreamIterationProgressTest {
+public class StreamIterationTerminationTest {
 
 	@Test
 	public void fixpointProgressTest() {
 		FixpointProgressStrategy progress = new FixpointProgressStrategy();
+
+
 
 		List<Long> context0 = new LinkedList<>();
 		context0.add(new Long(0));
@@ -56,7 +58,7 @@ public class StreamIterationProgressTest {
 
 	@Test
 	public void structuredIterationProgressTest() {
-		StructuredIterationProgressStrategy progress = new StructuredIterationProgressStrategy(2);
+		StructuredIterationTermination termination = new StructuredIterationTermination(2);
 
 		List<Long> context0 = new LinkedList<>();
 		context0.add(new Long(0));
@@ -65,12 +67,13 @@ public class StreamIterationProgressTest {
 
 		Watermark watermark00 = new Watermark(context0, 0);
 		Watermark watermark01 = new Watermark(context0, 1);
-		Watermark watermark0max = new Watermark(context0, Long.MAX_VALUE);
 		Watermark watermark11 = new Watermark(context1, 1);
-		Watermark watermark1max = new Watermark(context1, Long.MAX_VALUE);
 
-		assert progress.getNextWatermark(watermark00).equals(watermark00);
-		assert progress.getNextWatermark(watermark11).equals(watermark1max);
-		assert progress.getNextWatermark(watermark01).equals(watermark0max);
+		termination.observeWatermark(watermark00);
+		assert(termination.terminate(context0)) == false;
+		termination.observeWatermark(watermark11);
+		assert(termination.terminate(context1)) == true;
+		termination.observeWatermark(watermark01);
+		assert termination.terminate(context0) == true;
 	}
 }

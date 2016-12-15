@@ -7,18 +7,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class StreamStructuredIterationTermination implements StreamIterationTermination {
+public class StructuredIterationTermination implements StreamIterationTermination {
 	private final Map<List<Long>, Long> iterationIndices = new HashMap<>();
 	private final long maxIterations;
 
-	public StreamStructuredIterationTermination(long maxIterations) {
+	public StructuredIterationTermination(long maxIterations) {
 		this.maxIterations = maxIterations;
 	}
 
 	public boolean terminate(List<Long> timeContext) {
 		Long currentIndex = iterationIndices.get(timeContext);
 
-		if(currentIndex == null || currentIndex <= maxIterations - 1) return false;
+		if(currentIndex == null || currentIndex < maxIterations - 1) return false;
 		return true;
 	}
 

@@ -125,7 +125,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 			if(mark.getContext().get(mark.getContext().size()-1) != Long.MAX_VALUE ) {
 				terminationFunction.onTermination(mark.getContext(), collector);
 			}
-			winOp2.processWatermark(new Watermark(mark.getContext(), Long.MAX_VALUE));
+			winOp2.processWatermark(new Watermark(mark.getContext(), Long.MAX_VALUE, false, mark.iterationOnly()));
 		} else {
 			winOp2.processWatermark(mark);
 		}

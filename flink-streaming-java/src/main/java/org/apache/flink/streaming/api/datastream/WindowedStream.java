@@ -35,9 +35,7 @@ import org.apache.flink.streaming.api.functions.aggregation.AggregationFunction;
 import org.apache.flink.streaming.api.functions.aggregation.ComparableAggregator;
 import org.apache.flink.streaming.api.functions.aggregation.SumAggregator;
 import org.apache.flink.streaming.api.functions.windowing.*;
-import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
-import org.apache.flink.streaming.api.operators.ChainingStrategy;
-import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.transformations.OneInputTransformation;
 import org.apache.flink.streaming.api.transformations.ScopeTransformation;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -952,66 +950,14 @@ public class WindowedStream<T, K, W extends Window> {
 
 		ScopeTransformation<OUT> egressTransformation = new ScopeTransformation<>(outStream.getTransformation(), ScopeTransformation.SCOPE_TYPE.EGRESS);
 
-		// TODO add watermarkSequencializer
-
-		return new SingleOutputStreamOperator<>(outStream.environment, egressTransformation);
-	}
-
-	private static class WindowedStreamWatermarkFiller<IN>
-		extends AbstractStreamOperator<IN>
-		implements OneInputStreamOperator<IN, IN> {
-
-		private static final long serialVersionUID = 1L;
-
-		private Map<List<Long>,SortedMap<Long,List<StreamRecord<IN>>>> recordsByContext = new HashMap<>();
-		private Long sequenceID = 0L;
-
-		public WindowedStreamWatermarkFiller() {
-			chainingStrategy = ChainingStrategy.ALWAYS;
-		}
-
-		@Override
-		public void processElement(StreamRecord<IN> element) throws Exception {
-			SortedMap<Long, List<StreamRecord<IN>>> elements = getElements(element.getContext());
-
-			List<StreamRecord<IN>> elementsWithSameTimestamp = elements.get(element.getTimestamp());
-			if(elementsWithSameTimestamp == null) {
-				elementsWithSameTimestamp = new LinkedList<>();
-				elements.put(element.getTimestamp(), elementsWithSameTimestamp);
-			}
-			elementsWithSameTimestamp.add(element);
-		}
-
-		@Override
-		public void processWatermark(Watermark watermark) {
-			// use sequence IDs on "real" (not iteration only) watermarks
-			// in order to emit them again in the right order after an iteration
-			watermark.pushSequenceID(sequenceID++);
-
-			SortedMap<Long,List<StreamRecord<IN>>> elements = getElements(watermark.getContext());
-			for(Iterator<Map.Entry<Long,List<StreamRecord<IN>>>> it = elements.entrySet().iterator(); it.hasNext();) {
-				Map.Entry<Long,List<StreamRecord<IN>>> current = it.next();
-				if(current.getKey() > watermark.getTimestamp()) continue;
-
-				for(StreamRecord<IN> record : current.getValue()) {
-					output.collect(record);
-				}
-				if(current.getKey() != watermark.getTimestamp()) {
-					output.emitWatermark(new Watermark(watermark.getContext(), current.getKey(), true));
-				}
-				it.remove();
-			}
-			output.emitWatermark(watermark);
-		}
-
-		private SortedMap<Long, List<StreamRecord<IN>>> getElements(List<Long> context) {
-			SortedMap<Long, List<StreamRecord<IN>>> elements = recordsByContext.get(context);
-			if(elements == null) {
-				elements = new TreeMap<>();
-				recordsByContext.put(context, elements);
-			}
-			return elements;
-		}
+		OneInputTransformation<OUT,OUT> seqWatermarksOutStream = new OneInputTransformation<>(
+			egressTransformation,
+			"WatermarkResequencializer",
+			new WatermarkResequencializer<OUT>(),
+			egressTransformation.getOutputType(),
+			egressTransformation.getParallelism()
+		);
+		return new SingleOutputStreamOperator<>(outStream.environment, seqWatermarksOutStream);
 	}
 
 	// ------------------------------------------------------------------------
