@@ -1,0 +1,33 @@
+package org.apache.flink.streaming.runtime.tasks.progress;
+
+import org.apache.flink.streaming.api.watermark.Watermark;
+import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+
+import java.util.*;
+
+public class FixpointIterationTermination implements StreamIterationTermination {
+	private Map<List<Long>, Boolean> convergedTracker = new HashMap<>();
+	private Set<List<Long>> done = new HashSet<>();
+
+	public boolean terminate(List<Long> timeContext) {
+		return done.contains(timeContext);
+	}
+
+	public void observeRecord(StreamRecord record) {
+		convergedTracker.put(record.getContext(), false);
+	}
+
+	public void observeWatermark(Watermark watermark) {
+		if(watermark.getTimestamp() == Long.MAX_VALUE) {
+			// clean up
+			convergedTracker.remove(watermark.getContext());
+			done.remove(watermark.getContext());
+		} else {
+			if(convergedTracker.get(watermark.getContext())) {
+				done.add(watermark.getContext());
+			} else {
+				convergedTracker.put(watermark.getContext(), true);
+			}
+		}
+	}
+}
