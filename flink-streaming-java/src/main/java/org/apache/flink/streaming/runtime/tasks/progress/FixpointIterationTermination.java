@@ -14,6 +14,7 @@ public class FixpointIterationTermination implements StreamIterationTermination 
 	}
 
 	public void observeRecord(StreamRecord record) {
+		done.remove(record.getContext()); // if this partition is "back alive"
 		convergedTracker.put(record.getContext(), false);
 	}
 
