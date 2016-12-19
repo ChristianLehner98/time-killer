@@ -6,11 +6,11 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.examples.java.graph.util.PageRankData;
 import org.apache.flink.streaming.api.TimeCharacteristic;
-import org.apache.flink.streaming.api.datastream.*;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.FeedbackBuilder;
+import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.source.ParallelSourceFunction;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
-import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.functions.windowing.CoWindowTerminateFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
@@ -21,7 +21,10 @@ import org.apache.flink.util.Collector;
 
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
 
 public class IterateSyncExample {
 	StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -77,7 +80,9 @@ public class IterateSyncExample {
 						ctx.collectWithTimestamp(entry, i);
 					}
 				}
-				if(i!= 2) ctx.emitWatermark(new Watermark(i));
+				if(i!= 2) {
+					ctx.emitWatermark(new Watermark(i));
+				}
 			}
 		}
 
@@ -138,11 +143,16 @@ public class IterateSyncExample {
 
 		@Override
 		public void apply2(Tuple key, TimeWindow win, Iterable<Tuple2<Long, Double>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
+
 			Map<Long,Double> summed = new HashMap<>();
 			for(Tuple2<Long,Double> entry : iterable) {
 				Double current = summed.get(entry.f0);
-				if(current == null) summed.put(entry.f0, entry.f1);
-				else summed.put(entry.f0, current+entry.f1);
+				if(current == null) {
+					summed.put(entry.f0, entry.f1);
+				}
+				else {
+					summed.put(entry.f0, current+entry.f1);
+				}
 			}
 
 			for(Map.Entry<Long,Double> entry : summed.entrySet()) {

@@ -18,7 +18,9 @@ public class StructuredIterationTermination implements StreamIterationTerminatio
 	public boolean terminate(List<Long> timeContext) {
 		Long currentIndex = iterationIndices.get(timeContext);
 
-		if(currentIndex == null || currentIndex < maxIterations - 1) return false;
+		if(currentIndex == null || currentIndex < maxIterations - 1) {
+			return false;
+		}
 		return true;
 	}
 

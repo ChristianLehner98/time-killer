@@ -3,7 +3,13 @@ package org.apache.flink.streaming.api.operators;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.Iterator;
+
 
 public class WatermarkResequencializer<IN>
 	extends AbstractStreamOperator<IN>

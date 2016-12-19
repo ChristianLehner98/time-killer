@@ -18,9 +18,12 @@
 
 package org.apache.flink.streaming.api.datastream;
 
-import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.annotation.Public;
-import org.apache.flink.api.common.functions.*;
+import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.api.common.functions.FoldFunction;
+import org.apache.flink.api.common.functions.Function;
+import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.common.functions.RichFunction;
 import org.apache.flink.api.common.state.FoldingStateDescriptor;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.state.ReducingStateDescriptor;
@@ -28,17 +31,21 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.Utils;
 import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.aggregation.AggregationFunction;
 import org.apache.flink.streaming.api.functions.aggregation.ComparableAggregator;
 import org.apache.flink.streaming.api.functions.aggregation.SumAggregator;
-import org.apache.flink.streaming.api.functions.windowing.*;
-import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.api.functions.windowing.FoldApplyWindowFunction;
+import org.apache.flink.streaming.api.functions.windowing.PassThroughWindowFunction;
+import org.apache.flink.streaming.api.functions.windowing.ReduceApplyWindowFunction;
+import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
+import org.apache.flink.streaming.api.functions.windowing.CoWindowTerminateFunction;
+import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.operators.WatermarkResequencializer;
+import org.apache.flink.streaming.api.operators.WindowedStreamWatermarkFiller;
 import org.apache.flink.streaming.api.transformations.OneInputTransformation;
 import org.apache.flink.streaming.api.transformations.ScopeTransformation;
-import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.assigners.MergingWindowAssigner;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
@@ -52,15 +59,13 @@ import org.apache.flink.streaming.api.windowing.windows.Window;
 import org.apache.flink.streaming.runtime.operators.windowing.AccumulatingProcessingTimeWindowOperator;
 import org.apache.flink.streaming.runtime.operators.windowing.AggregatingProcessingTimeWindowOperator;
 import org.apache.flink.streaming.runtime.operators.windowing.EvictingWindowOperator;
+import org.apache.flink.streaming.runtime.operators.windowing.WindowOperator;
 import org.apache.flink.streaming.runtime.operators.windowing.functions.InternalIterableWindowFunction;
 import org.apache.flink.streaming.runtime.operators.windowing.functions.InternalSingleValueWindowFunction;
-import org.apache.flink.streaming.runtime.operators.windowing.WindowOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
 
-import java.io.Serializable;
-import java.util.*;
 
 /**
  * A {@code WindowedStream} represents a data stream where elements are grouped by
@@ -923,10 +928,10 @@ public class WindowedStream<T, K, W extends Window> {
 		return reduce(aggregator);
 	}
 
-	public <OUT,F,R> DataStream<OUT> iterateSync(CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun,
-												 StreamIterationTermination terminationStrategy,
-												 FeedbackBuilder<R> feedbackBuilder,
-												 TypeInformation<R> feedbackType) throws Exception {
+	public <OUT,F,R> DataStream<OUT> iterateSync(CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun, 
+								StreamIterationTermination terminationStrategy, 
+								FeedbackBuilder<R> feedbackBuilder, 
+								TypeInformation<R> feedbackType) throws Exception {
 		// add watermark filler
 		OneInputTransformation<T, T> watermarkfiller = new OneInputTransformation<T,T>(
 			input.getTransformation(),

@@ -33,7 +33,17 @@ import org.apache.flink.runtime.io.network.api.CancelCheckpointMarker;
 import org.apache.flink.runtime.io.network.api.writer.ResultPartitionWriter;
 import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.runtime.jobgraph.tasks.StatefulTask;
-import org.apache.flink.runtime.state.*;
+import org.apache.flink.runtime.state.AbstractKeyedStateBackend;
+import org.apache.flink.runtime.state.AbstractStateBackend;
+import org.apache.flink.runtime.state.ChainedStateHandle;
+import org.apache.flink.runtime.state.KeyGroupRange;
+import org.apache.flink.runtime.state.OperatorStateBackend;
+import org.apache.flink.runtime.state.StreamStateHandle;
+import org.apache.flink.runtime.state.OperatorStateHandle;
+import org.apache.flink.runtime.state.CheckpointStreamFactory;
+import org.apache.flink.runtime.state.StateBackendFactory;
+import org.apache.flink.runtime.state.KeyGroupsStateHandle;
+import org.apache.flink.runtime.state.TaskStateHandles;
 import org.apache.flink.runtime.state.filesystem.FsStateBackend;
 import org.apache.flink.runtime.state.filesystem.FsStateBackendFactory;
 import org.apache.flink.runtime.state.memory.MemoryStateBackend;
@@ -317,6 +327,11 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 				LOG.error("Could not shut down async checkpoint threads", t);
 			}
 
+			// release the output resources. this method should never fail.
+			if (operatorChain != null) {
+				operatorChain.releaseOutputs();
+			}
+
 			// we must! perform this cleanup
 			try {
 				cleanup();
@@ -329,11 +344,6 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 			// if the operators were not disposed before, do a hard dispose
 			if (!disposed) {
 				disposeAllOperators();
-			}
-
-			// release the output resources. this method should never fail.
-			if (operatorChain != null) {
-				operatorChain.releaseOutputs();
 			}
 		}
 	}

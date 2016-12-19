@@ -35,7 +35,7 @@ import org.apache.flink.streaming.api.transformations.StreamTransformation;
 import org.apache.flink.streaming.api.transformations.TwoInputTransformation;
 import org.apache.flink.streaming.api.transformations.UnionTransformation;
 import org.apache.flink.streaming.api.transformations.ScopeTransformation;
-import org.apache.flink.streaming.runtime.tasks.StreamIterationHead;
+import org.apache.flink.streaming.runtime.tasks.progress.FixpointIterationTermination;
 import org.apache.flink.util.MathUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -356,7 +356,7 @@ public class StreamGraphGenerator {
 			iterate.getWaitTime(),
 			iterate.getParallelism(),
 			iterate.getMaxParallelism(),
-			iterate.getScope());
+			iterate.getScope(), new FixpointIterationTermination());
 
 		StreamNode itSource = itSourceAndSink.f0;
 		StreamNode itSink = itSourceAndSink.f1;
@@ -422,7 +422,7 @@ public class StreamGraphGenerator {
 				coIterate.getWaitTime(),
 				coIterate.getParallelism(),
 				coIterate.getMaxParallelism(),
-				coIterate.getScope());
+				coIterate.getScope(), coIterate.getTerminationStrategy());
 
 		StreamNode itSource = itSourceAndSink.f0;
 		StreamNode itSink = itSourceAndSink.f1;

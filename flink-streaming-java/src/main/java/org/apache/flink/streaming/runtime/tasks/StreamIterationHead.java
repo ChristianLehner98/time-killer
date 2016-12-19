@@ -29,7 +29,6 @@ import org.apache.flink.streaming.runtime.io.BlockingQueueBroker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
-import org.apache.flink.streaming.runtime.tasks.progress.StructuredIterationTermination;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,13 +38,16 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 	private static final Logger LOG = LoggerFactory.getLogger(StreamIterationHead.class);
 
 	private volatile boolean running = true;
-	private StreamIterationTermination termination = new StructuredIterationTermination(20);
+//	private StreamIterationTermination termination = new StructuredIterationTermination(20);
+	
+	private StreamIterationTermination termination;
 	// ------------------------------------------------------------------------
 
+	
 
 	@Override
 	protected void run() throws Exception {
-		
+		termination = getConfiguration().getTerminationFunction(Thread.currentThread().getContextClassLoader());
 		final String iterationId = getConfiguration().getIterationId();
 		if (iterationId == null || iterationId.length() == 0) {
 			throw new Exception("Missing iteration ID in the task configuration");
@@ -144,7 +146,4 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 		return jid + "-" + iterationID + "-" + subtaskIndex;
 	}
 
-	public void setTerminationStrategy(StreamIterationTermination termination) {
-		this.termination = termination;
-	}
 }

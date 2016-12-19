@@ -3,7 +3,11 @@ package org.apache.flink.streaming.runtime.tasks.progress;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.HashMap;
+import java.util.HashSet;
 
 public class FixpointIterationTermination implements StreamIterationTermination {
 	private Map<List<Long>, Boolean> convergedTracker = new HashMap<>();

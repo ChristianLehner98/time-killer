@@ -60,6 +60,7 @@ import org.apache.flink.streaming.runtime.tasks.StoppableSourceStreamTask;
 import org.apache.flink.streaming.runtime.tasks.StreamIterationHead;
 import org.apache.flink.streaming.runtime.tasks.StreamIterationTail;
 import org.apache.flink.streaming.runtime.tasks.TwoInputStreamTask;
+import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -546,7 +547,7 @@ public class StreamGraph extends StreamingPlan {
 		long timeout,
 		int parallelism,
 		int maxParallelism,
-		StreamScope scope) {
+		StreamScope scope, StreamIterationTermination iterationTermination) {
 		StreamNode source = this.addNode(sourceId,
 			null,
 			StreamIterationHead.class,
@@ -556,7 +557,8 @@ public class StreamGraph extends StreamingPlan {
 		sources.add(source.getId());
 		setParallelism(source.getId(), parallelism);
 		setMaxParallelism(source.getId(), maxParallelism);
-
+		source.setIterationTermination(iterationTermination);
+		
 		StreamNode sink = this.addNode(sinkId,
 			null,
 			StreamIterationTail.class,

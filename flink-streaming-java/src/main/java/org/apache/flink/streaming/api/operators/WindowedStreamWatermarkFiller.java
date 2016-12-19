@@ -1,10 +1,13 @@
 package org.apache.flink.streaming.api.operators;
 
-import org.apache.commons.collections.map.HashedMap;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+
 
 public class WindowedStreamWatermarkFiller<IN>
 	extends AbstractStreamOperator<IN>
@@ -38,7 +41,9 @@ public class WindowedStreamWatermarkFiller<IN>
 		for(long i=currentTimestamp; i<=watermark.getTimestamp(); i++) {
 			if(elements.get(i) != null) {
 				boolean iterationOnly = false;
-				if(currentTimestamp < watermark.getTimestamp()) iterationOnly = true;
+				if(currentTimestamp < watermark.getTimestamp()) {
+					iterationOnly = true;
+				}
 				for(StreamRecord<IN> record : elements.get(i)) {
 					output.collect(record);
 				}

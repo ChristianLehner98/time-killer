@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,7 +25,14 @@ import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.streaming.api.windowing.assigners.MergingWindowAssigner;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Collections;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Comparator;
 
 /**
  * A {@link Window} that represents a time interval from {@code start} (inclusive) to
@@ -41,6 +48,7 @@ public class TimeWindow extends Window {
 	public TimeWindow(long start, long end) {
 		this(new LinkedList<Long>(), start, end);
 	}
+
 	public TimeWindow(List<Long> timeContext, long start, long end) {
 		this.start = start;
 		this.end = end;
@@ -83,16 +91,16 @@ public class TimeWindow extends Window {
 	public int hashCode() {
 		int result = (int) (start ^ (start >>> 32));
 		result = 31 * result + (int) (end ^ (end >>> 32));
-		return result^timeContext.hashCode(); // TODO: is this correct?
+		return result ^ timeContext.hashCode(); // TODO: is this correct?
 	}
 
 	@Override
 	public String toString() {
 		return "TimeWindow{" +
-				"start=" + start +
-				", end=" + end +
-				", timeContext=" + timeContext.toString() +
-				'}';
+			"start=" + start +
+			", end=" + end +
+			", timeContext=" + timeContext.toString() +
+			'}';
 	}
 
 	/**
@@ -149,7 +157,7 @@ public class TimeWindow extends Window {
 			target.writeLong(record.start);
 			target.writeLong(record.end);
 			target.writeInt(record.getTimeContext().size());
-			for(Long timestamp : record.getTimeContext()) {
+			for (Long timestamp : record.getTimeContext()) {
 				target.writeLong(timestamp);
 			}
 		}
@@ -160,7 +168,7 @@ public class TimeWindow extends Window {
 			long end = source.readLong();
 			long timeContextSize = source.readInt();
 			List<Long> timeContext = new LinkedList<>();
-			for(int i = 0; i<timeContextSize; i++) {
+			for (int i = 0; i < timeContextSize; i++) {
 				timeContext.add(source.readLong());
 			}
 			return new TimeWindow(timeContext, start, end);
@@ -172,7 +180,7 @@ public class TimeWindow extends Window {
 			long end = source.readLong();
 			long timeContextSize = source.readInt();
 			List<Long> timeContext = new LinkedList<>();
-			for(int i = 0; i<timeContextSize; i++) {
+			for (int i = 0; i < timeContextSize; i++) {
 				timeContext.add(source.readLong());
 			}
 			return new TimeWindow(start, end);
@@ -184,7 +192,7 @@ public class TimeWindow extends Window {
 			target.writeLong(source.readLong());
 			int timeContextSize = source.readInt();
 			target.writeInt(timeContextSize);
-			for(int i=0; i<timeContextSize; i++) {
+			for (int i = 0; i < timeContextSize; i++) {
 				target.writeLong(source.readLong());
 			}
 		}
@@ -225,7 +233,7 @@ public class TimeWindow extends Window {
 		List<Tuple2<TimeWindow, Set<TimeWindow>>> merged = new ArrayList<>();
 		Tuple2<TimeWindow, Set<TimeWindow>> currentMerge = null;
 
-		for (TimeWindow candidate: sortedWindows) {
+		for (TimeWindow candidate : sortedWindows) {
 			if (currentMerge == null) {
 				currentMerge = new Tuple2<>();
 				currentMerge.f0 = candidate;
@@ -247,7 +255,7 @@ public class TimeWindow extends Window {
 			merged.add(currentMerge);
 		}
 
-		for (Tuple2<TimeWindow, Set<TimeWindow>> m: merged) {
+		for (Tuple2<TimeWindow, Set<TimeWindow>> m : merged) {
 			if (m.f1.size() > 1) {
 				c.merge(m.f1, m.f0);
 			}

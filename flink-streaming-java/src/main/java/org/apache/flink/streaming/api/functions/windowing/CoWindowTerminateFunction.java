@@ -1,7 +1,6 @@
 package org.apache.flink.streaming.api.functions.windowing;
 
 import org.apache.flink.annotation.Public;
-import org.apache.flink.api.common.functions.Function;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.api.windowing.windows.Window;
 import org.apache.flink.types.Either;

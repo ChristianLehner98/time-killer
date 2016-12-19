@@ -3,18 +3,22 @@ package org.apache.flink.streaming.runtime.operators.windowing;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.streaming.api.functions.windowing.TerminationFunction;
 import org.apache.flink.streaming.api.graph.StreamConfig;
-import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
+import org.apache.flink.streaming.api.operators.Output;
+import org.apache.flink.streaming.api.operators.TimestampedCollector;
+import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.windows.Window;
 import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.OperatorStateHandles;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
-import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
 import org.apache.flink.types.Either;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 @Internal
 public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extends Window, W2 extends Window>
@@ -31,9 +35,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 
 	TimestampedCollector<Either<R,S>> collector;
 
-	public TwoWindowTerminateOperator(WindowOperator winOp1,
-									  WindowOperator winOp2,
-									  TerminationFunction terminationFunction) {
+	public TwoWindowTerminateOperator(WindowOperator winOp1, WindowOperator winOp2, TerminationFunction terminationFunction) {
 		this.winOp1 = winOp1;
 		this.winOp2 = winOp2;
 		this.terminationFunction = terminationFunction;

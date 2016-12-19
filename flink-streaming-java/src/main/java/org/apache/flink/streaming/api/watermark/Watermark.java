@@ -18,14 +18,12 @@
 
 package org.apache.flink.streaming.api.watermark;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
+import org.apache.commons.lang3.StringUtils;
 
-import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Stack;
 
 /**
  * A Watermark tells operators that receive it that no elements with a timestamp older or equal
