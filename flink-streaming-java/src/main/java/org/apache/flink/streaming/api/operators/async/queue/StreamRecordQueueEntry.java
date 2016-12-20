@@ -27,6 +27,7 @@ import org.apache.flink.streaming.api.functions.async.collector.AsyncCollector;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
 import java.util.Collection;
+import java.util.List;
 
 /**
  * {@link StreamElementQueueEntry} implementation for {@link StreamRecord}. This class also acts
@@ -42,6 +43,7 @@ public class StreamRecordQueueEntry<OUT> extends StreamElementQueueEntry<Collect
 	/** Timestamp information */
 	private final boolean hasTimestamp;
 	private final long timestamp;
+	private List<Long> timeContext;
 
 	/** Future containing the collection result */
 	private final CompletableFuture<Collection<OUT>> resultFuture;
@@ -51,6 +53,7 @@ public class StreamRecordQueueEntry<OUT> extends StreamElementQueueEntry<Collect
 
 		hasTimestamp = streamRecord.hasTimestamp();
 		timestamp = streamRecord.getTimestamp();
+		timeContext = streamRecord.getContext();
 
 		resultFuture = new FlinkCompletableFuture<>();
 	}
@@ -63,6 +66,11 @@ public class StreamRecordQueueEntry<OUT> extends StreamElementQueueEntry<Collect
 	@Override
 	public long getTimestamp() {
 		return timestamp;
+	}
+
+	@Override
+	public List<Long> getTimeContext() {
+		return timeContext;
 	}
 
 	@Override
