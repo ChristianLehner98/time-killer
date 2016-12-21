@@ -208,7 +208,7 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 		}
 
 		public void apply(K key, W window, Iterable<IN> input, Collector<OUT> out) throws Exception {
-			coWinTerm.apply1(key, window, input, out);
+			coWinTerm.entry(key, window, input, out);
 		}
 	}
 
@@ -221,7 +221,7 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 		}
 
 		public void apply(K key, W window, Iterable<IN> input, Collector<OUT> out) throws Exception {
-			coWinTerm.apply2(key, window, input, out);
+			coWinTerm.step(key, window, input, out);
 		}
 	}
 }

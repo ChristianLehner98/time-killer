@@ -116,7 +116,7 @@ public class IterateSyncExample {
 		}
 
 		@Override
-		public void apply1(Tuple key, TimeWindow win, Iterable<Tuple2<Long, List<Long>>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
+		public void entry(Tuple key, TimeWindow win, Iterable<Tuple2<Long, List<Long>>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
 			Map<Long, List<Long>> neighbours = neighboursPerContext.get(win.getTimeContext());
 			if(neighbours == null) {
 				neighbours = new HashMap<>();
@@ -142,7 +142,7 @@ public class IterateSyncExample {
 		}
 
 		@Override
-		public void apply2(Tuple key, TimeWindow win, Iterable<Tuple2<Long, Double>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
+		public void step(Tuple key, TimeWindow win, Iterable<Tuple2<Long, Double>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
 
 			Map<Long,Double> summed = new HashMap<>();
 			for(Tuple2<Long,Double> entry : iterable) {
