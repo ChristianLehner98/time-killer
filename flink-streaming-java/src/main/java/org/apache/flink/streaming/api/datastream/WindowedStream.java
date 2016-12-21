@@ -64,7 +64,9 @@ import org.apache.flink.streaming.runtime.operators.windowing.functions.Internal
 import org.apache.flink.streaming.runtime.operators.windowing.functions.InternalSingleValueWindowFunction;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.tasks.progress.FixpointIterationTermination;
 import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
+import org.apache.flink.streaming.runtime.tasks.progress.StructuredIterationTermination;
 
 
 /**
@@ -928,7 +930,30 @@ public class WindowedStream<T, K, W extends Window> {
 		return reduce(aggregator);
 	}
 
-	public <OUT,F,R> DataStream<OUT> iterateSync(CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun, 
+	public <OUT,F,R> DataStream<OUT> iterateSyncFor(
+		int iterationCount,
+		CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun,
+		FeedbackBuilder<R> feedbackBuilder,
+		TypeInformation<R> feedbackType) throws Exception {
+		return iterateSync(
+			coWinTermFun,
+			new StructuredIterationTermination(iterationCount),
+			feedbackBuilder,
+			feedbackType);
+	}
+
+	public <OUT,F,R> DataStream<OUT> iterateSyncDelta(
+		CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun,
+		FeedbackBuilder<R> feedbackBuilder,
+		TypeInformation<R> feedbackType) throws Exception {
+		return iterateSync(
+			coWinTermFun,
+			new FixpointIterationTermination(),
+			feedbackBuilder,
+			feedbackType);
+	}
+
+	public <OUT,F,R> DataStream<OUT> iterateSync(CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun,
 								StreamIterationTermination terminationStrategy, 
 								FeedbackBuilder<R> feedbackBuilder, 
 								TypeInformation<R> feedbackType) throws Exception {

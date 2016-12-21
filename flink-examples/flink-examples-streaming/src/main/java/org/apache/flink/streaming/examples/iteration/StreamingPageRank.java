@@ -15,7 +15,6 @@ import org.apache.flink.streaming.api.functions.windowing.CoWindowTerminateFunct
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
-import org.apache.flink.streaming.runtime.tasks.progress.StructuredIterationTermination;
 import org.apache.flink.types.Either;
 import org.apache.flink.util.Collector;
 
@@ -26,16 +25,16 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
 
-public class IterateSyncExample {
+public class StreamingPageRank {
 	StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
 	public static void main(String[] args) throws Exception {
 
-		IterateSyncExample example = new IterateSyncExample();
+		StreamingPageRank example = new StreamingPageRank();
 		example.run();
 	}
 
-	public IterateSyncExample() throws Exception {
+	public StreamingPageRank() throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 		env.setParallelism(4);
 
@@ -43,12 +42,11 @@ public class IterateSyncExample {
 		inputStream
 			.keyBy(0)
 			.timeWindow(Time.milliseconds(1))
-			.iterateSync(new MyCoWindowTerminateFunction(),
-				new StructuredIterationTermination(20),
+			.iterateSyncFor(20,
+				new MyCoWindowTerminateFunction(),
 				new MyFeedbackBuilder(),
 				new TupleTypeInfo<Tuple2<Long, Double>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO))
 			.print();
-		System.out.println(env.getExecutionPlan());
 	}
 
 	protected void run() throws Exception {
