@@ -930,6 +930,7 @@ public class WindowedStream<T, K, W extends Window> {
 		return reduce(aggregator);
 	}
 
+
 	public <OUT,F,R> DataStream<OUT> iterateSyncFor(
 		int iterationCount,
 		CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun,
@@ -953,6 +954,24 @@ public class WindowedStream<T, K, W extends Window> {
 			feedbackType);
 	}
 
+	/**
+	 * Bulk synchronous iteration
+	 *
+	 * @param <OUT> The type of the iteration output (as produced by the onTermination function of
+	 *                the CoWindowTerminateFunction)
+	 * @param <R> 	The type of the feedback stream produced by the entry and step functions of
+	 *           	the CoWindowTerminateFunction
+	 * @param <F>	The type of the feedback after applying the feedbackBuilder function
+	 * @param CoWindowTerminateFunction contains entry, step and onTermination UDFs
+	 * @param StreamIterationTermination decides per iteration when it shall terminate - examples:
+	 *                                   StructuredIterationTermination ("for loop") or
+	 *                                   FixPointIterationTermination ("delta iteration")
+	 * @param FeedbackBuilder	takes a DataStream<R> and produces a KeyedStream<F,K> (same keying like
+	 *                          input windowed stream) for feedback
+	 * @param TypeInformation Type of the feedback coming out of entry/step of CoWindowTerminationFunction
+	 *                             - TODO can this be automated?
+	 * @return The output DataStream.
+	 */
 	public <OUT,F,R> DataStream<OUT> iterateSync(CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun,
 								StreamIterationTermination terminationStrategy, 
 								FeedbackBuilder<R> feedbackBuilder, 
