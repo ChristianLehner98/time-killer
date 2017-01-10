@@ -993,7 +993,7 @@ public class WindowedStream<T, K, W extends Window> {
 				input.getKeyType()), getWindowAssigner());
 
 		IterativeWindowStream<T,W,F,K,R,OUT> iterativeStream = new IterativeWindowStream<>(
-			scopedWindowStream, coWinTermFun, terminationStrategy, feedbackBuilder, feedbackType, 0);
+			scopedWindowStream, coWinTermFun, terminationStrategy, feedbackBuilder, feedbackType, 3000);
 
 		DataStream<OUT> outStream = iterativeStream.loop();
 
