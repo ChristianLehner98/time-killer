@@ -1,11 +1,12 @@
-package org.apache.flink.streaming.runtime.progress;
+package org.apache.flink.runtime.progress;
 
+import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-public class PartialOrderMinimumSet {
+public class PartialOrderMinimumSet implements Serializable {
 	private Set<List<Long>> elements = new HashSet<>();
 	private int timestampsLength;
 

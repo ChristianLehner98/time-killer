@@ -1,10 +1,12 @@
-package org.apache.flink.streaming.runtime.progress;
+package org.apache.flink.runtime.progress;
 
+
+import org.apache.flink.runtime.progress.messages.ProgressUpdate;
 
 import java.util.*;
 
-import static org.apache.flink.streaming.runtime.progress.PartialOrderComparator.PartialComparison.LESS;
-import static org.apache.flink.streaming.runtime.progress.PartialOrderComparator.partialCmp;
+import static org.apache.flink.runtime.progress.PartialOrderComparator.PartialComparison.LESS;
+import static org.apache.flink.runtime.progress.PartialOrderComparator.partialCmp;
 
 // called Mutable Antichain in timely-dataflow
 public class PartialOrderProgressAggregator {
