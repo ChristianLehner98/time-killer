@@ -70,6 +70,8 @@ import org.apache.flink.runtime.metrics.groups.JobManagerMetricGroup
 import org.apache.flink.runtime.metrics.{MetricRegistryConfiguration, MetricRegistry => FlinkMetricRegistry}
 import org.apache.flink.runtime.metrics.util.MetricUtils
 import org.apache.flink.runtime.process.ProcessReaper
+import org.apache.flink.runtime.progress.CentralTracker
+import org.apache.flink.runtime.progress.messages.RegisterLocalTracker
 import org.apache.flink.runtime.query.KvStateMessage.{LookupKvStateLocation, NotifyKvStateRegistered, NotifyKvStateUnregistered}
 import org.apache.flink.runtime.query.{KvStateMessage, UnknownKvStateLocation}
 import org.apache.flink.runtime.security.SecurityUtils
@@ -179,6 +181,8 @@ class JobManager(
   var currentResourceManager: Option[ActorRef] = None
 
   val taskManagerMap = mutable.Map[ActorRef, InstanceID]()
+
+  var centralTrackers = Map[JobID, ActorRef]()
 
   /**
    * Run when the job manager is started. Simply logs an informational message.
@@ -1171,6 +1175,10 @@ class JobManager(
 
     case RequestWebMonitorPort =>
       sender() ! ResponseWebMonitorPort(webMonitorPort)
+
+    // RECEIVE LOCAL PROGRESS TRACKER REGISTRATION
+    case m: RegisterLocalTracker =>
+      centralTrackers(m.jobId) ! m
   }
 
   /**
@@ -1236,6 +1244,11 @@ class JobManager(
         if (jobGraph.getNumberOfVertices == 0) {
           throw new JobSubmissionException(jobId, "The given job is empty")
         }
+
+        // INIT PROGRESS TRACKING FOR THIS JOB
+        var actorRef: ActorRef = context.actorOf(Props(new CentralTracker(taskManagerMap.size, jobGraph.getPathSummaries)))
+        centralTrackers += (jobId -> actorRef)
+
 
         val restartStrategy =
           Option(jobGraph.getSerializedExecutionConfig()

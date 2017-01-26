@@ -30,6 +30,7 @@ import _root_.akka.pattern.ask
 import _root_.akka.util.Timeout
 import grizzled.slf4j.Logger
 import org.apache.commons.lang3.exception.ExceptionUtils
+import org.apache.flink.api.common.JobID
 import org.apache.flink.configuration._
 import org.apache.flink.core.fs.FileSystem
 import org.apache.flink.core.memory.{HeapMemorySegment, HybridMemorySegment, MemorySegmentFactory, MemoryType}
@@ -184,6 +185,8 @@ class TaskManager(
     PartitionProducerStateChecker,
     ResultPartitionConsumableNotifier,
     TaskManagerConnection)] = None
+
+  private val progressTrackingActorsPerJob = new scala.collection.mutable.HashMap[JobID,ActorRef]()
 
   // --------------------------------------------------------------------------
   //  Actor messages and life cycle
@@ -1089,6 +1092,15 @@ class TaskManager(
    * @param tdd TaskDeploymentDescriptor describing the task to be executed on this [[TaskManager]]
    */
   private def submitTask(tdd: TaskDeploymentDescriptor): Unit = {
+    // if task is part of a yet unknown job, start a progress tracking actor for it
+    val jobID : JobID = tdd.getSerializedJobInformation.deserializeValue(getClass.getClassLoader).getJobId
+    progressTrackingActorsPerJob.get(jobID) match {
+      case Some(actorRef) =>
+      case None =>
+        var actorRef : ActorRef = context.actorOf(Props[ProgressTrackingActor])
+        progressTrackingActorsPerJob.put(jobID, actorRef)
+    }
+
     try {
       // grab some handles and sanity check on the fly
       val jobManagerActor = currentJobManager match {
