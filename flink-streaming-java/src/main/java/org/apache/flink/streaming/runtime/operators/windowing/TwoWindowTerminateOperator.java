@@ -87,39 +87,29 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	}
 
 	public void processElement1(StreamRecord<IN1> element) throws Exception {
-		//terminationStrategy.observeRecord(element);
-		//if(terminationStrategy.terminate(element.getContext())) {
-		//	collector.setAbsoluteTimestamp(element.getContext(), element.getTimestamp());
-		//} else {
-			activeIterations.add(element.getContext());
-			winOp1.processElement(element);
-		//}
+		// TODO request notifications
+
+		activeIterations.add(element.getContext());
+		winOp1.processElement(element);
 	}
 	public void processElement2(StreamRecord<IN2> element) throws Exception {
-		//terminationStrategy.observeRecord(element);
-		//if(terminationStrategy.terminate(element.getContext())) {
-		//	collector.setAbsoluteTimestamp(element.getContext(), element.getTimestamp());
-		//} else {
 		if(activeIterations.contains(element.getContext())) {
 			winOp2.processElement(element);
 		}
-		//}
 	}
 
+	// TODO add listener for notifications based on code in processWatermark2
+	// IDEA: listen only in StreamIterationHead for notifications and only:
+	// - receive them here
+	// - send them into the window operators but
+	// - don't send them on
+
+	// ALTERNATIVE: DONE is part of the StreamIterationHead and we also register the notifications there
+
 	public void processWatermark1(Watermark mark) throws Exception {
-		//terminationStrategy.observeWatermark(mark);
-		//if(terminationStrategy.terminate(mark.getContext())) {
-		//	winOp1.processWatermark(new Watermark(mark.getContext(), Long.MAX_VALUE));
-		//	if(mark.getContext().get(mark.getContext().size()-1) != Long.MAX_VALUE ) {
-		//		terminationFunction.onTermination(mark.getContext(), collector);
-		//	}
-		//} else {
 			winOp1.processWatermark(mark);
-		//}
 	}
 	public void processWatermark2(Watermark mark) throws Exception {
-		//terminationStrategy.observeWatermark(mark);
-		//if(terminationStrategy.terminate(mark.getContext())) {
 		if(mark.iterationDone()) {
 			activeIterations.remove(mark.getContext());
 			if(mark.getContext().get(mark.getContext().size()-1) != Long.MAX_VALUE ) {
