@@ -29,6 +29,7 @@ import org.apache.flink.runtime.blob.BlobClient;
 import org.apache.flink.runtime.blob.BlobKey;
 import org.apache.flink.runtime.instance.ActorGateway;
 import org.apache.flink.runtime.jobgraph.tasks.JobSnapshottingSettings;
+import org.apache.flink.runtime.progress.PartialOrderMinimumSet;
 import org.apache.flink.util.SerializedValue;
 import scala.concurrent.duration.FiniteDuration;
 
@@ -97,6 +98,9 @@ public class JobGraph implements Serializable {
 	/** The settings for asynchronous snapshots */
 	private JobSnapshottingSettings snapshotSettings;
 
+
+	private Map<Integer, Map<Integer, PartialOrderMinimumSet>> pathSummaries;
+
 	/** List of classpaths required to run this job. */
 	private List<URL> classpaths = Collections.emptyList();
 
@@ -107,6 +111,14 @@ public class JobGraph implements Serializable {
 	private SavepointRestoreSettings savepointRestoreSettings = SavepointRestoreSettings.none();
 
 	// --------------------------------------------------------------------------------------------
+
+	public Map<Integer, Map<Integer, PartialOrderMinimumSet>> getPathSummaries() {
+		return pathSummaries;
+	}
+
+	public void setPathSummaries(Map<Integer, Map<Integer, PartialOrderMinimumSet>> pathSummaries) {
+		this.pathSummaries = pathSummaries;
+	}
 
 	/**
 	 * Constructs a new job graph with the given name, the given {@link ExecutionConfig},

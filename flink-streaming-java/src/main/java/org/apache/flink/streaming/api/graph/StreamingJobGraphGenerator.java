@@ -45,13 +45,11 @@ import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.runtime.partitioner.ForwardPartitioner;
 import org.apache.flink.streaming.runtime.partitioner.RescalePartitioner;
 import org.apache.flink.streaming.runtime.partitioner.StreamPartitioner;
-import org.apache.flink.streaming.runtime.progress.PartialOrderMinimumSet;
+import org.apache.flink.runtime.progress.PartialOrderMinimumSet;
 import org.apache.flink.streaming.runtime.tasks.StreamIterationHead;
 import org.apache.flink.streaming.runtime.tasks.StreamIterationTail;
-import org.apache.flink.streaming.runtime.progress.PartialOrderProgressAggregator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.collection.immutable.Stream;
 
 import java.util.*;
 import java.util.Map.Entry;
@@ -149,6 +147,8 @@ public class StreamingJobGraphGenerator {
 			computePath(targetNode, lastPaths, pathSummariesForTarget);
 			pathSummaries.put(targetId, pathSummariesForTarget);
 		}
+
+		jobGraph.setPathSummaries(pathSummaries);
 	}
 
 	private void computePath(StreamNode currentNode, PartialOrderMinimumSet lastPaths, Map<Integer, PartialOrderMinimumSet> summaries) {
