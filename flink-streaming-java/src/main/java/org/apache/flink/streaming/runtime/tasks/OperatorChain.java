@@ -334,7 +334,7 @@ public class OperatorChain<OUT, OP extends StreamOperator<OUT>> {
 				new StreamRecordWriter<>(bufferWriter, outputPartitioner, upStreamConfig.getBufferTimeout());
 		output.setMetricGroup(taskEnvironment.getMetricGroup().getIOMetricGroup());
 		
-		return new RecordWriterOutput<>(output, outSerializer);
+		return new RecordWriterOutput<>(output, outSerializer, edge.getTargetId());
 	}
 	
 	// ------------------------------------------------------------------------
@@ -391,6 +391,11 @@ public class OperatorChain<OUT, OP extends StreamOperator<OUT>> {
 			catch (Exception e) {
 				throw new ExceptionInChainedOperatorException(e);
 			}
+		}
+
+		@Override
+		public Integer getTargetOperatorId() {
+			return operator.getId();
 		}
 	}
 
@@ -458,6 +463,11 @@ public class OperatorChain<OUT, OP extends StreamOperator<OUT>> {
 			for (Output<StreamRecord<T>> output : outputs) {
 				output.close();
 			}
+		}
+
+		@Override
+		public Integer getTargetOperatorId() {
+			return outputs[0].getTargetOperatorId();
 		}
 	}
 

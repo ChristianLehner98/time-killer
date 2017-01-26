@@ -42,4 +42,6 @@ public interface Output<T> extends Collector<T> {
 	void emitWatermark(Watermark mark);
 
 	void emitLatencyMarker(LatencyMarker latencyMarker);
+
+	Integer getTargetOperatorId();
 }

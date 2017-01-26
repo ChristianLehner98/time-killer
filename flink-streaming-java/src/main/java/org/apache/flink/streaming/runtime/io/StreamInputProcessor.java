@@ -171,10 +171,20 @@ public class StreamInputProcessor<IN> {
 					} else {
 						// now we can do the actual processing
 						StreamRecord<IN> record = recordOrMark.asRecord();
+
+						// TODO check for received notifications (and add a map for Futures to the operator
+
 						synchronized (lock) {
 							numRecordsIn.inc();
 							streamOperator.setKeyContextElement1(record);
 							streamOperator.processElement(record);
+
+							// add negative progress since we consumed the message
+							streamOperator.collectProgress(streamOperator.getId(), record.getFullTimestamp(), -1);
+
+							// report progress to progress tracking service
+							streamOperator.sendProgress();
+
 						}
 						return true;
 					}

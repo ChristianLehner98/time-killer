@@ -43,11 +43,14 @@ public class RecordWriterOutput<OUT> implements Output<StreamRecord<OUT>> {
 	
 	private SerializationDelegate<StreamElement> serializationDelegate;
 
+	private Integer targetOperatorId;
+
 	
 	@SuppressWarnings("unchecked")
 	public RecordWriterOutput(
 			StreamRecordWriter<SerializationDelegate<StreamRecord<OUT>>> recordWriter,
-			TypeSerializer<OUT> outSerializer) {
+			TypeSerializer<OUT> outSerializer,
+			Integer targetOperatorId) {
 
 		checkNotNull(recordWriter);
 		
@@ -62,6 +65,8 @@ public class RecordWriterOutput<OUT> implements Output<StreamRecord<OUT>> {
 		if (outSerializer != null) {
 			serializationDelegate = new SerializationDelegate<StreamElement>(outRecordSerializer);
 		}
+
+		this.targetOperatorId = targetOperatorId;
 	}
 
 	@Override
@@ -116,5 +121,10 @@ public class RecordWriterOutput<OUT> implements Output<StreamRecord<OUT>> {
 
 	public void clearBuffers() {
 		recordWriter.clearBuffers();
+	}
+
+	@Override
+	public Integer getTargetOperatorId() {
+		return targetOperatorId;
 	}
 }

@@ -58,7 +58,10 @@ import org.apache.flink.runtime.state.VoidNamespace;
 import org.apache.flink.runtime.state.VoidNamespaceSerializer;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.watermark.Watermark;
-import org.apache.flink.streaming.runtime.progress.ProgressNotification;
+import org.apache.flink.runtime.progress.Notifyable;
+import org.apache.flink.runtime.progress.PartialOrderComparator;
+import org.apache.flink.runtime.progress.messages.ProgressUpdate;
+import org.apache.flink.runtime.progress.messages.ProgressNotification;
 import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.OperatorStateHandles;
@@ -67,11 +70,10 @@ import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
-import java.util.ConcurrentModificationException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
+import static org.apache.flink.runtime.progress.PartialOrderComparator.PartialComparison.EQUAL;
+import static org.apache.flink.runtime.progress.PartialOrderComparator.PartialComparison.LESS;
 import static org.apache.flink.util.Preconditions.checkArgument;
 
 /**
@@ -131,6 +133,9 @@ public abstract class AbstractStreamOperator<OUT>
 	/** Operator state backend / store */
 	private transient OperatorStateBackend operatorStateBackend;
 
+	private ProgressUpdate progressAggregator;
+	private Map<List<Long>, Set<Notifyable>> registeredNotifications = new HashMap<>();
+
 
 	// --------------- Metrics ---------------------------
 
@@ -162,6 +167,8 @@ public abstract class AbstractStreamOperator<OUT>
 	public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<OUT>> output) {
 		this.container = containingTask;
 		this.config = config;
+
+		this.progressAggregator = new ProgressUpdate();
 		
 		this.metrics = container.getEnvironment().getMetricGroup().addOperator(config.getOperatorName());
 		this.output = new CountingOutput(output, ((OperatorMetricGroup) this.metrics).getIOMetricGroup().getNumRecordsOutCounter());
@@ -759,6 +766,11 @@ public abstract class AbstractStreamOperator<OUT>
 		public void close() {
 			output.close();
 		}
+
+		@Override
+		public Integer getTargetOperatorId() {
+			return output.getTargetOperatorId();
+		}
 	}
 
 	@Override
@@ -818,7 +830,8 @@ public abstract class AbstractStreamOperator<OUT>
 		for (HeapInternalTimerService<?, ?> service : timerServices.values()) {
 			service.advanceWatermark(mark.getContext(), mark.getTimestamp());
 		}
-		output.emitWatermark(mark);
+		// TODO is this ok?
+		//output.emitWatermark(mark);
 	}
 
 	public void processWatermark1(Watermark mark) throws Exception {
@@ -860,6 +873,42 @@ public abstract class AbstractStreamOperator<OUT>
 	@Override
 	public boolean wantsProgressNotifications() { return false; }
 
+	// TODO who will call this and when??
 	@Override
-	public void receiveProgress(ProgressNotification notification) {}
+	public void receiveProgress(ProgressNotification notification) {
+		for(Map.Entry<List<Long>, Set<Notifyable>> entry : registeredNotifications.entrySet()) {
+			PartialOrderComparator.PartialComparison cmp = PartialOrderComparator.partialCmp(entry.getKey(), notification.getTimestamp());
+			if(cmp == EQUAL || cmp == LESS) {
+				for(Notifyable notifyable : entry.getValue()) {
+					notifyable.receiveProgressNotification(entry.getKey());
+				}
+			}
+		}
+	}
+
+	@Override
+	public void notifyOn(List<Long> timestamp, Notifyable notifyable) {
+		Set<Notifyable> current = registeredNotifications.get(timestamp);
+		if(current == null) {
+			current = new HashSet<>();
+			registeredNotifications.put(timestamp, current);
+		}
+		current.add(notifyable);
+	}
+
+	@Override
+	public void sendProgress() {
+		//ActorRef ref = container.getProgressTrackingActorReference();
+		//ref.tell(progressAggregator, null);
+	}
+
+	@Override
+	public void collectProgress(Integer operatorId, List<Long> timestamp, int delta) {
+		progressAggregator.update(operatorId, timestamp, delta);
+	}
+
+	@Override
+	public Integer getId() {
+		return config.getVertexID();
+	}
 }

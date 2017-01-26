@@ -21,12 +21,14 @@ import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.state.CheckpointStreamFactory;
 import org.apache.flink.streaming.api.graph.StreamConfig;
-import org.apache.flink.streaming.runtime.progress.ProgressNotification;
+import org.apache.flink.runtime.progress.Notifyable;
+import org.apache.flink.runtime.progress.messages.ProgressNotification;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.OperatorStateHandles;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * Basic interface for stream operators. Implementers would implement one of
@@ -146,4 +148,9 @@ public interface StreamOperator<OUT> extends Serializable {
 
 	boolean wantsProgressNotifications();
 	void receiveProgress(ProgressNotification notification);
+	void notifyOn(List<Long> timestamp, Notifyable notifyable);
+	void sendProgress();
+	void collectProgress(Integer operatorId, List<Long> timestamp, int delta);
+
+	Integer getId();
 }
