@@ -3,9 +3,12 @@ package org.apache.flink.streaming.runtime.progress;
 
 import java.util.*;
 
+import static org.apache.flink.streaming.runtime.progress.PartialOrderComparator.PartialComparison.LESS;
+import static org.apache.flink.streaming.runtime.progress.PartialOrderComparator.partialCmp;
+
 // called Mutable Antichain in timely-dataflow
 public class PartialOrderProgressAggregator {
-	private CountMap<List<Long>> occurences; // occurence count of each time
+	private ProgressUpdate occurences; // occurence count of each time
 	private Map<List<Long>, Integer> precedents = new HashMap<>(); // counts number of distinct times in occurences strictly less than element
 	private Set<List<Long>> frontier = new HashSet<>(); // the set of times with precedent count == 0
 
@@ -17,6 +20,16 @@ public class PartialOrderProgressAggregator {
 
 	public Set<List<Long>> getFrontier() {
 		return frontier;
+	}
+
+	public boolean greaterThan(List<Long> timestamp) {
+		boolean result = true;
+		for(List<Long> element : frontier) {
+			if(partialCmp(element, timestamp) != LESS) {
+				result = false;
+			}
+		}
+		return result;
 	}
 
 	public boolean updateAll(Map<List<Long>, Integer> elements) {
@@ -41,10 +54,10 @@ public class PartialOrderProgressAggregator {
 			for(Map.Entry<List<Long>, Integer> precedent : precedents.entrySet()) {
 				// General Goal: add timestamp to all datastructures and change other entries accordingly
 
-				PartialComparison cmp = partialCmp(timestamp, precedent.getKey());
+				PartialOrderComparator.PartialComparison cmp = partialCmp(timestamp, precedent.getKey());
 
 				// Incomparable not interesting for precedents list
-				if(cmp == PartialComparison.LESS) {
+				if(cmp == LESS) {
 					if(precedent.getValue() == 0) {
 						// the precedent is currently in the frontier and should be removed from it
 						frontier.remove(precedent.getKey());
@@ -52,10 +65,10 @@ public class PartialOrderProgressAggregator {
 					}
 					// increment precedents of 'precedent' by one (the newly added timestamp)
 					precedent.setValue(precedent.getValue() + 1);
-				} else if (cmp == PartialComparison.GREATER) {
+				} else if (cmp == PartialOrderComparator.PartialComparison.GREATER) {
 					// 'precedent' is lower, so we increment our precendentValue
 					precededBy += 1;
-				} else if(cmp == PartialComparison.EQUAL) {
+				} else if(cmp == PartialOrderComparator.PartialComparison.EQUAL) {
 					throw new RuntimeException("Shouldn't happen!");
 				}
 			}
@@ -69,9 +82,9 @@ public class PartialOrderProgressAggregator {
 			// General Goal: remove timestamp from all datastructures and change other entries accordingly
 
 			for(Map.Entry<List<Long>, Integer> precedent : precedents.entrySet()) {
-				PartialComparison cmp = partialCmp(timestamp, precedent.getKey());
+				PartialOrderComparator.PartialComparison cmp = partialCmp(timestamp, precedent.getKey());
 
-				if (cmp == PartialComparison.LESS) {
+				if (cmp == LESS) {
 					// 'precedent' is greater and since this timestamp is "leaving" its precededBy-Value has to be decremented
 					precedent.setValue(precedent.getValue() - 1);
 					if(precedent.getValue() == 0) {
@@ -89,26 +102,4 @@ public class PartialOrderProgressAggregator {
 		}
 		return frontierChanged;
 	}
-
-	private enum PartialComparison {
-		LESS, EQUAL, GREATER, INCOMPARABLE
-	}
-
-	private PartialComparison partialCmp(List<Long> ts1, List<Long> ts2) {
-		boolean lessEquals = true;
-		boolean greaterEquals = true;
-		for(int i=0; i<ts1.size(); ++i) {
-			if(ts1.get(i) > ts2.get(i)) {
-				lessEquals = false;
-			}
-			if (ts1.get(i) < ts2.get(i)) {
-				greaterEquals = false;
-			}
-		}
-		if(lessEquals && greaterEquals) return PartialComparison.EQUAL;
-		if(lessEquals && !greaterEquals) return PartialComparison.LESS;
-		if(!lessEquals && greaterEquals) return PartialComparison.GREATER;
-		return PartialComparison.INCOMPARABLE;
-	}
-
 }
