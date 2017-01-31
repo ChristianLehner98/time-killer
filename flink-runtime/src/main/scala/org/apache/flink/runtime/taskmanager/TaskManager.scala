@@ -65,6 +65,8 @@ import org.apache.flink.runtime.metrics.{MetricRegistryConfiguration, MetricRegi
 import org.apache.flink.runtime.metrics.groups.TaskManagerMetricGroup
 import org.apache.flink.runtime.metrics.util.MetricUtils
 import org.apache.flink.runtime.process.ProcessReaper
+import org.apache.flink.runtime.progress.CentralTracker
+import org.apache.flink.runtime.progress.messages.RegisterLocalTracker
 import org.apache.flink.runtime.query.KvStateRegistry
 import org.apache.flink.runtime.query.netty.{DisabledKvStateRequestStats, KvStateServer}
 import org.apache.flink.runtime.security.SecurityUtils
@@ -1095,10 +1097,10 @@ class TaskManager(
     // if task is part of a yet unknown job, start a progress tracking actor for it
     val jobID : JobID = tdd.getSerializedJobInformation.deserializeValue(getClass.getClassLoader).getJobId
     progressTrackingActorsPerJob.get(jobID) match {
-      case Some(actorRef) =>
       case None =>
-        var actorRef : ActorRef = context.actorOf(Props[ProgressTrackingActor])
+        var actorRef : ActorRef = context.actorOf(Props[CentralTracker])
         progressTrackingActorsPerJob.put(jobID, actorRef)
+        actorRef ! RegisterLocalTracker(jobID, instanceID, actorRef)
     }
 
     try {
@@ -1185,7 +1187,9 @@ class TaskManager(
         taskMetricGroup,
         resultPartitionConsumableNotifier,
         partitionStateChecker,
-        context.dispatcher)
+        context.dispatcher,
+        progressTrackingActorsPerJob(jobID)
+      )
 
       log.info(s"Received task ${task.getTaskInfo.getTaskNameWithSubtasks()}")
 

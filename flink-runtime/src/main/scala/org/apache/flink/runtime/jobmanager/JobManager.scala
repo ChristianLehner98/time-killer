@@ -565,6 +565,10 @@ class JobManager(
     case CancelJob(jobID) =>
       log.info(s"Trying to cancel job with ID $jobID.")
 
+      centralTrackers.get(jobID) match {
+        case Some(actor) => actor ! CancelJob(jobID)
+      }
+
       currentJobs.get(jobID) match {
         case Some((executionGraph, _)) =>
           // execute the cancellation asynchronously

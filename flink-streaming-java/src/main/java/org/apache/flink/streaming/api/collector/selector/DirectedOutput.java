@@ -144,4 +144,9 @@ public class DirectedOutput<OUT> implements Output<StreamRecord<OUT>> {
 			out.close();
 		}
 	}
+
+	@Override
+	public Integer getTargetOperatorId() {
+		return allOutputs[0].getTargetOperatorId();
+	}
 }

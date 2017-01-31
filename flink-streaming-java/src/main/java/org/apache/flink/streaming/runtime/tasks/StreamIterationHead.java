@@ -63,6 +63,7 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 
 		// offer the queue for the tail
 		BlockingQueueBroker.INSTANCE.handIn(brokerID, dataChannel);
+		BlockingQueueBroker.INSTANCE.setHeadOperatorId(brokerID, getConfiguration().getVertexID());
 		LOG.info("Iteration head {} added feedback queue under {}", getName(), brokerID);
 
 		// do the work 

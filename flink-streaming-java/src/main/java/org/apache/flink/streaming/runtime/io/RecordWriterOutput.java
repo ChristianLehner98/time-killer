@@ -75,6 +75,7 @@ public class RecordWriterOutput<OUT> implements Output<StreamRecord<OUT>> {
 
 		try {
 			recordWriter.emit(serializationDelegate);
+
 		}
 		catch (Exception e) {
 			throw new RuntimeException(e.getMessage(), e);

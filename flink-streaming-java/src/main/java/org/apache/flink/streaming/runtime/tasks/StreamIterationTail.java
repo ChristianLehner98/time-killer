@@ -56,11 +56,12 @@ public class StreamIterationTail<IN> extends OneInputStreamTask<IN, IN> {
 		@SuppressWarnings("unchecked")
 		BlockingQueue<StreamElement> dataChannel =
 				(BlockingQueue<StreamElement>) BlockingQueueBroker.INSTANCE.get(brokerID);
+		Integer targetOperatorId = BlockingQueueBroker.INSTANCE.getHeadOperatorId(brokerID);
 		
 		LOG.info("Iteration tail {} acquired feedback queue {}", getName(), brokerID);
 		
 		this.headOperator = new RecordPusher<>();
-		this.headOperator.setup(this, getConfiguration(), new IterationTailOutput<IN>(dataChannel, iterationWaitTime));
+		this.headOperator.setup(this, getConfiguration(), new IterationTailOutput<IN>(dataChannel, iterationWaitTime, targetOperatorId));
 	}
 
 	private static class RecordPusher<IN> extends AbstractStreamOperator<IN> implements OneInputStreamOperator<IN, IN> {
@@ -84,6 +85,7 @@ public class StreamIterationTail<IN> extends OneInputStreamTask<IN, IN> {
 	}
 
 	private static class IterationTailOutput<IN> implements Output<StreamRecord<IN>> {
+		private Integer targetOperatorId;
 
 		@SuppressWarnings("NonSerializableFieldInSerializableClass")
 		private final BlockingQueue<StreamElement> dataChannel;
@@ -92,10 +94,11 @@ public class StreamIterationTail<IN> extends OneInputStreamTask<IN, IN> {
 		
 		private final boolean shouldWait;
 
-		IterationTailOutput(BlockingQueue<StreamElement> dataChannel, long iterationWaitTime) {
+		IterationTailOutput(BlockingQueue<StreamElement> dataChannel, long iterationWaitTime, Integer targetOperatorId) {
 			this.dataChannel = dataChannel;
 			this.iterationWaitTime = iterationWaitTime;
 			this.shouldWait =  iterationWaitTime > 0;
+			this.targetOperatorId = targetOperatorId;
 		}
 
 		@Override
@@ -127,6 +130,11 @@ public class StreamIterationTail<IN> extends OneInputStreamTask<IN, IN> {
 
 		@Override
 		public void close() {
+		}
+
+		@Override
+		public Integer getTargetOperatorId() {
+			return targetOperatorId;
 		}
 	}
 }

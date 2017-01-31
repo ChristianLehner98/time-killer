@@ -18,6 +18,7 @@
 
 package org.apache.flink.runtime.taskmanager;
 
+import akka.actor.ActorRef;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
@@ -244,6 +245,8 @@ public class Task implements Runnable, TaskActions {
 	/** Initialized from the Flink configuration. May also be set at the ExecutionConfig */
 	private long taskCancellationTimeout;
 
+	private final ActorRef localTracker;
+
 	/**
 	 * <p><b>IMPORTANT:</b> This constructor may not start any work that would need to
 	 * be undone in the case of a failing task deployment.</p>
@@ -271,7 +274,8 @@ public class Task implements Runnable, TaskActions {
 		TaskMetricGroup metricGroup,
 		ResultPartitionConsumableNotifier resultPartitionConsumableNotifier,
 		PartitionProducerStateChecker partitionProducerStateChecker,
-		Executor executor) {
+		Executor executor,
+		ActorRef localTracker) {
 
 		Preconditions.checkNotNull(jobInformation);
 		Preconditions.checkNotNull(taskInformation);
@@ -384,6 +388,8 @@ public class Task implements Runnable, TaskActions {
 			// add metrics for buffers
 			this.metrics.getIOMetricGroup().initializeBufferMetrics(this);
 		}
+
+		this.localTracker = localTracker;
 	}
 
 	// ------------------------------------------------------------------------
@@ -440,6 +446,10 @@ public class Task implements Runnable, TaskActions {
 
 	public Thread getExecutingThread() {
 		return executingThread;
+	}
+
+	public ActorRef getLocalTrackerRef() {
+		return localTracker;
 	}
 
 	@VisibleForTesting

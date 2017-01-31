@@ -553,5 +553,11 @@ public class AbstractStreamOperatorTestHarness<OUT> {
 		public void close() {
 			// ignore
 		}
+
+		@Override
+		public Integer getTargetOperatorId() {
+			// this is never called
+			return 0;
+		}
 	}
 }

@@ -21,6 +21,7 @@ package org.apache.flink.runtime.jobgraph;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.InvalidProgramException;
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.FSDataInputStream;
 import org.apache.flink.core.fs.FileSystem;
@@ -99,7 +100,7 @@ public class JobGraph implements Serializable {
 	private JobSnapshottingSettings snapshotSettings;
 
 
-	private Map<Integer, Map<Integer, PartialOrderMinimumSet>> pathSummaries;
+	private Map<Integer, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>>> pathSummaries;
 
 	/** List of classpaths required to run this job. */
 	private List<URL> classpaths = Collections.emptyList();
@@ -112,11 +113,11 @@ public class JobGraph implements Serializable {
 
 	// --------------------------------------------------------------------------------------------
 
-	public Map<Integer, Map<Integer, PartialOrderMinimumSet>> getPathSummaries() {
+	public Map<Integer, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>>> getPathSummaries() {
 		return pathSummaries;
 	}
 
-	public void setPathSummaries(Map<Integer, Map<Integer, PartialOrderMinimumSet>> pathSummaries) {
+	public void setPathSummaries(Map<Integer, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>>> pathSummaries) {
 		this.pathSummaries = pathSummaries;
 	}
 

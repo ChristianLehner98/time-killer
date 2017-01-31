@@ -147,7 +147,7 @@ public interface StreamOperator<OUT> extends Serializable {
 	MetricGroup getMetricGroup();
 
 	boolean wantsProgressNotifications();
-	void receiveProgress(ProgressNotification notification);
+	void receiveProgressAndExecNotifyables();
 	void notifyOn(List<Long> timestamp, Notifyable notifyable);
 	void sendProgress();
 	void collectProgress(Integer operatorId, List<Long> timestamp, int delta);

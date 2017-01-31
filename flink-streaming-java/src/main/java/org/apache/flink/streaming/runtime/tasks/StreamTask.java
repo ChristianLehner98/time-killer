@@ -17,6 +17,7 @@
 
 package org.apache.flink.streaming.runtime.tasks;
 
+import akka.actor.ActorRef;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.accumulators.Accumulator;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -507,6 +508,11 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
 	RecordWriterOutput<?>[] getStreamOutputs() {
 		return operatorChain.getStreamOutputs();
+	}
+
+	// PROGRESS TRACKING
+	public ActorRef getLocalTrackerRef() {
+		return getEnvironment().getLocalTrackerRef();
 	}
 
 	// ------------------------------------------------------------------------

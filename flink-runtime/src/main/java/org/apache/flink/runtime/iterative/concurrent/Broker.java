@@ -19,6 +19,8 @@
 
 package org.apache.flink.runtime.iterative.concurrent;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,6 +32,15 @@ import java.util.concurrent.ConcurrentMap;
 public class Broker<V> {
 
 	private final ConcurrentMap<String, BlockingQueue<V>> mediations = new ConcurrentHashMap<String, BlockingQueue<V>>();
+	private Map<String, Integer> headOperatorId = new HashMap<>();
+
+	public void setHeadOperatorId(String key, Integer operatorId) {
+		this.headOperatorId.put(key, operatorId);
+	}
+
+	public Integer getHeadOperatorId(String key) {
+		return headOperatorId.get(key);
+	}
 
 	/**
 	 * hand in the object to share

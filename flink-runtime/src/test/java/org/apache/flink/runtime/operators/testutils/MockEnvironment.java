@@ -18,6 +18,7 @@
 
 package org.apache.flink.runtime.operators.testutils;
 
+import akka.actor.ActorRef;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.TaskInfo;
@@ -330,4 +331,10 @@ public class MockEnvironment implements Environment {
 	public void failExternally(Throwable cause) {
 		throw new UnsupportedOperationException("MockEnvironment does not support external task failure.");
 	}
+
+	@Override
+	public ActorRef getLocalTrackerRef() {
+		return null;
+	}
+
 }

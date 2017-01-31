@@ -137,6 +137,9 @@ public class StreamInputProcessor<IN> {
 			numRecordsIn = ((OperatorMetricGroup) streamOperator.getMetricGroup()).getIOMetricGroup().getNumRecordsInCounter();
 		}
 
+		// PROGRESS TRACKING: check for ready notifications and execute the registered notifyables
+		streamOperator.receiveProgressAndExecNotifyables();
+
 		while (true) {
 			if (currentRecordDeserializer != null) {
 				DeserializationResult result = currentRecordDeserializer.getNextRecord(deserializationDelegate);
@@ -172,7 +175,7 @@ public class StreamInputProcessor<IN> {
 						// now we can do the actual processing
 						StreamRecord<IN> record = recordOrMark.asRecord();
 
-						// TODO check for received notifications (and add a map for Futures to the operator
+						// TODO check for received notifications (and add a map for Futures to the operator)
 
 						synchronized (lock) {
 							numRecordsIn.inc();

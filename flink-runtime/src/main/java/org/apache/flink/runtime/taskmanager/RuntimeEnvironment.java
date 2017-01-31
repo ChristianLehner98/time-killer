@@ -18,6 +18,7 @@
 
 package org.apache.flink.runtime.taskmanager;
 
+import akka.actor.ActorRef;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.TaskInfo;
@@ -261,5 +262,10 @@ public class RuntimeEnvironment implements Environment {
 	@Override
 	public void failExternally(Throwable cause) {
 		this.containingTask.failExternally(cause);
+	}
+
+	@Override
+	public ActorRef getLocalTrackerRef() {
+		return containingTask.getLocalTrackerRef();
 	}
 }

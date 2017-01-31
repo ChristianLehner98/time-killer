@@ -18,6 +18,9 @@
 
 package org.apache.flink.streaming.api.operators;
 
+import akka.actor.ActorRef;
+import akka.pattern.Patterns;
+import org.apache.commons.collections.map.HashedMap;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.flink.annotation.PublicEvolving;
@@ -37,6 +40,8 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.metrics.groups.OperatorMetricGroup;
+import org.apache.flink.runtime.progress.messages.ProgressUpdate;
+import org.apache.flink.runtime.progress.messages.TerminationUpdates;
 import org.apache.flink.runtime.state.AbstractKeyedStateBackend;
 import org.apache.flink.runtime.state.CheckpointStreamFactory;
 import org.apache.flink.runtime.state.DefaultKeyedStateStore;
@@ -60,7 +65,7 @@ import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.runtime.progress.Notifyable;
 import org.apache.flink.runtime.progress.PartialOrderComparator;
-import org.apache.flink.runtime.progress.messages.ProgressUpdate;
+import org.apache.flink.runtime.progress.messages.CountMap;
 import org.apache.flink.runtime.progress.messages.ProgressNotification;
 import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
@@ -69,6 +74,9 @@ import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.concurrent.Await;
+import scala.concurrent.Future;
+import scala.concurrent.duration.Duration;
 
 import java.util.*;
 
@@ -133,9 +141,16 @@ public abstract class AbstractStreamOperator<OUT>
 	/** Operator state backend / store */
 	private transient OperatorStateBackend operatorStateBackend;
 
-	private ProgressUpdate progressAggregator;
+	// PROGRESS TRACKING
+	private CountMap progressAggregator;
 	private Map<List<Long>, Set<Notifyable>> registeredNotifications = new HashMap<>();
+	private Set<Future<Object>> notificationFutures = new HashSet<>();
 
+	// PROGRESS/TERMINATION: set this to true if the operator is a termination operator and is done
+	// this will be used for fixpoint iteration
+	// current design flaw: this will never be emptied and grow forever - ignored for the moment
+	protected Set<List<Long>> doneOnAllInstances = new HashSet<>();
+	protected TerminationUpdates localDoneUpdates;
 
 	// --------------- Metrics ---------------------------
 
@@ -159,6 +174,7 @@ public abstract class AbstractStreamOperator<OUT>
 	private long input2Watermark = Long.MIN_VALUE;
 	int scopeLevel;
 
+
 	// ------------------------------------------------------------------------
 	//  Life Cycle
 	// ------------------------------------------------------------------------
@@ -168,10 +184,14 @@ public abstract class AbstractStreamOperator<OUT>
 		this.container = containingTask;
 		this.config = config;
 
-		this.progressAggregator = new ProgressUpdate();
+		// PROGRESS TRACKING
+		this.progressAggregator = new CountMap();
+		int operatorId = container.getConfiguration().getVertexID();
+		int numberOfParallelInstances = getRuntimeContext().getNumberOfParallelSubtasks();
+		localDoneUpdates = new TerminationUpdates(operatorId, numberOfParallelInstances);
 		
 		this.metrics = container.getEnvironment().getMetricGroup().addOperator(config.getOperatorName());
-		this.output = new CountingOutput(output, ((OperatorMetricGroup) this.metrics).getIOMetricGroup().getNumRecordsOutCounter());
+		this.output = new CountingOutput(output, ((OperatorMetricGroup) this.metrics).getIOMetricGroup().getNumRecordsOutCounter(), progressAggregator);
 		if (config.isChainStart()) {
 			((OperatorMetricGroup) this.metrics).getIOMetricGroup().reuseInputMetricsForTask();
 		}
@@ -740,10 +760,12 @@ public abstract class AbstractStreamOperator<OUT>
 	public class CountingOutput implements Output<StreamRecord<OUT>> {
 		private final Output<StreamRecord<OUT>> output;
 		private final Counter numRecordsOut;
+		private final CountMap aggregator;
 
-		public CountingOutput(Output<StreamRecord<OUT>> output, Counter counter) {
+		public CountingOutput(Output<StreamRecord<OUT>> output, Counter counter, CountMap aggregator) {
 			this.output = output;
 			this.numRecordsOut = counter;
+			this.aggregator = aggregator;
 		}
 
 		@Override
@@ -760,6 +782,7 @@ public abstract class AbstractStreamOperator<OUT>
 		public void collect(StreamRecord<OUT> record) {
 			numRecordsOut.inc();
 			output.collect(record);
+			aggregator.update(record.getFullTimestamp(), 1);
 		}
 
 		@Override
@@ -873,14 +896,28 @@ public abstract class AbstractStreamOperator<OUT>
 	@Override
 	public boolean wantsProgressNotifications() { return false; }
 
-	// TODO who will call this and when??
 	@Override
-	public void receiveProgress(ProgressNotification notification) {
-		for(Map.Entry<List<Long>, Set<Notifyable>> entry : registeredNotifications.entrySet()) {
-			PartialOrderComparator.PartialComparison cmp = PartialOrderComparator.partialCmp(entry.getKey(), notification.getTimestamp());
-			if(cmp == EQUAL || cmp == LESS) {
-				for(Notifyable notifyable : entry.getValue()) {
-					notifyable.receiveProgressNotification(entry.getKey());
+	public void receiveProgressAndExecNotifyables() {
+		for(Iterator<Future<Object>> futures = notificationFutures.iterator(); futures.hasNext();) {
+			Future<Object> future = futures.next();
+			if(future.isCompleted()) {
+				try {
+					ProgressNotification notification = (ProgressNotification) Await.result(future, Duration.create(1, "seconds"));
+					Iterator<Map.Entry<List<Long>, Set<Notifyable>>> registered = registeredNotifications.entrySet().iterator();
+					while(registered.hasNext()) {
+						Map.Entry<List<Long>, Set<Notifyable>> entry = registered.next();
+
+						PartialOrderComparator.PartialComparison cmp = PartialOrderComparator.partialCmp(entry.getKey(), notification.getTimestamp());
+						if(cmp == EQUAL || cmp == LESS) {
+							for(Notifyable notifyable : entry.getValue()) {
+								notifyable.receiveProgressNotification(entry.getKey());
+							}
+							registered.remove();
+						}
+					}
+					futures.remove();
+				} catch(Exception e) {
+					System.out.println("Could not get ready future: " + e);
 				}
 			}
 		}
@@ -898,8 +935,11 @@ public abstract class AbstractStreamOperator<OUT>
 
 	@Override
 	public void sendProgress() {
-		//ActorRef ref = container.getProgressTrackingActorReference();
-		//ref.tell(progressAggregator, null);
+		ProgressUpdate update = new ProgressUpdate(progressAggregator, localDoneUpdates);
+		ActorRef ref = container.getLocalTrackerRef();
+		notificationFutures.add(Patterns.ask(ref, update, null));
+
+		localDoneUpdates.clear();
 	}
 
 	@Override

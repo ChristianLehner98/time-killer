@@ -81,8 +81,6 @@ public class StreamingJobGraphGenerator {
 	private final StreamGraphHasher defaultStreamGraphHasher;
 	private final List<StreamGraphHasher> legacyStreamGraphHashers;
 
-	private Map<Integer, Map<Integer, PartialOrderMinimumSet>> pathSummaries;
-
 	public StreamingJobGraphGenerator(StreamGraph streamGraph) {
 		this.streamGraph = streamGraph;
 		this.defaultStreamGraphHasher = new StreamGraphHasherV2();
@@ -134,9 +132,9 @@ public class StreamingJobGraphGenerator {
 	}
 
 	private void computePathSummaries() {
-		pathSummaries = new HashMap<>();
+		Map<Integer, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>>> pathSummaries = new HashMap<>();
 		for(Integer targetId : streamGraph.getOperatorIDsForNotification()) {
-			Map<Integer,PartialOrderMinimumSet> pathSummariesForTarget = new HashMap<>();
+			Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>> pathSummariesForTarget = new HashMap<>();
 
 			// initialise lastPaths with an empty path of length of target scope level
 			StreamNode targetNode = streamGraph.getStreamNode(targetId);
@@ -151,15 +149,16 @@ public class StreamingJobGraphGenerator {
 		jobGraph.setPathSummaries(pathSummaries);
 	}
 
-	private void computePath(StreamNode currentNode, PartialOrderMinimumSet lastPaths, Map<Integer, PartialOrderMinimumSet> summaries) {
+	private void computePath(StreamNode currentNode, PartialOrderMinimumSet lastPaths, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>> summaries) {
 		int currentScopeLevel = currentNode.getScope().getLevel();
 
 		// check if there we were at this node before and if not, do initialisations
-		PartialOrderMinimumSet currentPaths = summaries.get(currentNode.getId());
+		Tuple2<PartialOrderMinimumSet,Integer> tuple = summaries.get(currentNode.getId());
+		PartialOrderMinimumSet currentPaths = tuple.f0;
 		int targetScopeLevel = lastPaths.getTimestampsLength();
-		if(currentPaths == null) {
-			currentPaths = new PartialOrderMinimumSet(targetScopeLevel);
-			summaries.put(currentNode.getId(), currentPaths);
+		if(tuple == null) {
+			tuple = new Tuple2<>(new PartialOrderMinimumSet(targetScopeLevel), currentNode.getParallelism());
+			summaries.put(currentNode.getId(), tuple);
 		}
 
 		// update the paths of the current node and check if our paths are better than eventually existing one for the node
