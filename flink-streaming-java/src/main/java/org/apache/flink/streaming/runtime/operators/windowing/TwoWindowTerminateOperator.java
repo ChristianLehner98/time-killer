@@ -1,6 +1,7 @@
 package org.apache.flink.streaming.runtime.operators.windowing;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.runtime.progress.Notifyable;
 import org.apache.flink.streaming.api.functions.windowing.TerminationFunction;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
@@ -42,16 +43,23 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	}
 
 	@Override
-	public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<Either<R,S>>> output) {
-		super.setup(containingTask, config, output);
+	public void setup(StreamTask<?, ?> containingTask, StreamConfig config, final Output<StreamRecord<Either<R,S>>> output) {
+		Output<StreamRecord<Either<R,S>>> dummyOutput = new Output<StreamRecord<Either<R,S>>>() {
+			public void collect(StreamRecord<Either<R,S>> record) {output.collect(record);}
+			public void emitWatermark(Watermark mark){}
+			public void emitLatencyMarker(LatencyMarker latencyMarker){}
+			public Integer getTargetOperatorId() {return output.getTargetOperatorId();}
+			public void close() {}
+		};
+		super.setup(containingTask, config, dummyOutput);
 
 		// setup() both with own output
 		StreamConfig config1 = new StreamConfig(config.getConfiguration().clone());
 		config1.setOperatorName("WinOp1");
 		StreamConfig config2 = new StreamConfig(config.getConfiguration().clone());
 		config2.setOperatorName("WinOp2");
-		winOp1.setup(containingTask, config1, output);
-		winOp2.setup(containingTask, config2, output);
+		winOp1.setup(containingTask, config1, dummyOutput);
+		winOp2.setup(containingTask, config2, dummyOutput);
 
 		this.containingTask = containingTask;
 	}
@@ -87,39 +95,40 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	}
 
 	public void processElement1(StreamRecord<IN1> element) throws Exception {
-		// TODO request notifications
-
 		activeIterations.add(element.getContext());
+
+		notifyOnce(element.getFullTimestamp(), new Notifyable() {
+			@Override
+			public void receiveProgressNotification(List<Long> timestamp, boolean done) throws Exception {
+				long iterationId = timestamp.remove(timestamp.size()-1);
+				winOp1.processWatermark(new Watermark(timestamp, iterationId));
+			}
+		});
+
 		winOp1.processElement(element);
 	}
+
+	// TODO activeIterations!!
 	public void processElement2(StreamRecord<IN2> element) throws Exception {
+		notifyOnce(element.getFullTimestamp(), new Notifyable() {
+			@Override
+			public void receiveProgressNotification(List<Long> timestamp, boolean done) throws Exception {
+				long iterationId = timestamp.remove(timestamp.size()-1);
+				winOp2.processWatermark(new Watermark(timestamp, iterationId));
+				if(done) {
+					activeIterations.remove(timestamp);
+					terminationFunction.onTermination(timestamp, collector);
+				}
+			}
+		});
+
 		if(activeIterations.contains(element.getContext())) {
 			winOp2.processElement(element);
 		}
 	}
 
-	// TODO add listener for notifications based on code in processWatermark2
-	// IDEA: listen only in StreamIterationHead for notifications and only:
-	// - receive them here
-	// - send them into the window operators but
-	// - don't send them on
-
-	// ALTERNATIVE: DONE is part of the StreamIterationHead and we also register the notifications there
-
-	public void processWatermark1(Watermark mark) throws Exception {
-			winOp1.processWatermark(mark);
-	}
-	public void processWatermark2(Watermark mark) throws Exception {
-		if(mark.iterationDone()) {
-			activeIterations.remove(mark.getContext());
-			if(mark.getContext().get(mark.getContext().size()-1) != Long.MAX_VALUE ) {
-				terminationFunction.onTermination(mark.getContext(), collector);
-			}
-			winOp2.processWatermark(new Watermark(mark.getContext(), Long.MAX_VALUE, false, mark.iterationOnly()));
-		} else {
-			winOp2.processWatermark(mark);
-		}
-	}
+	public void processWatermark1(Watermark mark) throws Exception {}
+	public void processWatermark2(Watermark mark) throws Exception {}
 
 	public void processLatencyMarker1(LatencyMarker latencyMarker) throws Exception {}
 	public void processLatencyMarker2(LatencyMarker latencyMarker) throws Exception {}
