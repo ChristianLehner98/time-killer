@@ -138,11 +138,11 @@ public class StreamingJobGraphGenerator {
 
 			// initialise lastPaths with an empty path of length of target scope level
 			StreamNode targetNode = streamGraph.getStreamNode(targetId);
-			PartialOrderMinimumSet lastPaths = new PartialOrderMinimumSet(targetNode.getScope().getLevel());
-			lastPaths.update(new LinkedList<Long>(Collections.nCopies(targetNode.getScope().getLevel(), 0L)));
+			PartialOrderMinimumSet initPaths = new PartialOrderMinimumSet(targetNode.getScope().getLevel());
+			initPaths.update(new LinkedList<Long>(Collections.nCopies(targetNode.getScope().getLevel(), 0L)));
 
 			// start recursive graph search and save results in pathSummaries
-			computePath(targetNode, lastPaths, pathSummariesForTarget);
+			computePath(targetNode, initPaths, pathSummariesForTarget, true);
 			pathSummaries.put(targetId, pathSummariesForTarget);
 		}
 
@@ -150,33 +150,41 @@ public class StreamingJobGraphGenerator {
 	}
 
 	private void computePath(StreamNode currentNode, PartialOrderMinimumSet lastPaths, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>> summaries) {
+		computePath(currentNode, lastPaths, summaries, false);
+	}
+
+	private void computePath(StreamNode currentNode, PartialOrderMinimumSet lastPaths, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>> summaries, boolean ignoreThisNode) {
 		int currentScopeLevel = currentNode.getScope().getLevel();
 
-		// check if there we were at this node before and if not, do initialisations
 		Tuple2<PartialOrderMinimumSet,Integer> tuple = summaries.get(currentNode.getId());
-		PartialOrderMinimumSet currentPaths = tuple.f0;
 		int targetScopeLevel = lastPaths.getTimestampsLength();
+		// check if there we were at this node before and if not, do initialisations
 		if(tuple == null) {
 			tuple = new Tuple2<>(new PartialOrderMinimumSet(targetScopeLevel), currentNode.getParallelism());
 			summaries.put(currentNode.getId(), tuple);
 		}
 
-		// update the paths of the current node and check if our paths are better than eventually existing one for the node
-		boolean better = false;
-		for(List<Long> path : lastPaths.getElements()) {
-			List<Long> newPath = new LinkedList<>(path);
-			// if feedback node, increment the timestamp at scope level of current node
-			if(currentScopeLevel <= targetScopeLevel && isFeedbackNode(currentNode)) {
-				newPath.set(currentScopeLevel, path.get(currentScopeLevel) + 1);
-			}
+		PartialOrderMinimumSet currentPaths = tuple.f0;
 
-			if(currentPaths.update(newPath)) {
-				better = true;
+		// ignore the start node (no path summary to itself!)
+		if(!ignoreThisNode) {
+			// update the paths of the current node and check if our paths are better than eventually existing one for the node
+			boolean better = false;
+			for (List<Long> path : lastPaths.getElements()) {
+				List<Long> newPath = new LinkedList<>(path);
+				// if feedback node, increment the timestamp at scope level of current node
+				if (currentScopeLevel <= targetScopeLevel && isFeedbackNode(currentNode)) {
+					newPath.set(currentScopeLevel, path.get(currentScopeLevel) + 1);
+				}
+
+				if (!currentPaths.update(newPath)) {
+					better = true;
+				}
 			}
-		}
-		if(!better) {
-			// Recursion Termination 1: none of our paths were better than previously existing paths for the node
-			return;
+			if (!better) {
+				// Recursion Termination 1: none of our paths were better than previously existing paths for the node
+				return;
+			}
 		}
 
 		// Recursion Termination 2: We arrived at a source node
