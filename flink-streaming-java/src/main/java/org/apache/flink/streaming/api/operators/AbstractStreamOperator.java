@@ -148,8 +148,6 @@ public abstract class AbstractStreamOperator<OUT>
 
 	// PROGRESS/TERMINATION: set this to true if the operator is a termination operator and is done
 	// this will be used for fixpoint iteration
-	// current design flaw: this will never be emptied and grow forever - ignored for the moment
-	protected Set<List<Long>> doneOnAllInstances = new HashSet<>();
 	protected TerminationUpdates localDoneUpdates;
 
 	// --------------- Metrics ---------------------------
@@ -910,7 +908,7 @@ public abstract class AbstractStreamOperator<OUT>
 						PartialOrderComparator.PartialComparison cmp = PartialOrderComparator.partialCmp(entry.getKey(), notification.getTimestamp());
 						if(cmp == EQUAL || cmp == LESS) {
 							for(Notifyable notifyable : entry.getValue()) {
-								notifyable.receiveProgressNotification(entry.getKey());
+								notifyable.receiveProgressNotification(entry.getKey(), notification.isDone());
 							}
 							registered.remove();
 						}
@@ -920,6 +918,13 @@ public abstract class AbstractStreamOperator<OUT>
 					System.out.println("Could not get ready future: " + e);
 				}
 			}
+		}
+	}
+
+	public void notifyOnce(List<Long> timestamp, Notifyable notifyable) {
+		Set<Notifyable> registered = registeredNotifications.get(timestamp);
+		if(registered == null || registered.size() == 0) {
+			notifyOn(timestamp, notifyable);
 		}
 	}
 
