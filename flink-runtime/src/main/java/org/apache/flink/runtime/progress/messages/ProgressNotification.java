@@ -7,7 +7,11 @@ public class ProgressNotification {
 	private boolean done = false;
 
 	public ProgressNotification(List<Long> timestamp) {
+		this(timestamp, false);
+	}
+	public ProgressNotification(List<Long> timestamp, boolean done) {
 		this.timestamp = timestamp;
+		this.done = done;
 	}
 
 	public void setTimestamp(List<Long> timestamp) {
@@ -17,9 +21,6 @@ public class ProgressNotification {
 		return timestamp;
 	}
 
-	public void setDone() {
-		done = true;
-	}
 	public boolean isDone() {
 		return done;
 	}

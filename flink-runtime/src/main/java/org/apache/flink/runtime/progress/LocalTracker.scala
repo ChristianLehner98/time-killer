@@ -12,76 +12,85 @@ import org.apache.flink.runtime.messages.JobManagerMessages.CancelJob
 import scala.collection.JavaConverters._
 
 class LocalTracker() extends Actor {
-  case class LocalNotificationOperator(actorRef: ActorRef, pendingNotifications: java.util.LinkedList[java.util.List[Long]], frontier: PartialOrderProgressAggregator)
-
-  private var localOperatorProgress: Map[Integer, LocalNotificationOperator] = Map()
+  private var localOperatorProgress: Map[Integer, LocalOperatorProgress] = Map()
   private var otherNodes : Set[ActorRef] = _
   private var pathSummaries: java.util.Map[Integer, java.util.Map[Integer, Tuple2[PartialOrderMinimumSet,Integer]]] = _
   // used to buffer up progress messages until the connection to the central tracker is established and we got the path summaries
-  private var initProgressBuffer: List[CountMap] = _
+  private var initProgressBuffer: List[(ActorRef, ProgressUpdate)] = _
 
   def receive : Receive = {
-    case progress: CountMap =>
+    case progress: ProgressUpdate =>
       if (pathSummaries != null) {
-        update(progress)
+        update(progress, sender())
       } else {
-        initProgressBuffer = progress :: initProgressBuffer
+        initProgressBuffer = (sender(), progress) :: initProgressBuffer
       }
 
     case init: InitLocalTracker =>
       // initialisation through central tracker giving us the pathSummaries and references to the other nodes
       pathSummaries = init.pathSummaries
       otherNodes = init.otherNodes
-      for(progress <- initProgressBuffer.reverse) {
-        update(progress)
+      for((from, progress) <- initProgressBuffer.reverse) {
+        update(progress, from)
       }
       initProgressBuffer = List()
 
-    case registration: OperatorRegistration =>
-      localOperatorProgress += (registration.getOperatorId ->
-        LocalNotificationOperator(
-          context.sender(),
-          new java.util.LinkedList[java.util.List[Long]](),
-          new PartialOrderProgressAggregator(registration.getScopeLevel())))
+    case registration: ProgressRegistration =>
+      localOperatorProgress.get(registration.getOperatorId) match {
+        case None =>
+          localOperatorProgress +=
+            (registration.getOperatorId ->
+              new LocalOperatorProgress(registration.getParallelism, registration.getScopeLevel))
+      }
 
     case notificationRequest: ProgressNotificationRequest =>
-      var operatorProgress = localOperatorProgress(notificationRequest.getOperatorId)
-      if(operatorProgress.frontier.greaterThan(notificationRequest.getTimestamp)) {
-        sendNotification(notificationRequest.getOperatorId, notificationRequest.getTimestamp)
-      } else {
-        operatorProgress.pendingNotifications.add(notificationRequest.getTimestamp)
+      val opProgress = localOperatorProgress(notificationRequest.getOperatorId)
+
+      // add notification to pending notifications of operator
+      opProgress.addNotification(
+        notificationRequest.getTimestamp,
+        notificationRequest.getInstanceId,
+        notificationRequest.isDone,
+        sender()
+      )
+
+      // send notifications that have eventually been hold back due to missing termination
+      // information from other operator instances
+      for( (actorRef, notification) <- opProgress.readyNotifications()) {
+        actorRef ! notification
       }
 
     case CancelJob =>
       context.stop(self)
   }
 
-  private def update(progress : CountMap): Unit = {
-    if(!otherNodes.contains(sender())) {
+  private def update(progress : ProgressUpdate, from: ActorRef): Unit = {
+    if(!otherNodes.contains(from)) {
       // update comes from local operator and needs to be broadcast to other nodes
       broadcastUpdate(progress)
     }
-    updateOperatorFrontiers(progress)
-    sendAccomplishedNotifications()
-  }
 
-  private def broadcastUpdate(progress : CountMap) : Unit = {
-    for(node : ActorRef <- otherNodes) {
-      node ! progress
+    for((op: Integer, opProgress: LocalOperatorProgress) <- localOperatorProgress) {
+      // update progress
+      for( (pointstamp : JTuple2[Integer, JList[Long]], delta) <- progress.getEntries.asScala) {
+        val from : Integer = pointstamp.f0
+        val timestamp : java.util.List[Long] = pointstamp.f1
+        for (summary: java.util.List[Long] <- getPathSummaries(from, op)) {
+          val timeAtTo = resultsIn(timestamp, summary)
+          opProgress.updateFrontier(timeAtTo, delta)
+        }
+      }
+
+      // send notifications if any new ready
+      for( (actorRef, notification) <- opProgress.readyNotifications()) {
+        actorRef ! notification
+      }
     }
   }
 
-  private def updateOperatorFrontiers(update : CountMap) : Unit = {
-    for( (pointstamp : JTuple2[Integer, JList[Long]], delta) <- update.getEntries.asScala) {
-      val from : Integer = pointstamp.f0
-      val timestamp : java.util.List[Long] = pointstamp.f1
-      for(to : Integer <- localOperatorProgress.keys)
-        for(summary : java.util.List[Long] <- getPathSummaries(from, to)) {
-          val timeAtTo = resultsIn(timestamp, summary)
-          localOperatorProgress.get(to) match {
-            case Some(toProgress) => toProgress.frontier.update(timeAtTo, delta)
-          }
-        }
+  private def broadcastUpdate(progress : ProgressUpdate) : Unit = {
+    for(node : ActorRef <- otherNodes) {
+      node ! progress
     }
   }
 
@@ -103,19 +112,4 @@ class LocalTracker() extends Actor {
       case None => Set()
     }
   }
-
-  private def sendNotification(operatorId: Integer, timestamp: java.util.List[Long]) = {
-    localOperatorProgress(operatorId).actorRef ! new ProgressNotification(timestamp)
-  }
-
-  private def sendAccomplishedNotifications() = {
-    for((id, operatorprogress) <- localOperatorProgress) {
-      for(notification : java.util.List[Long] <- operatorprogress.pendingNotifications.asScala) {
-        if(operatorprogress.frontier.greaterThan(notification)) {
-          sendNotification(id, notification)
-        }
-      }
-    }
-  }
-
 }

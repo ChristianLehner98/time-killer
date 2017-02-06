@@ -35,7 +35,7 @@ public class TerminationUpdates {
         }
     }
 
-    public Set<List<Long>> getDoneOnAllInstances() {
+    public Set<List<Long>> isDoneOnAllInstances() {
         Set<List<Long>> result = new HashSet<>();
         Iterator<Map.Entry<List<Long>,Set<Integer>>> entries = updates.entrySet().iterator();
         while(entries.hasNext()) {
@@ -51,4 +51,8 @@ public class TerminationUpdates {
     public void clear() {
         updates = new HashMap<>();
     }
+
+    public int getOperatorId() {
+    	return operatorId;
+	}
 }

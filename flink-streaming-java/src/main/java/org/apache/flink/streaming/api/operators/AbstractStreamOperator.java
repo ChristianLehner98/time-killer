@@ -20,7 +20,6 @@ package org.apache.flink.streaming.api.operators;
 
 import akka.actor.ActorRef;
 import akka.pattern.Patterns;
-import org.apache.commons.collections.map.HashedMap;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.flink.annotation.PublicEvolving;
@@ -40,8 +39,7 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.metrics.groups.OperatorMetricGroup;
-import org.apache.flink.runtime.progress.messages.ProgressUpdate;
-import org.apache.flink.runtime.progress.messages.TerminationUpdates;
+import org.apache.flink.runtime.progress.messages.*;
 import org.apache.flink.runtime.state.AbstractKeyedStateBackend;
 import org.apache.flink.runtime.state.CheckpointStreamFactory;
 import org.apache.flink.runtime.state.DefaultKeyedStateStore;
@@ -65,8 +63,6 @@ import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.runtime.progress.Notifyable;
 import org.apache.flink.runtime.progress.PartialOrderComparator;
-import org.apache.flink.runtime.progress.messages.CountMap;
-import org.apache.flink.runtime.progress.messages.ProgressNotification;
 import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.OperatorStateHandles;
@@ -142,13 +138,15 @@ public abstract class AbstractStreamOperator<OUT>
 	private transient OperatorStateBackend operatorStateBackend;
 
 	// PROGRESS TRACKING
-	private CountMap progressAggregator;
+	private ProgressUpdate progressAggregator;
 	private Map<List<Long>, Set<Notifyable>> registeredNotifications = new HashMap<>();
 	private Set<Future<Object>> notificationFutures = new HashSet<>();
 
 	// PROGRESS/TERMINATION: set this to true if the operator is a termination operator and is done
 	// this will be used for fixpoint iteration
 	protected TerminationUpdates localDoneUpdates;
+	protected Integer operatorId;
+	protected Integer instanceId;
 
 	// --------------- Metrics ---------------------------
 
@@ -183,8 +181,9 @@ public abstract class AbstractStreamOperator<OUT>
 		this.config = config;
 
 		// PROGRESS TRACKING
-		this.progressAggregator = new CountMap();
-		int operatorId = container.getConfiguration().getVertexID();
+		this.progressAggregator = new ProgressUpdate();
+		operatorId = container.getConfiguration().getVertexID();
+		instanceId = getRuntimeContext().getIndexOfThisSubtask();
 		int numberOfParallelInstances = getRuntimeContext().getNumberOfParallelSubtasks();
 		localDoneUpdates = new TerminationUpdates(operatorId, numberOfParallelInstances);
 		
@@ -758,9 +757,9 @@ public abstract class AbstractStreamOperator<OUT>
 	public class CountingOutput implements Output<StreamRecord<OUT>> {
 		private final Output<StreamRecord<OUT>> output;
 		private final Counter numRecordsOut;
-		private final CountMap aggregator;
+		private final ProgressUpdate aggregator;
 
-		public CountingOutput(Output<StreamRecord<OUT>> output, Counter counter, CountMap aggregator) {
+		public CountingOutput(Output<StreamRecord<OUT>> output, Counter counter, ProgressUpdate aggregator) {
 			this.output = output;
 			this.numRecordsOut = counter;
 			this.aggregator = aggregator;
@@ -936,11 +935,13 @@ public abstract class AbstractStreamOperator<OUT>
 			registeredNotifications.put(timestamp, current);
 		}
 		current.add(notifyable);
+		ActorRef ref = container.getLocalTrackerRef();
+		ref.tell(new ProgressNotificationRequest(operatorId, instanceId,timestamp), null);
 	}
 
 	@Override
 	public void sendProgress() {
-		ProgressUpdate update = new ProgressUpdate(progressAggregator, localDoneUpdates);
+		ProgressUpdate update = new ProgressUpdate();
 		ActorRef ref = container.getLocalTrackerRef();
 		notificationFutures.add(Patterns.ask(ref, update, null));
 

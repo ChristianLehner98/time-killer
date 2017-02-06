@@ -962,7 +962,8 @@ public class TaskTest extends TestLogger {
 			mock(TaskMetricGroup.class),
 			consumableNotifier,
 			partitionProducerStateChecker,
-			executor);
+			executor,
+			null);
 	}
 
 	// ------------------------------------------------------------------------

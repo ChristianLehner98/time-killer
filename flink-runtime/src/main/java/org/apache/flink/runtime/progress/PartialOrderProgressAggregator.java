@@ -1,7 +1,7 @@
 package org.apache.flink.runtime.progress;
 
 
-import org.apache.flink.runtime.progress.messages.CountMap;
+import org.apache.flink.runtime.progress.messages.ProgressUpdate;
 
 import java.util.*;
 
@@ -10,7 +10,7 @@ import static org.apache.flink.runtime.progress.PartialOrderComparator.partialCm
 
 // called Mutable Antichain in timely-dataflow
 public class PartialOrderProgressAggregator {
-	private CountMap occurences; // occurence count of each time
+	private ProgressUpdate occurences; // occurence count of each time
 	private Map<List<Long>, Integer> precedents = new HashMap<>(); // counts number of distinct times in occurences strictly less than element
 	private Set<List<Long>> frontier = new HashSet<>(); // the set of times with precedent count == 0
 
