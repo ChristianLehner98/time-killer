@@ -21,8 +21,8 @@ class LocalOperatorProgress(parallelism:Integer, scopeLevel: Integer) {
 
   def readyNotifications(): Set[(ActorRef, ProgressNotification)] = {
     var result: Set[(ActorRef, ProgressNotification)] = Set()
-    for( (timestamp: java.util.List[Long], instanceStatuses: Set[InstanceStatus]) <- pendingNotifications ) {
-      if(frontier.greaterThan(timestamp)) {
+    for( (timestamp, instanceStatuses) <- pendingNotifications ) {
+      if(frontier.ready(timestamp)) {
         var allDone = instanceStatuses.forall(_.done)
         var allRequested = instanceStatuses.size == parallelism
 

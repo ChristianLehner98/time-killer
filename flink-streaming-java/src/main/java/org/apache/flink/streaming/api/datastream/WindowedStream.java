@@ -976,17 +976,8 @@ public class WindowedStream<T, K, W extends Window> {
 								StreamIterationTermination terminationStrategy, 
 								FeedbackBuilder<R> feedbackBuilder, 
 								TypeInformation<R> feedbackType) throws Exception {
-		// add watermark filler
-		OneInputTransformation<T, T> watermarkfiller = new OneInputTransformation<T,T>(
-			input.getTransformation(),
-			"OneWatermarkPerContext",
-			new WindowedStreamWatermarkFiller<T>(),
-			input.getTransformation().getOutputType(),
-			input.getTransformation().getParallelism()
-		);
-
 		DataStream<T> scopedStreamInput = new SingleOutputStreamOperator<T>(input.getExecutionEnvironment(),
-			new ScopeTransformation<T>(watermarkfiller, ScopeTransformation.SCOPE_TYPE.INGRESS));
+			new ScopeTransformation<T>(input.getTransformation(), ScopeTransformation.SCOPE_TYPE.INGRESS));
 
 		WindowedStream<T,K,W> scopedWindowStream = new WindowedStream<>(
 			new KeyedStream<>(scopedStreamInput, input.getKeySelector(),
@@ -999,14 +990,7 @@ public class WindowedStream<T, K, W extends Window> {
 
 		ScopeTransformation<OUT> egressTransformation = new ScopeTransformation<>(outStream.getTransformation(), ScopeTransformation.SCOPE_TYPE.EGRESS);
 
-		OneInputTransformation<OUT,OUT> seqWatermarksOutStream = new OneInputTransformation<>(
-			egressTransformation,
-			"WatermarkResequencializer",
-			new WatermarkResequencializer<OUT>(),
-			egressTransformation.getOutputType(),
-			egressTransformation.getParallelism()
-		);
-		return new SingleOutputStreamOperator<>(outStream.environment, seqWatermarksOutStream);
+		return new SingleOutputStreamOperator<>(outStream.environment, egressTransformation);
 	}
 
 	// ------------------------------------------------------------------------

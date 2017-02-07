@@ -65,7 +65,7 @@ import org.apache.flink.runtime.metrics.{MetricRegistryConfiguration, MetricRegi
 import org.apache.flink.runtime.metrics.groups.TaskManagerMetricGroup
 import org.apache.flink.runtime.metrics.util.MetricUtils
 import org.apache.flink.runtime.process.ProcessReaper
-import org.apache.flink.runtime.progress.CentralTracker
+import org.apache.flink.runtime.progress.{CentralTracker, LocalTracker}
 import org.apache.flink.runtime.progress.messages.RegisterLocalTracker
 import org.apache.flink.runtime.query.KvStateRegistry
 import org.apache.flink.runtime.query.netty.{DisabledKvStateRequestStats, KvStateServer}
@@ -1094,15 +1094,6 @@ class TaskManager(
    * @param tdd TaskDeploymentDescriptor describing the task to be executed on this [[TaskManager]]
    */
   private def submitTask(tdd: TaskDeploymentDescriptor): Unit = {
-    // if task is part of a yet unknown job, start a progress tracking actor for it
-    val jobID : JobID = tdd.getSerializedJobInformation.deserializeValue(getClass.getClassLoader).getJobId
-    progressTrackingActorsPerJob.get(jobID) match {
-      case None =>
-        var actorRef : ActorRef = context.actorOf(Props[CentralTracker])
-        progressTrackingActorsPerJob.put(jobID, actorRef)
-        actorRef ! RegisterLocalTracker(jobID, instanceID, actorRef)
-    }
-
     try {
       // grab some handles and sanity check on the fly
       val jobManagerActor = currentJobManager match {
@@ -1110,6 +1101,16 @@ class TaskManager(
         case None =>
           throw new IllegalStateException("TaskManager is not associated with a JobManager.")
       }
+
+      // PROGRESS TRACKING
+      // if task is part of a yet unknown job, start a progress tracking actor for it
+      val jobID : JobID = tdd.getSerializedJobInformation.deserializeValue(getClass.getClassLoader).getJobId
+      if(progressTrackingActorsPerJob.get(jobID).isEmpty) {
+        var actorRef : ActorRef = context.actorOf(Props[LocalTracker])
+        progressTrackingActorsPerJob.put(jobID, actorRef)
+        jobManagerActor ! RegisterLocalTracker(jobID, instanceID, actorRef)
+      }
+
       val libCache = libraryCacheManager match {
         case Some(manager) => manager
         case None => throw new IllegalStateException("There is no valid library cache manager.")

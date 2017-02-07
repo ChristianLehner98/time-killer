@@ -12,7 +12,6 @@ import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.apache.flink.streaming.api.functions.windowing.CoWindowTerminateFunction;
-import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.types.Either;
@@ -35,7 +34,7 @@ public class StreamingPageRank {
 	}
 
 	public StreamingPageRank() throws Exception {
-		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
+		//env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 		env.setParallelism(4);
 
 		DataStream<Tuple2<Long,List<Long>>> inputStream = env.addSource(new PageRankSource(4));
@@ -77,9 +76,6 @@ public class StreamingPageRank {
 					if(entry.f0 % parallelism == parallelTask) {
 						ctx.collectWithTimestamp(entry, i);
 					}
-				}
-				if(i!= 2) {
-					ctx.emitWatermark(new Watermark(i));
 				}
 			}
 		}

@@ -20,6 +20,7 @@ package org.apache.flink.streaming.api.operators;
 
 import akka.actor.ActorRef;
 import akka.pattern.Patterns;
+import akka.util.Timeout;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.flink.annotation.PublicEvolving;
@@ -74,8 +75,11 @@ import scala.concurrent.Await;
 import scala.concurrent.Future;
 import scala.concurrent.duration.Duration;
 
+import java.time.Year;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
+import static java.time.temporal.ChronoUnit.YEARS;
 import static org.apache.flink.runtime.progress.PartialOrderComparator.PartialComparison.EQUAL;
 import static org.apache.flink.runtime.progress.PartialOrderComparator.PartialComparison.LESS;
 import static org.apache.flink.util.Preconditions.checkArgument;
@@ -98,6 +102,7 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 @PublicEvolving
 public abstract class AbstractStreamOperator<OUT>
 		implements StreamOperator<OUT>, java.io.Serializable, KeyContext {
+
 
 	private static final long serialVersionUID = 1L;
 	
@@ -138,15 +143,12 @@ public abstract class AbstractStreamOperator<OUT>
 	private transient OperatorStateBackend operatorStateBackend;
 
 	// PROGRESS TRACKING
-	private ProgressUpdate progressAggregator;
+	private ProgressUpdate progressAggregator = new ProgressUpdate();
 	private Map<List<Long>, Set<Notifyable>> registeredNotifications = new HashMap<>();
 	private Set<Future<Object>> notificationFutures = new HashSet<>();
 
-	// PROGRESS/TERMINATION: set this to true if the operator is a termination operator and is done
-	// this will be used for fixpoint iteration
-	protected TerminationUpdates localDoneUpdates;
+	// PROGRESS TRACKING: ITERATION TERMINATION
 	protected Integer operatorId;
-	protected Integer instanceId;
 
 	// --------------- Metrics ---------------------------
 
@@ -181,12 +183,9 @@ public abstract class AbstractStreamOperator<OUT>
 		this.config = config;
 
 		// PROGRESS TRACKING
-		this.progressAggregator = new ProgressUpdate();
 		operatorId = container.getConfiguration().getVertexID();
-		instanceId = getRuntimeContext().getIndexOfThisSubtask();
-		int numberOfParallelInstances = getRuntimeContext().getNumberOfParallelSubtasks();
-		localDoneUpdates = new TerminationUpdates(operatorId, numberOfParallelInstances);
-		
+		container.getLocalTrackerRef().tell(new ProgressRegistration(operatorId, scopeLevel, container.getCurrentNumberOfSubtasks()), null);
+
 		this.metrics = container.getEnvironment().getMetricGroup().addOperator(config.getOperatorName());
 		this.output = new CountingOutput(output, ((OperatorMetricGroup) this.metrics).getIOMetricGroup().getNumRecordsOutCounter(), progressAggregator);
 		if (config.isChainStart()) {
@@ -920,15 +919,15 @@ public abstract class AbstractStreamOperator<OUT>
 		}
 	}
 
-	public void notifyOnce(List<Long> timestamp, Notifyable notifyable) {
+	protected void notifyOnce(List<Long> timestamp, Notifyable notifyable, boolean done) {
 		Set<Notifyable> registered = registeredNotifications.get(timestamp);
 		if(registered == null || registered.size() == 0) {
-			notifyOn(timestamp, notifyable);
+			notifyOn(timestamp, notifyable, done);
 		}
 	}
 
 	@Override
-	public void notifyOn(List<Long> timestamp, Notifyable notifyable) {
+	public void notifyOn(List<Long> timestamp, Notifyable notifyable, boolean done) {
 		Set<Notifyable> current = registeredNotifications.get(timestamp);
 		if(current == null) {
 			current = new HashSet<>();
@@ -936,16 +935,15 @@ public abstract class AbstractStreamOperator<OUT>
 		}
 		current.add(notifyable);
 		ActorRef ref = container.getLocalTrackerRef();
-		ref.tell(new ProgressNotificationRequest(operatorId, instanceId,timestamp), null);
+		int instanceId = getRuntimeContext().getIndexOfThisSubtask();
+		ref.tell(new ProgressNotificationRequest(operatorId, instanceId, timestamp, done), null);
 	}
 
 	@Override
 	public void sendProgress() {
-		ProgressUpdate update = new ProgressUpdate();
 		ActorRef ref = container.getLocalTrackerRef();
-		notificationFutures.add(Patterns.ask(ref, update, null));
-
-		localDoneUpdates.clear();
+		notificationFutures.add(Patterns.ask(ref, progressAggregator, new Timeout(Duration.create(200, TimeUnit.DAYS))));
+		progressAggregator = new ProgressUpdate();
 	}
 
 	@Override

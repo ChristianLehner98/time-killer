@@ -8,7 +8,7 @@ public class ProgressNotificationRequest {
 	private List<Long> timestamp;
 	private boolean done;
 
-	public ProgressNotificationRequest(Integer operatorId, Integer instanceId, List<Long> timestamp) {
+	public ProgressNotificationRequest(Integer operatorId, Integer instanceId, List<Long> timestamp, boolean done) {
 		this.operatorId = operatorId;
 		this.instanceId = instanceId;
 		this.timestamp = timestamp;

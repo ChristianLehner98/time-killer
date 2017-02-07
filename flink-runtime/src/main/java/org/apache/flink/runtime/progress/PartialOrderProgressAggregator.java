@@ -5,12 +5,13 @@ import org.apache.flink.runtime.progress.messages.ProgressUpdate;
 
 import java.util.*;
 
+import static org.apache.flink.runtime.progress.PartialOrderComparator.PartialComparison.EQUAL;
 import static org.apache.flink.runtime.progress.PartialOrderComparator.PartialComparison.LESS;
 import static org.apache.flink.runtime.progress.PartialOrderComparator.partialCmp;
 
 // called Mutable Antichain in timely-dataflow
 public class PartialOrderProgressAggregator {
-	private ProgressUpdate occurences; // occurence count of each time
+	private ProgressUpdate occurences = new ProgressUpdate(); // occurence count of each time
 	private Map<List<Long>, Integer> precedents = new HashMap<>(); // counts number of distinct times in occurences strictly less than element
 	private Set<List<Long>> frontier = new HashSet<>(); // the set of times with precedent count == 0
 
@@ -20,18 +21,13 @@ public class PartialOrderProgressAggregator {
 		this.elementLength = elementLength;
 	}
 
-	public Set<List<Long>> getFrontier() {
-		return frontier;
-	}
-
-	public boolean greaterThan(List<Long> timestamp) {
-		boolean result = true;
-		for(List<Long> element : frontier) {
-			if(partialCmp(element, timestamp) != LESS) {
-				result = false;
+	public boolean ready(List<Long> notification) {
+		for(List<Long> frontierElement : frontier) {
+			if(partialCmp(frontierElement, notification) == LESS || partialCmp(frontierElement, notification) == EQUAL) {
+				return false;
 			}
 		}
-		return result;
+		return !frontier.isEmpty();
 	}
 
 	public boolean updateAll(Map<List<Long>, Integer> elements) {
@@ -70,7 +66,7 @@ public class PartialOrderProgressAggregator {
 				} else if (cmp == PartialOrderComparator.PartialComparison.GREATER) {
 					// 'precedent' is lower, so we increment our precendentValue
 					precededBy += 1;
-				} else if(cmp == PartialOrderComparator.PartialComparison.EQUAL) {
+				} else if(cmp == EQUAL) {
 					throw new RuntimeException("Shouldn't happen!");
 				}
 			}

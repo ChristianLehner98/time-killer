@@ -2,11 +2,12 @@ package org.apache.flink.runtime.progress.messages;
 
 import org.apache.flink.api.java.tuple.Tuple2;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ProgressUpdate {
+public class ProgressUpdate implements Serializable {
 	private Map<Tuple2<Integer,List<Long>>, Integer> countmap = new HashMap<>();
 
 	public int update(List<Long> element, int delta) {

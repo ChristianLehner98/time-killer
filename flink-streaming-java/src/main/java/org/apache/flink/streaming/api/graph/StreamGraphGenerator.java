@@ -356,7 +356,7 @@ public class StreamGraphGenerator {
 			iterate.getWaitTime(),
 			iterate.getParallelism(),
 			iterate.getMaxParallelism(),
-			iterate.getScope(), new FixpointIterationTermination());
+			iterate.getScope());
 
 		StreamNode itSource = itSourceAndSink.f0;
 		StreamNode itSink = itSourceAndSink.f1;
@@ -422,7 +422,7 @@ public class StreamGraphGenerator {
 				coIterate.getWaitTime(),
 				coIterate.getParallelism(),
 				coIterate.getMaxParallelism(),
-				coIterate.getScope(), coIterate.getTerminationStrategy());
+				coIterate.getScope());
 
 		StreamNode itSource = itSourceAndSink.f0;
 		StreamNode itSink = itSourceAndSink.f1;

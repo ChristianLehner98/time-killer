@@ -59,35 +59,17 @@ import java.util.List;
 public class CoFeedbackTransformation<F> extends StreamTransformation<F> {
 
 	private final List<StreamTransformation<F>> feedbackEdges;
-	private final StreamIterationTermination terminationStrategy;
 
 	private final Long waitTime;
 
 	public CoFeedbackTransformation(int parallelism,
 									TypeInformation<F> feedbackType,
 									Long waitTime, StreamScope scope) {
-		// TODO change this to FixpointTermination when done
-		this(parallelism, feedbackType, waitTime, scope, new StructuredIterationTermination(Long.MAX_VALUE));
-	}
-
-	/**
-	 * Creates a new {@code CoFeedbackTransformation} from the given input.
-	 *
-	 * @param parallelism The parallelism of the upstream {@code StreamTransformation} and the
-	 *                    feedback edges.
-	 * @param feedbackType The type of the feedback edges
-	 * @param waitTime The wait time of the feedback operator. After the time expires
-	 *                          the operation will close and not receive any more feedback elements.
-	 */
-	public CoFeedbackTransformation(int parallelism,
-									TypeInformation<F> feedbackType,
-									Long waitTime, StreamScope scope,
-									StreamIterationTermination terminationStrategy) {
 		super("CoFeedback", feedbackType, parallelism, scope);
 		this.waitTime = waitTime;
 		this.feedbackEdges = Lists.newArrayList();
-		this.terminationStrategy = terminationStrategy;
 	}
+
 
 	/**
 	 * Adds a feedback edge. The parallelism of the {@code StreamTransformation} must match
@@ -132,10 +114,6 @@ public class CoFeedbackTransformation<F> extends StreamTransformation<F> {
 	@Override
 	public Collection<StreamTransformation<?>> getTransitivePredecessors() {
 		return Collections.<StreamTransformation<?>>singleton(this);
-	}
-
-	public StreamIterationTermination getTerminationStrategy() {
-		return terminationStrategy;
 	}
 }
 

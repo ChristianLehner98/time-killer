@@ -48,7 +48,7 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 
 		// create feedback edge
 		CoFeedbackTransformation<R> coFeedbackTransformation = new CoFeedbackTransformation<>(input.getInput().getParallelism(),
-			feedbackType, waitTime, input.getInput().getTransformation().getScope(), terminationStrategy);
+			feedbackType, waitTime, input.getInput().getTransformation().getScope());
 
 		// create feedback source
 		KeyedStream<F, K> feedbackSourceStream = feedbackBuilder.feedback(new DataStream<R>(input.getExecutionEnvironment(), coFeedbackTransformation));
@@ -56,14 +56,15 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 		WindowedStream<F, K, TimeWindow> windowedStream2 = new WindowedStream<>(feedbackSourceStream, assinger);
 
 		// create feedback sink
-		Tuple2<DataStream<R>, DataStream<S>> streams = applyCoWinTerm(coWinTerm, windowedStream1, windowedStream2);
+		Tuple2<DataStream<R>, DataStream<S>> streams = applyCoWinTerm(coWinTerm, windowedStream1, windowedStream2, terminationStrategy);
 		coFeedbackTransformation.addFeedbackEdge(streams.f0.getTransformation());
 		outStream = streams.f1;
 	}
 
 	public Tuple2<DataStream<R>, DataStream<S>> applyCoWinTerm(CoWindowTerminateFunction coWinTerm, 
 							WindowedStream<IN, K, IN_W> windowedStream1, 
-							WindowedStream<F, K, TimeWindow> windowedStream2) throws Exception {
+							WindowedStream<F, K, TimeWindow> windowedStream2,
+							StreamIterationTermination terminationStrategy) throws Exception {
 
 		TypeInformation<S> outTypeInfo = TypeExtractor.createTypeInfo(CoWindowTerminateFunction.class,
 			coWinTerm.getClass(), 2, windowedStream1.getInputType(), windowedStream2.getInputType());
@@ -75,7 +76,8 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 			windowedStream1,
 			windowedStream2,
 			outTypeInfo,
-			intermediateFeedbackTypeInfo);
+			intermediateFeedbackTypeInfo,
+			terminationStrategy);
 		// TODO check if this is necessary
 		transformation.setStateKeySelectors(windowedStream1.getInput().getKeySelector(), windowedStream2.getInput().getKeySelector());
 		transformation.setStateKeyType(windowedStream1.getInput().getKeyType());
@@ -118,7 +120,8 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 		WindowedStream<IN, K, IN_W> windowedStream1,
 		WindowedStream<F, K, TimeWindow> windowedStream2,
 		TypeInformation<S> outTypeInfo,
-		TypeInformation<R> intermediateFeedbackTypeInfo) throws Exception {
+		TypeInformation<R> intermediateFeedbackTypeInfo,
+		StreamIterationTermination terminationStrategy) throws Exception {
 
 		TypeInformation<Either<R, S>> eitherTypeInfo = new EitherTypeInfo<>(intermediateFeedbackTypeInfo, outTypeInfo);
 
@@ -128,7 +131,7 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 			getWindowOperator(windowedStream2, new WrappedWindowFunction2<F, Either<R, S>, K, TimeWindow>(coWinTerm), eitherTypeInfo);
 
 		String opName = "TwoWindowTerminate(" + op1.f0 + ", " + op2.f0 + ")";
-		TwoWindowTerminateOperator combinedOperator = new TwoWindowTerminateOperator(op1.f1, op2.f1, coWinTerm);
+		TwoWindowTerminateOperator combinedOperator = new TwoWindowTerminateOperator(op1.f1, op2.f1, coWinTerm, terminationStrategy);
 		return new TwoInputTransformation<>(
 			windowedStream1.getInput().getTransformation(),
 			windowedStream2.getInput().getTransformation(),

@@ -559,7 +559,7 @@ public class StreamGraph extends StreamingPlan {
 		long timeout,
 		int parallelism,
 		int maxParallelism,
-		StreamScope scope, StreamIterationTermination iterationTermination) {
+		StreamScope scope) {
 		StreamNode source = this.addNode(sourceId,
 			null,
 			StreamIterationHead.class,
@@ -570,7 +570,6 @@ public class StreamGraph extends StreamingPlan {
 		sources.add(source.getId());
 		setParallelism(source.getId(), parallelism);
 		setMaxParallelism(source.getId(), maxParallelism);
-		source.setIterationTermination(iterationTermination);
 		
 		StreamNode sink = this.addNode(sinkId,
 			null,

@@ -14,6 +14,7 @@ import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.OperatorStateHandles;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
 import org.apache.flink.types.Either;
 
 import java.io.Serializable;
@@ -26,20 +27,23 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	extends AbstractStreamOperator<Either<R,S>>
 	implements TwoInputStreamOperator<IN1, IN2, Either<R,S>>, Serializable {
 
-	WindowOperator<K, IN1, ACC1, Either<R,S>, W1> winOp1;
-	WindowOperator<K, IN2, ACC2, Either<R,S>, W2> winOp2;
-	TerminationFunction terminationFunction;
-	Set<List<Long>> activeIterations = new HashSet<>();
+	private WindowOperator<K, IN1, ACC1, Either<R,S>, W1> winOp1;
+	private WindowOperator<K, IN2, ACC2, Either<R,S>, W2> winOp2;
+	private TerminationFunction terminationFunction;
+	private StreamIterationTermination terminationStrategy;
+
+	private Set<List<Long>> activeIterations = new HashSet<>();
 	//StreamIterationTermination terminationStrategy;
 
-	StreamTask<?, ?> containingTask;
+	private StreamTask<?, ?> containingTask;
 
-	TimestampedCollector<Either<R,S>> collector;
+	private TimestampedCollector<Either<R,S>> collector;
 
-	public TwoWindowTerminateOperator(WindowOperator winOp1, WindowOperator winOp2, TerminationFunction terminationFunction) {
+	public TwoWindowTerminateOperator(WindowOperator winOp1, WindowOperator winOp2, TerminationFunction terminationFunction, StreamIterationTermination terminationStrategy) {
 		this.winOp1 = winOp1;
 		this.winOp2 = winOp2;
 		this.terminationFunction = terminationFunction;
+		this.terminationStrategy = terminationStrategy;
 	}
 
 	@Override
@@ -103,26 +107,28 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 				long iterationId = timestamp.remove(timestamp.size()-1);
 				winOp1.processWatermark(new Watermark(timestamp, iterationId));
 			}
-		});
+		}, terminationStrategy.terminate(element.getContext()));
 
 		winOp1.processElement(element);
 	}
 
-	// TODO activeIterations!!
 	public void processElement2(StreamRecord<IN2> element) throws Exception {
 		notifyOnce(element.getFullTimestamp(), new Notifyable() {
 			@Override
 			public void receiveProgressNotification(List<Long> timestamp, boolean done) throws Exception {
 				long iterationId = timestamp.remove(timestamp.size()-1);
-				winOp2.processWatermark(new Watermark(timestamp, iterationId));
+				Watermark watermark = new Watermark(timestamp, iterationId);
+				terminationStrategy.observeWatermark(watermark);
+				winOp2.processWatermark(watermark);
 				if(done) {
 					activeIterations.remove(timestamp);
 					terminationFunction.onTermination(timestamp, collector);
 				}
 			}
-		});
+		}, terminationStrategy.terminate(element.getContext()));
 
 		if(activeIterations.contains(element.getContext())) {
+			terminationStrategy.observeRecord(element);
 			winOp2.processElement(element);
 		}
 	}

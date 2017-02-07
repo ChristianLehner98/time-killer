@@ -28,7 +28,6 @@ import org.apache.flink.streaming.runtime.io.RecordWriterOutput;
 import org.apache.flink.streaming.runtime.io.BlockingQueueBroker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,16 +37,13 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 	private static final Logger LOG = LoggerFactory.getLogger(StreamIterationHead.class);
 
 	private volatile boolean running = true;
-//	private StreamIterationTermination termination = new StructuredIterationTermination(20);
-	
-	private StreamIterationTermination termination;
+
 	// ------------------------------------------------------------------------
 
 	
 
 	@Override
 	protected void run() throws Exception {
-		termination = getConfiguration().getTerminationFunction(Thread.currentThread().getContextClassLoader());
 		final String iterationId = getConfiguration().getIterationId();
 		if (iterationId == null || iterationId.length() == 0) {
 			throw new Exception("Missing iteration ID in the task configuration");
@@ -80,18 +76,12 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 					if(nextElement.isWatermark()) {
 						Watermark mark = nextElement.asWatermark();
 
-						termination.observeWatermark(mark);
-						if(termination.terminate(mark.getContext())) {
-							mark.setIterationDone(true);
-						}
-
 						mark.forwardTimestamp();
 						for (RecordWriterOutput<OUT> output : outputs) {
 							output.emitWatermark(mark);
 						}
 					} else if(nextElement.isRecord()) {
 						StreamRecord record = nextElement.asRecord();
-						termination.observeRecord(record);
 						record.forwardTimestamp();
 						for (RecordWriterOutput<OUT> output : outputs) {
 

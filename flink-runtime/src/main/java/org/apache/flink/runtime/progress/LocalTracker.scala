@@ -16,10 +16,11 @@ class LocalTracker() extends Actor {
   private var otherNodes : Set[ActorRef] = _
   private var pathSummaries: java.util.Map[Integer, java.util.Map[Integer, Tuple2[PartialOrderMinimumSet,Integer]]] = _
   // used to buffer up progress messages until the connection to the central tracker is established and we got the path summaries
-  private var initProgressBuffer: List[(ActorRef, ProgressUpdate)] = _
+  private var initProgressBuffer: List[(ActorRef, ProgressUpdate)] = List()
 
   def receive : Receive = {
     case progress: ProgressUpdate =>
+      print(progress)
       if (pathSummaries != null) {
         update(progress, sender())
       } else {
@@ -27,6 +28,7 @@ class LocalTracker() extends Actor {
       }
 
     case init: InitLocalTracker =>
+      print(init)
       // initialisation through central tracker giving us the pathSummaries and references to the other nodes
       pathSummaries = init.pathSummaries
       otherNodes = init.otherNodes
@@ -36,14 +38,15 @@ class LocalTracker() extends Actor {
       initProgressBuffer = List()
 
     case registration: ProgressRegistration =>
-      localOperatorProgress.get(registration.getOperatorId) match {
-        case None =>
-          localOperatorProgress +=
-            (registration.getOperatorId ->
-              new LocalOperatorProgress(registration.getParallelism, registration.getScopeLevel))
+      print(registration)
+      if(localOperatorProgress.get(registration.getOperatorId).isEmpty) {
+        localOperatorProgress +=
+          (registration.getOperatorId ->
+            new LocalOperatorProgress(registration.getParallelism, registration.getScopeLevel))
       }
 
     case notificationRequest: ProgressNotificationRequest =>
+      print(notificationRequest)
       val opProgress = localOperatorProgress(notificationRequest.getOperatorId)
 
       // add notification to pending notifications of operator
@@ -61,6 +64,7 @@ class LocalTracker() extends Actor {
       }
 
     case CancelJob =>
+      print("cancel")
       context.stop(self)
   }
 
