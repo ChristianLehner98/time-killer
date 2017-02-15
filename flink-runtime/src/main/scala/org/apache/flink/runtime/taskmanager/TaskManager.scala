@@ -1189,7 +1189,8 @@ class TaskManager(
         resultPartitionConsumableNotifier,
         partitionStateChecker,
         context.dispatcher,
-        progressTrackingActorsPerJob(jobID)
+        progressTrackingActorsPerJob(jobID),
+        context.system
       )
 
       log.info(s"Received task ${task.getTaskInfo.getTaskNameWithSubtasks()}")

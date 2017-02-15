@@ -963,6 +963,7 @@ public class TaskTest extends TestLogger {
 			consumableNotifier,
 			partitionProducerStateChecker,
 			executor,
+			null,
 			null);
 	}
 

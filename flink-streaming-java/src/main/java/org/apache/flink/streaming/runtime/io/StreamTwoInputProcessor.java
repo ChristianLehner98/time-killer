@@ -165,6 +165,9 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 			return false;
 		}
 
+		// PROGRESS TRACKING: check for ready notifications and execute the registered notifyables
+		streamOperator.executeNotificationCallbacks();
+
 		while (true) {
 			if (currentRecordDeserializer != null) {
 				DeserializationResult result;

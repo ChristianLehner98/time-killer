@@ -308,6 +308,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 				AppendingState<IN, ACC> windowState =
 						getPartitionedState(window, windowSerializer, windowStateDescriptor);
 				windowState.add(element.getValue());
+				collectInternalProgress(operatorId, element.getFullTimestamp(), 1);
 
 				context.key = key;
 				context.window = window;

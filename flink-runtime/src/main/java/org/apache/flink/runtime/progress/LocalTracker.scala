@@ -1,12 +1,13 @@
 package org.apache.flink.runtime.progress
 
 import java.lang.Long
+import java.lang.Boolean
 import java.util
 
 import akka.actor.{Actor, ActorRef}
 import org.apache.flink.runtime.progress.messages._
-import org.apache.flink.api.java.tuple.{Tuple2 => JTuple2}
-import java.util.{List => JList}
+import org.apache.flink.api.java.tuple.{Tuple3 => JTuple3}
+import java.util.{Collections, List => JList}
 
 import org.apache.flink.runtime.messages.JobManagerMessages.CancelJob
 
@@ -83,11 +84,12 @@ class LocalTracker() extends Actor {
       // update progress
       val progIt = progress.getEntries.asScala.iterator
       while (progIt.hasNext) {
-        val (pointstamp: JTuple2[Integer,JList[Long]], delta: Integer) = progIt.next()
+        val (pointstamp: JTuple3[Integer,JList[Long], Boolean], delta: Integer) = progIt.next()
         val from: Integer = pointstamp.f0
         val timestamp: java.util.List[Long] = pointstamp.f1
+        val isInternal: Boolean = pointstamp.f2
 
-        for (summary: java.util.List[Long] <- getPathSummaries(from, op)) {
+        for (summary: java.util.List[Long] <- getPathSummaries(from, op, isInternal)) {
           val timeAtTo = resultsIn(timestamp, summary)
           opProgress.updateFrontier(timeAtTo, delta)
         }
@@ -125,7 +127,11 @@ class LocalTracker() extends Actor {
     result
   }
 
-  private def getPathSummaries(from : Integer, to: Integer) : Set[java.util.List[Long]] = {
+  private def getPathSummaries(from : Integer, to: Integer, isInternal: Boolean) : Set[java.util.List[Long]] = {
+    if(from == to && !isInternal) {
+      return Set(new util.LinkedList(Collections.nCopies(maxScopeLevel+1, 0L)))
+    }
+
     pathSummaries.asScala.get(from) match {
       case Some(toSummaries: java.util.Map[Integer,PartialOrderMinimumSet]) =>
         toSummaries.asScala.get(to) match {

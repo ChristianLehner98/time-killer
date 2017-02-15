@@ -48,7 +48,11 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	@Override
 	public void setup(StreamTask<?, ?> containingTask, StreamConfig config, final Output<StreamRecord<Either<R,S>>> output) {
 		Output<StreamRecord<Either<R,S>>> dummyOutput = new Output<StreamRecord<Either<R,S>>>() {
-			public void collect(StreamRecord<Either<R,S>> record) {output.collect(record);}
+			public void collect(StreamRecord<Either<R,S>> record) {
+				collectInternalProgress(operatorId, record.getFullTimestamp(), -1);
+				collectProgress(output.getTargetOperatorId(), record.getFullTimestamp(), 1);
+				output.collect(record);
+			}
 			public void emitWatermark(Watermark mark){}
 			public void emitLatencyMarker(LatencyMarker latencyMarker){}
 			public Integer getTargetOperatorId() {return output.getTargetOperatorId();}
@@ -63,6 +67,9 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 		config2.setOperatorName("WinOp2");
 		winOp1.setup(containingTask, config1, dummyOutput);
 		winOp2.setup(containingTask, config2, dummyOutput);
+
+		winOp1.setProgressAggregator(progressAggregator);
+		winOp2.setProgressAggregator(progressAggregator);
 
 		this.containingTask = containingTask;
 	}

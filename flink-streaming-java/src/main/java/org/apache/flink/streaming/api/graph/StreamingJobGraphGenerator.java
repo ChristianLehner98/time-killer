@@ -145,7 +145,7 @@ public class StreamingJobGraphGenerator {
 
 			// fill an empty PartialOrderMinimumSet for all unreachable NotificationOperators
 			for(Integer opId : streamGraph.getOperatorIDsForNotification()) {
-				if(currentSummaries.get(opId) == null) {
+				if(currentSummaries.get(opId) == null || opId == node.getId()) {
 					currentSummaries.put(opId, new PartialOrderMinimumSet(maxScopeLevel));
 				}
 			}

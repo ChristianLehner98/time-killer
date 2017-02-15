@@ -19,6 +19,7 @@
 package org.apache.flink.streaming.runtime.tasks;
 
 import akka.actor.ActorRef;
+import akka.actor.ActorSystem;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.TaskInfo;
@@ -349,4 +350,8 @@ public class StreamMockEnvironment implements Environment {
 		return null;
 	}
 
+	@Override
+	public ActorSystem getActorSystem() {
+		return null;
+	}
 }

@@ -138,7 +138,7 @@ public class StreamInputProcessor<IN> {
 		}
 
 		// PROGRESS TRACKING: check for ready notifications and execute the registered notifyables
-		streamOperator.receiveProgressAndExecNotifyables();
+		streamOperator.executeNotificationCallbacks();
 
 		while (true) {
 			if (currentRecordDeserializer != null) {

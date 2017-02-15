@@ -193,6 +193,7 @@ public class TaskAsyncCallTest {
 			consumableNotifier,
 			partitionProducerStateChecker,
 			executor,
+			null,
 			null);
 	}
 

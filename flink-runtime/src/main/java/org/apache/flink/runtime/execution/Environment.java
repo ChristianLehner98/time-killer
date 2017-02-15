@@ -19,6 +19,7 @@
 package org.apache.flink.runtime.execution;
 
 import akka.actor.ActorRef;
+import akka.actor.ActorSystem;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.TaskInfo;
@@ -210,4 +211,5 @@ public interface Environment {
 	InputGate[] getAllInputGates();
 
 	ActorRef getLocalTrackerRef();
+	ActorSystem getActorSystem();
 }

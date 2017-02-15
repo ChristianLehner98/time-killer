@@ -19,8 +19,11 @@
 package org.apache.flink.streaming.api.operators;
 
 import akka.actor.ActorRef;
+import akka.dispatch.OnComplete;
+import akka.dispatch.OnSuccess;
 import akka.pattern.Patterns;
 import akka.util.Timeout;
+import io.netty.util.internal.ConcurrentSet;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.flink.annotation.PublicEvolving;
@@ -69,9 +72,11 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.OperatorStateHandles;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.apache.hadoop.fs.Options;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.concurrent.Await;
+import scala.concurrent.ExecutionContext;
 import scala.concurrent.Future;
 import scala.concurrent.duration.Duration;
 
@@ -141,9 +146,9 @@ public abstract class AbstractStreamOperator<OUT>
 	private transient OperatorStateBackend operatorStateBackend;
 
 	// PROGRESS TRACKING
-	private ProgressUpdate progressAggregator = new ProgressUpdate();
+	protected ProgressUpdate progressAggregator = new ProgressUpdate();
 	private Map<List<Long>, Set<Notifyable>> registeredNotifications = new HashMap<>();
-	private Set<Future<Object>> notificationFutures = new HashSet<>();
+	private Set<ProgressNotification> receivedNotifications = new ConcurrentSet<>();
 
 	// PROGRESS TRACKING: ITERATION TERMINATION
 	protected Integer operatorId;
@@ -894,29 +899,26 @@ public abstract class AbstractStreamOperator<OUT>
 	public boolean wantsProgressNotifications() { return false; }
 
 	@Override
-	public void receiveProgressAndExecNotifyables() {
-		for(Iterator<Future<Object>> futures = notificationFutures.iterator(); futures.hasNext();) {
-			Future<Object> future = futures.next();
-			if(future.isCompleted()) {
-				try {
-					ProgressNotification notification = (ProgressNotification) Await.result(future, Duration.create(1, "seconds"));
-					Iterator<Map.Entry<List<Long>, Set<Notifyable>>> registered = registeredNotifications.entrySet().iterator();
-					while(registered.hasNext()) {
-						Map.Entry<List<Long>, Set<Notifyable>> entry = registered.next();
-
-						PartialOrderComparator.PartialComparison cmp = PartialOrderComparator.partialCmp(entry.getKey(), notification.getTimestamp());
-						if(cmp == EQUAL || cmp == LESS) {
-							for(Notifyable notifyable : entry.getValue()) {
-								notifyable.receiveProgressNotification(entry.getKey(), notification.isDone());
-							}
-							registered.remove();
+	public void executeNotificationCallbacks() {
+		Iterator<ProgressNotification> received = receivedNotifications.iterator();
+		while(received.hasNext()) {
+			ProgressNotification notification = received.next();
+			Iterator<Map.Entry<List<Long>, Set<Notifyable>>> registered = registeredNotifications.entrySet().iterator();
+			while(registered.hasNext()) {
+				Map.Entry<List<Long>, Set<Notifyable>> entry = registered.next();
+				PartialOrderComparator.PartialComparison cmp = PartialOrderComparator.partialCmp(entry.getKey(), notification.getTimestamp());
+				if(cmp == EQUAL || cmp == LESS) {
+					for(Notifyable notifyable : entry.getValue()) {
+						try {
+							notifyable.receiveProgressNotification(entry.getKey(), notification.isDone());
+						} catch(Exception e) {
+							System.out.println("Exception on Callback execution");
 						}
 					}
-					futures.remove();
-				} catch(Exception e) {
-					System.out.println("Could not get ready future: " + e);
+					registered.remove();
 				}
 			}
+			received.remove();
 		}
 	}
 
@@ -937,23 +939,47 @@ public abstract class AbstractStreamOperator<OUT>
 		current.add(notifyable);
 		ActorRef ref = container.getLocalTrackerRef();
 		int instanceId = getRuntimeContext().getIndexOfThisSubtask();
-		ref.tell(new ProgressNotificationRequest(operatorId, instanceId, timestamp, done), null);
+
+		//ref.tell(new ProgressNotificationRequest(operatorId, instanceId, timestamp, done), null);
+		Future<Object> future = Patterns.ask(ref,
+			new ProgressNotificationRequest(operatorId, instanceId, timestamp, done),
+			new Timeout(Duration.create(200, TimeUnit.DAYS)));
+
+		future.onComplete(new OnComplete<Object>() {
+			public void onComplete(Throwable failure, Object result) {
+				if(failure == null) {
+					receivedNotifications.add((ProgressNotification) result);
+				} else {
+					System.out.println("Actor Message Failure");
+				}
+			}
+		}, container.getActorSystem().dispatcher());
 	}
 
 	@Override
 	public void sendProgress() {
 		ActorRef ref = container.getLocalTrackerRef();
-		notificationFutures.add(Patterns.ask(ref, progressAggregator, new Timeout(Duration.create(200, TimeUnit.DAYS))));
+		ref.tell(progressAggregator, null);
+		//notificationFutures.add(Patterns.ask(ref, progressAggregator, new Timeout(Duration.create(200, TimeUnit.DAYS))));
 		progressAggregator = new ProgressUpdate();
 	}
 
 	@Override
 	public void collectProgress(Integer operatorId, List<Long> timestamp, int delta) {
-		progressAggregator.update(operatorId, timestamp, delta);
+		progressAggregator.update(operatorId, timestamp, false, delta);
+	}
+
+	@Override
+	public void collectInternalProgress(Integer operatorId, List<Long> timestamp, int delta) {
+		progressAggregator.update(operatorId, timestamp, true, delta);
 	}
 
 	@Override
 	public Integer getId() {
 		return config.getVertexID();
+	}
+
+	public void setProgressAggregator(ProgressUpdate progressAggregator) {
+		this.progressAggregator = progressAggregator;
 	}
 }

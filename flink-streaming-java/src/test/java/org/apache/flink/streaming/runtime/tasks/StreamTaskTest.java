@@ -344,6 +344,7 @@ public class StreamTaskTest {
 			consumableNotifier,
 			partitionProducerStateChecker,
 			executor,
+			null,
 			null);
 	}
 	

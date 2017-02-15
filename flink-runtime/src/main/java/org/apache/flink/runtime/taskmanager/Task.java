@@ -19,6 +19,7 @@
 package org.apache.flink.runtime.taskmanager;
 
 import akka.actor.ActorRef;
+import akka.actor.ActorSystem;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
@@ -246,6 +247,7 @@ public class Task implements Runnable, TaskActions {
 	private long taskCancellationTimeout;
 
 	private final ActorRef localTracker;
+	private final ActorSystem actorSystem;
 
 	/**
 	 * <p><b>IMPORTANT:</b> This constructor may not start any work that would need to
@@ -275,7 +277,8 @@ public class Task implements Runnable, TaskActions {
 		ResultPartitionConsumableNotifier resultPartitionConsumableNotifier,
 		PartitionProducerStateChecker partitionProducerStateChecker,
 		Executor executor,
-		ActorRef localTracker) {
+		ActorRef localTracker,
+		ActorSystem actorSystem) {
 
 		Preconditions.checkNotNull(jobInformation);
 		Preconditions.checkNotNull(taskInformation);
@@ -390,6 +393,7 @@ public class Task implements Runnable, TaskActions {
 		}
 
 		this.localTracker = localTracker;
+		this.actorSystem = actorSystem;
 	}
 
 	// ------------------------------------------------------------------------
@@ -450,6 +454,9 @@ public class Task implements Runnable, TaskActions {
 
 	public ActorRef getLocalTrackerRef() {
 		return localTracker;
+	}
+	public ActorSystem getActorSystem() {
+		return actorSystem;
 	}
 
 	@VisibleForTesting

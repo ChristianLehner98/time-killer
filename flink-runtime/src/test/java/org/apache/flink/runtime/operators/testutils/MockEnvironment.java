@@ -19,6 +19,7 @@
 package org.apache.flink.runtime.operators.testutils;
 
 import akka.actor.ActorRef;
+import akka.actor.ActorSystem;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.TaskInfo;
@@ -337,4 +338,8 @@ public class MockEnvironment implements Environment {
 		return null;
 	}
 
+	@Override
+	public ActorSystem getActorSystem() {
+		return null;
+	}
 }
