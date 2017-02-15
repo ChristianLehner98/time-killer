@@ -6,9 +6,6 @@ public class ProgressNotification {
 	private List<Long> timestamp;
 	private boolean done = false;
 
-	public ProgressNotification(List<Long> timestamp) {
-		this(timestamp, false);
-	}
 	public ProgressNotification(List<Long> timestamp, boolean done) {
 		this.timestamp = timestamp;
 		this.done = done;
@@ -23,5 +20,10 @@ public class ProgressNotification {
 
 	public boolean isDone() {
 		return done;
+	}
+
+	@Override
+	public String toString() {
+		return "ProgressNotification (Ts/Done): " + timestamp + "/" + done;
 	}
 }

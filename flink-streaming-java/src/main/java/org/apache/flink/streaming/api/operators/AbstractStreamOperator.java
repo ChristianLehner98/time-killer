@@ -75,11 +75,9 @@ import scala.concurrent.Await;
 import scala.concurrent.Future;
 import scala.concurrent.duration.Duration;
 
-import java.time.Year;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import static java.time.temporal.ChronoUnit.YEARS;
 import static org.apache.flink.runtime.progress.PartialOrderComparator.PartialComparison.EQUAL;
 import static org.apache.flink.runtime.progress.PartialOrderComparator.PartialComparison.LESS;
 import static org.apache.flink.util.Preconditions.checkArgument;
@@ -184,7 +182,10 @@ public abstract class AbstractStreamOperator<OUT>
 
 		// PROGRESS TRACKING
 		operatorId = container.getConfiguration().getVertexID();
-		container.getLocalTrackerRef().tell(new ProgressRegistration(operatorId, scopeLevel, container.getCurrentNumberOfSubtasks()), null);
+
+		if(wantsProgressNotifications()) {
+			container.getLocalTrackerRef().tell(new ProgressRegistration(operatorId, scopeLevel, container.getCurrentNumberOfSubtasks()), null);
+		}
 
 		this.metrics = container.getEnvironment().getMetricGroup().addOperator(config.getOperatorName());
 		this.output = new CountingOutput(output, ((OperatorMetricGroup) this.metrics).getIOMetricGroup().getNumRecordsOutCounter(), progressAggregator);
@@ -778,7 +779,7 @@ public abstract class AbstractStreamOperator<OUT>
 		public void collect(StreamRecord<OUT> record) {
 			numRecordsOut.inc();
 			output.collect(record);
-			aggregator.update(record.getFullTimestamp(), 1);
+			aggregator.update(output.getTargetOperatorId(), record.getFullTimestamp(), 1);
 		}
 
 		@Override

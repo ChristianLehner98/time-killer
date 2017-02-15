@@ -7,7 +7,7 @@ import org.apache.flink.runtime.messages.JobManagerMessages.CancelJob
 import org.apache.flink.runtime.progress.messages.{InitLocalTracker, RegisterLocalTracker}
 import org.apache.flink.api.java.tuple.Tuple2
 
-class CentralTracker(taskManagerCount: Integer, pathSummaries: java.util.Map[Integer, java.util.Map[Integer, Tuple2[PartialOrderMinimumSet,Integer]]]) extends Actor {
+class CentralTracker(taskManagerCount: Integer, pathSummaries: java.util.Map[Integer, java.util.Map[Integer, PartialOrderMinimumSet]], maxScopeLevel: Integer) extends Actor {
   private var localTrackers = Set[ActorRef]()
 
   def receive() : Receive = {
@@ -18,7 +18,7 @@ class CentralTracker(taskManagerCount: Integer, pathSummaries: java.util.Map[Int
       if(countBefore < taskManagerCount && localTrackers.size == taskManagerCount) {
         // now all task managers registered and we can send out the initialisation
         for(actorRef <- localTrackers) {
-          actorRef ! InitLocalTracker(localTrackers, pathSummaries)
+          actorRef ! InitLocalTracker(localTrackers, pathSummaries, maxScopeLevel)
         }
       }
 

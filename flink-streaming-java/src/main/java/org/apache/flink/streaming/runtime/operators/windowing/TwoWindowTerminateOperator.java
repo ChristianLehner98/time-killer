@@ -33,7 +33,6 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	private StreamIterationTermination terminationStrategy;
 
 	private Set<List<Long>> activeIterations = new HashSet<>();
-	//StreamIterationTermination terminationStrategy;
 
 	private StreamTask<?, ?> containingTask;
 
@@ -138,4 +137,9 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 
 	public void processLatencyMarker1(LatencyMarker latencyMarker) throws Exception {}
 	public void processLatencyMarker2(LatencyMarker latencyMarker) throws Exception {}
+
+	@Override
+	public boolean wantsProgressNotifications() {
+		return true;
+	}
 }

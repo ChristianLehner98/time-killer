@@ -73,6 +73,7 @@ public class StreamSource<OUT, SRC extends SourceFunction<OUT>>
 
 		try {
 			userFunction.run(ctx);
+			sendProgress();
 
 			// if we get here, then the user function either exited after being done (finite source)
 			// or the function was canceled or stopped. For the finite source case, we should emit

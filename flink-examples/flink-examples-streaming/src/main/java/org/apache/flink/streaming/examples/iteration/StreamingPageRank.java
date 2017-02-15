@@ -34,7 +34,7 @@ public class StreamingPageRank {
 	}
 
 	public StreamingPageRank() throws Exception {
-		//env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
+		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 		env.setParallelism(4);
 
 		DataStream<Tuple2<Long,List<Long>>> inputStream = env.addSource(new PageRankSource(4));
@@ -46,6 +46,8 @@ public class StreamingPageRank {
 				new MyFeedbackBuilder(),
 				new TupleTypeInfo<Tuple2<Long, Double>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO))
 			.print();
+
+		System.out.println(env.getExecutionPlan());
 	}
 
 	protected void run() throws Exception {

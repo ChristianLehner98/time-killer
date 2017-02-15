@@ -33,4 +33,9 @@ public class ProgressNotificationRequest {
 	public void setTimestamp(List<Long> timestamp) {
 		this.timestamp = timestamp;
 	}
+
+	@Override
+	public String toString() {
+		return "ProgressNotificationRequest: (Op/Inst: " + operatorId + "/" + instanceId + ") -> " + timestamp;
+	}
 }

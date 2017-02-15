@@ -202,6 +202,9 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 							synchronized (lock) {
 								streamOperator.setKeyContextElement1(recordOrWatermark.<IN1>asRecord());
 								streamOperator.processElement1(recordOrWatermark.<IN1>asRecord());
+
+								// add negative progress since we consumed the message
+								streamOperator.collectProgress(streamOperator.getId(), recordOrWatermark.asRecord().getFullTimestamp(), -1);
 							}
 							return true;
 
@@ -230,6 +233,9 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 							synchronized (lock) {
 								streamOperator.setKeyContextElement2(recordOrWatermark.<IN2>asRecord());
 								streamOperator.processElement2(recordOrWatermark.<IN2>asRecord());
+
+								// add negative progress since we consumed the message
+								streamOperator.collectProgress(streamOperator.getId(), recordOrWatermark.asRecord().getFullTimestamp(), -1);
 							}
 							return true;
 						}

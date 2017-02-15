@@ -14,9 +14,12 @@ public class PartialOrderMinimumSet implements Serializable {
 		this.timestampsLength = length;
 	}
 
-	public PartialOrderMinimumSet(PartialOrderMinimumSet other) {
-		this.timestampsLength = other.timestampsLength;
-		this.elements = new HashSet<>(other.elements);
+	public boolean updateAll(Set<List<Long>> elements) {
+		boolean changed = false;
+		for(List<Long> element : elements) {
+			changed = changed || update(element);
+		}
+		return changed;
 	}
 
 	public boolean update(List<Long> newElement) {
@@ -43,6 +46,12 @@ public class PartialOrderMinimumSet implements Serializable {
 		}
 
 		return changed;
+	}
+
+	public void incrementTimestamps(int level) {
+		for(List<Long> timestamp : elements) {
+			timestamp.set(level, timestamp.get(level) + 1);
+		}
 	}
 
 	public Set<List<Long>> getElements() {

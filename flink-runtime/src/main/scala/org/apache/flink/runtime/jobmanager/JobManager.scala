@@ -1250,7 +1250,7 @@ class JobManager(
         }
 
         // INIT PROGRESS TRACKING FOR THIS JOB
-        var actorRef: ActorRef = context.actorOf(Props(new CentralTracker(taskManagerMap.size, jobGraph.getPathSummaries)))
+        var actorRef: ActorRef = context.actorOf(Props(new CentralTracker(taskManagerMap.size, jobGraph.getPathSummaries, jobGraph.getMaxScopeLevel)))
         centralTrackers += (jobId -> actorRef)
 
 

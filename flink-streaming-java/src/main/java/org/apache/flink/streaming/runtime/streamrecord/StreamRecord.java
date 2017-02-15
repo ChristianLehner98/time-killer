@@ -91,25 +91,13 @@ public final class StreamRecord<T> extends StreamElement implements Serializable
 	 * Returns the timestamp associated with this stream value in milliseconds.
 	 */
 	public long getTimestamp() {
-		if (hasTimestamp) {
-			return timestamp;
-		} else {
-			return Long.MIN_VALUE;
-//			throw new IllegalStateException(
-//					"Record has no timestamp. Is the time characteristic set to 'ProcessingTime', or " +
-//							"did you forget to call 'DataStream.assignTimestampsAndWatermarks(...)'?");
-		}
+		return timestamp;
 	}
 	public List<Long> getFullTimestamp() {
-		if(hasTimestamp) {
-			List<Long> fullTimestamp = new LinkedList<>(context);
-			fullTimestamp.add(timestamp);
-			return fullTimestamp;
-		} else {
-			LinkedList<Long> result = new LinkedList<>();
-			result.add(Long.MIN_VALUE);
-			return result;
-		}
+		List<Long> fullTimestamp = new LinkedList<>(context);
+		fullTimestamp.add(timestamp);
+		return fullTimestamp;
+
 	}
 
 	public List<Long> getContext() {
@@ -183,12 +171,8 @@ public final class StreamRecord<T> extends StreamElement implements Serializable
 	}
 
 	public void addNestedTimestamp(long timestamp) {
-		if(!hasTimestamp) {
-			setTimestamp(timestamp);
-		} else {
-			this.context.add(this.timestamp);
-			this.timestamp = timestamp;
-		}
+		this.context.add(this.timestamp);
+		this.timestamp = timestamp;
 	}
 	public void removeNestedTimestamp() {
 		if(this.context.size() > 0) {

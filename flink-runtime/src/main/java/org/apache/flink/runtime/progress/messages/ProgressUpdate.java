@@ -1,6 +1,7 @@
 package org.apache.flink.runtime.progress.messages;
 
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 
 import java.io.Serializable;
 import java.util.HashMap;
@@ -8,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 public class ProgressUpdate implements Serializable {
-	private Map<Tuple2<Integer,List<Long>>, Integer> countmap = new HashMap<>();
+	private Map<Tuple3<Integer,List<Long>,Boolean>, Integer> countmap = new HashMap<>();
 
 	public int update(List<Long> element, int delta) {
 		// in case we only want to track one operator anyways, we just fill in a 0
@@ -16,7 +17,11 @@ public class ProgressUpdate implements Serializable {
 	}
 
 	public int update(Integer operatorId, List<Long> element, int delta) {
-		Tuple2<Integer, List<Long>> pointstamp = new Tuple2<>(operatorId, element);
+		return update(operatorId, element, false, delta);
+	}
+
+	public int update(Integer operatorId, List<Long> element, boolean isCapability, int delta) {
+		Tuple3<Integer, List<Long>, Boolean> pointstamp = new Tuple3<>(operatorId, element, isCapability);
 		if(delta == 0) return get(pointstamp);
 
 		Integer newValue = countmap.get(pointstamp);
@@ -29,13 +34,18 @@ public class ProgressUpdate implements Serializable {
 		return newValue;
 	}
 
-	public Map<Tuple2<Integer,List<Long>>, Integer> getEntries() {
+	public Map<Tuple3<Integer,List<Long>,Boolean>, Integer> getEntries() {
 		return countmap;
 	}
 
-	public int get(Tuple2<Integer,List<Long>> pointstamp) {
+	public int get(Tuple3<Integer,List<Long>,Boolean> pointstamp) {
 		Integer currentValue = countmap.get(pointstamp);
 		if(currentValue == null) return 0;
 		return currentValue;
+	}
+
+	@Override
+	public String toString() {
+		return "ProgressUpdate: " + countmap;
 	}
 }

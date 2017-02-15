@@ -132,85 +132,155 @@ public class StreamingJobGraphGenerator {
 	}
 
 	private void computePathSummaries() {
-		Map<Integer, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>>> pathSummaries = new HashMap<>();
-		for(Integer targetId : streamGraph.getOperatorIDsForNotification()) {
-			Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>> pathSummariesForTarget = new HashMap<>();
+		Map<Integer, Map<Integer, PartialOrderMinimumSet>> pathSummaries = new HashMap<>();
 
-			// initialise lastPaths with an empty path of length of target scope level
-			StreamNode targetNode = streamGraph.getStreamNode(targetId);
-			PartialOrderMinimumSet initPaths = new PartialOrderMinimumSet(targetNode.getScope().getLevel());
-			initPaths.update(new LinkedList<Long>(Collections.nCopies(targetNode.getScope().getLevel(), 0L)));
-
-			// start recursive graph search and save results in pathSummaries
-			computePath(targetNode, initPaths, pathSummariesForTarget, true);
-			pathSummaries.put(targetId, pathSummariesForTarget);
+		int maxScopeLevel = 0;
+		for(StreamNode node : streamGraph.getStreamNodes()) {
+			maxScopeLevel = Math.max(maxScopeLevel, node.getScope().getLevel());
 		}
+
+		for(StreamNode node: streamGraph.getStreamNodes()) {
+			// TODO make sure that all operators that need notification are represented (with empty PartialOrderMinimumSet)
+			Map<Integer, PartialOrderMinimumSet> currentSummaries = computePath(node, new HashSet<Integer>(), maxScopeLevel);
+
+			// fill an empty PartialOrderMinimumSet for all unreachable NotificationOperators
+			for(Integer opId : streamGraph.getOperatorIDsForNotification()) {
+				if(currentSummaries.get(opId) == null) {
+					currentSummaries.put(opId, new PartialOrderMinimumSet(maxScopeLevel));
+				}
+			}
+
+			pathSummaries.put(node.getId(), currentSummaries);
+		}
+
+//		for(Integer targetId : streamGraph.getOperatorIDsForNotification()) {
+//			Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>> pathSummariesForTarget = new HashMap<>();
+//
+//			// initialise lastPaths with an empty path of length of target scope level
+//			StreamNode targetNode = streamGraph.getStreamNode(targetId);
+//			PartialOrderMinimumSet initPaths = new PartialOrderMinimumSet(targetNode.getScope().getLevel()+1);
+//			initPaths.update(new LinkedList<Long>(Collections.nCopies(targetNode.getScope().getLevel()+1, 0L)));
+//
+//			// start recursive graph search and save results in pathSummaries
+//			computePath(targetNode, initPaths, pathSummariesForTarget, true);
+//			pathSummaries.put(targetId, pathSummariesForTarget);
+//		}
 
 		jobGraph.setPathSummaries(pathSummaries);
+		jobGraph.setMaxScopeLevel(maxScopeLevel);
 	}
 
-	private void computePath(StreamNode currentNode, PartialOrderMinimumSet lastPaths, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>> summaries) {
-		computePath(currentNode, lastPaths, summaries, false);
-	}
+	private Map<Integer,PartialOrderMinimumSet> computePath(StreamNode node, Set<Integer> visited, int maxScopeLevel) {
+		Map<Integer, PartialOrderMinimumSet> result = new HashMap<>();
 
-	private void computePath(StreamNode currentNode, PartialOrderMinimumSet lastPaths, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>> summaries, boolean ignoreThisNode) {
-		int currentScopeLevel = currentNode.getScope().getLevel();
-
-		Tuple2<PartialOrderMinimumSet,Integer> tuple = summaries.get(currentNode.getId());
-		int targetScopeLevel = lastPaths.getTimestampsLength();
-		// check if there we were at this node before and if not, do initialisations
-		if(tuple == null) {
-			tuple = new Tuple2<>(new PartialOrderMinimumSet(targetScopeLevel), currentNode.getParallelism());
-			summaries.put(currentNode.getId(), tuple);
+		// Insert current Node with an empty path if it's one that needs notifications
+		if(streamGraph.getOperatorIDsForNotification().contains(node.getId())) {
+			PartialOrderMinimumSet noDistance = new PartialOrderMinimumSet(maxScopeLevel+1);
+			noDistance.update(new LinkedList<Long>(Collections.nCopies(maxScopeLevel+1, 0L)));
+			result.put(node.getId(), noDistance);
 		}
 
-		PartialOrderMinimumSet currentPaths = tuple.f0;
+		// Recursion Termination: Op is either Sink or has been visited before (== we traversed a feedback edge)
+		boolean isSinkButNotIterationSink = streamGraph.getSinkIDs().contains(node.getId()) && !isStreamIterationTail(node);
+		if(isSinkButNotIterationSink || visited.contains(node.getId())) {
+			return result;
+		}
+		visited.add(node.getId());
 
-		// ignore the start node (no path summary to itself!)
-		if(!ignoreThisNode) {
-			// update the paths of the current node and check if our paths are better than eventually existing one for the node
-			boolean better = false;
-			for (List<Long> path : lastPaths.getElements()) {
-				List<Long> newPath = new LinkedList<>(path);
-				// if feedback node, increment the timestamp at scope level of current node
-				if (currentScopeLevel <= targetScopeLevel && isFeedbackNode(currentNode)) {
-					newPath.set(currentScopeLevel, path.get(currentScopeLevel) + 1);
-				}
+		// Recursion step
 
-				if (!currentPaths.update(newPath)) {
-					better = true;
-				}
+		for(StreamNode successor : getAllSuccessors(node)) {
+			Map<Integer, PartialOrderMinimumSet> successorResult = computePath(successor, visited, maxScopeLevel);
+
+			mergeInto(result, successorResult, node);
+		}
+
+		return result;
+	}
+
+	private void mergeInto(Map<Integer, PartialOrderMinimumSet> result, Map<Integer, PartialOrderMinimumSet> other, StreamNode node) {
+		for(Map.Entry<Integer, PartialOrderMinimumSet> otherEntry : other.entrySet()) {
+			// if this is a feedback node, we need to increment the timestamp at the current scope level
+			// (this is why we make pathSummaries in the first place ;-))
+			if(isStreamIterationTail(node)) {
+				otherEntry.getValue().incrementTimestamps(node.getScope().getLevel());
 			}
-			if (!better) {
-				// Recursion Termination 1: none of our paths were better than previously existing paths for the node
-				return;
+
+			// merge otherEntry into result
+			PartialOrderMinimumSet resultValue = result.get(otherEntry.getKey());
+			if(resultValue == null) {
+				result.put(otherEntry.getKey(),otherEntry.getValue());
+			} else {
+				resultValue.updateAll(otherEntry.getValue().getElements());
 			}
 		}
-
-		// Recursion Termination 2: We arrived at a source node
-		if(streamGraph.getSourceIDs().contains(currentNode.getId())) {
-			return;
-		}
-
-		// Recursive call for each direct downstream operator
-		for(StreamNode next : getAllPredecessors(currentNode)) {
-			computePath(next, currentPaths, summaries);
-		}
 	}
 
-	private boolean isFeedbackNode(StreamNode node) {
-		return node.getJobVertexClass().equals(StreamIterationHead.class);
+//	private void computePath(StreamNode currentNode, PartialOrderMinimumSet lastPaths, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>> summaries) {
+//		computePath(currentNode, lastPaths, summaries, false);
+//	}
+//
+//	private void computePath(StreamNode currentNode, PartialOrderMinimumSet lastPaths, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>> summaries, boolean ignoreThisNode) {
+//		int currentScopeLevel = currentNode.getScope().getLevel();
+//
+//		Tuple2<PartialOrderMinimumSet,Integer> tuple = summaries.get(currentNode.getId());
+//		int targetScopeLevel = lastPaths.getTimestampsLength()-1;
+//
+//		boolean better = false;
+//
+//		// check if there we were at this node before and if not, do initialisations
+//		if(tuple == null) {
+//			better = true;
+//			tuple = new Tuple2<>(new PartialOrderMinimumSet(targetScopeLevel+1), currentNode.getParallelism());
+//			summaries.put(currentNode.getId(), tuple);
+//		}
+//
+//		PartialOrderMinimumSet currentPaths = tuple.f0;
+//
+//		// ignore the start node (no path summary to itself!)
+//		//if(!ignoreThisNode) {
+//			// update the paths of the current node and check if our paths are better than eventually existing one for the node
+//			for (List<Long> path : lastPaths.getElements()) {
+//				List<Long> newPath = new LinkedList<>(path);
+//				// if feedback node, increment the timestamp at scope level of current node
+//				if (currentScopeLevel <= targetScopeLevel && isFeedbackNode(currentNode)) {
+//					newPath.set(currentScopeLevel, path.get(currentScopeLevel) + 1);
+//				}
+//
+//				if (!currentPaths.update(newPath)) {
+//					better = true;
+//				}
+//			}
+//			if (!better) {
+//				// Recursion Termination 1: none of our paths were better than previously existing paths for the node
+//				return;
+//			}
+//		//}
+//
+//		// Recursion Termination 2: We arrived at a source node
+//		if(streamGraph.getSourceIDs().contains(currentNode.getId())) {
+//			return;
+//		}
+//
+//		// Recursive call for each direct downstream operator
+//		for(StreamNode next : getAllPredecessors(currentNode)) {
+//			computePath(next, currentPaths, summaries);
+//		}
+//	}
+
+	private boolean isStreamIterationTail(StreamNode node) {
+		return node.getJobVertexClass().equals(StreamIterationTail.class);
 	}
 
-	private List<StreamNode> getAllPredecessors(StreamNode node) {
+	private List<StreamNode> getAllSuccessors(StreamNode node) {
 		List<StreamNode> result = new LinkedList<>();
-		for(StreamEdge edge : node.getInEdges()) {
-			result.add(edge.getSourceVertex());
+		for(StreamEdge edge : node.getOutEdges()) {
+			result.add(edge.getTargetVertex());
 		}
-		if(isFeedbackNode(node)) {
-			//this is the StreamIterationHead, so we want to add the corresponding StreamIterationSink
+		if(isStreamIterationTail(node)) {
+			//this is the StreamIterationTail, so we want to add the corresponding StreamIterationHead
 			for(Tuple2<StreamNode,StreamNode> tuple : streamGraph.getIterationSourceSinkPairs()) {
-				if(tuple.f0.equals(node)) result.add(tuple.f1);
+				if(tuple.f1.equals(node)) result.add(tuple.f0);
 			}
 		}
 		return result;

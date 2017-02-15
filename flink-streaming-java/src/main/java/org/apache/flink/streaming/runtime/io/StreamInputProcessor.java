@@ -185,9 +185,6 @@ public class StreamInputProcessor<IN> {
 							// add negative progress since we consumed the message
 							streamOperator.collectProgress(streamOperator.getId(), record.getFullTimestamp(), -1);
 
-							// report progress to progress tracking service
-							streamOperator.sendProgress();
-
 						}
 						return true;
 					}

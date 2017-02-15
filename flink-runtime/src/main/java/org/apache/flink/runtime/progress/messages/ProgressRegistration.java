@@ -20,4 +20,9 @@ public class ProgressRegistration {
 	public Integer getParallelism() {
 		return parallelism;
 	}
+
+	@Override
+	public String toString() {
+		return "ProgressRegistration (Op./ScopeLvl): (" + operatorId + "/" + scopeLevel;
+	}
 }

@@ -85,7 +85,8 @@ public class TwoInputStreamTask<IN1, IN2, OUT> extends StreamTask<OUT, TwoInputS
 		final Object lock = getCheckpointLock();
 		
 		while (running && inputProcessor.processInput(operator, lock)) {
-			// all the work happens in the "processInput" method
+			// report progress to progress tracking service
+			operator.sendProgress();
 		}
 	}
 

@@ -100,7 +100,8 @@ public class JobGraph implements Serializable {
 	private JobSnapshottingSettings snapshotSettings;
 
 
-	private Map<Integer, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>>> pathSummaries;
+	private Map<Integer, Map<Integer, PartialOrderMinimumSet>> pathSummaries;
+	private Integer maxScopeLevel;
 
 	/** List of classpaths required to run this job. */
 	private List<URL> classpaths = Collections.emptyList();
@@ -113,12 +114,19 @@ public class JobGraph implements Serializable {
 
 	// --------------------------------------------------------------------------------------------
 
-	public Map<Integer, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>>> getPathSummaries() {
+	public Map<Integer, Map<Integer, PartialOrderMinimumSet>> getPathSummaries() {
 		return pathSummaries;
 	}
 
-	public void setPathSummaries(Map<Integer, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>>> pathSummaries) {
+	public void setPathSummaries(Map<Integer, Map<Integer, PartialOrderMinimumSet>> pathSummaries) {
 		this.pathSummaries = pathSummaries;
+	}
+
+	public Integer getMaxScopeLevel() {
+		return maxScopeLevel;
+	}
+	public void setMaxScopeLevel(Integer maxScopeLevel) {
+		this.maxScopeLevel = maxScopeLevel;
 	}
 
 	/**
