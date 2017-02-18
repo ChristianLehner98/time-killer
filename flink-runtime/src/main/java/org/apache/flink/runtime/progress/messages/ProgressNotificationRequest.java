@@ -12,6 +12,7 @@ public class ProgressNotificationRequest {
 		this.operatorId = operatorId;
 		this.instanceId = instanceId;
 		this.timestamp = timestamp;
+		this.done = done;
 	}
 
 	public List<Long> getTimestamp() {

@@ -141,11 +141,11 @@ public class StreamingJobGraphGenerator {
 
 		for(StreamNode node: streamGraph.getStreamNodes()) {
 			// TODO make sure that all operators that need notification are represented (with empty PartialOrderMinimumSet)
-			Map<Integer, PartialOrderMinimumSet> currentSummaries = computePath(node, new HashSet<Integer>(), maxScopeLevel);
+			Map<Integer, PartialOrderMinimumSet> currentSummaries = computePath(node, new HashSet<Integer>(), maxScopeLevel, true);
 
 			// fill an empty PartialOrderMinimumSet for all unreachable NotificationOperators
 			for(Integer opId : streamGraph.getOperatorIDsForNotification()) {
-				if(currentSummaries.get(opId) == null || opId == node.getId()) {
+				if(currentSummaries.get(opId) == null) {
 					currentSummaries.put(opId, new PartialOrderMinimumSet(maxScopeLevel));
 				}
 			}
@@ -170,11 +170,11 @@ public class StreamingJobGraphGenerator {
 		jobGraph.setMaxScopeLevel(maxScopeLevel);
 	}
 
-	private Map<Integer,PartialOrderMinimumSet> computePath(StreamNode node, Set<Integer> visited, int maxScopeLevel) {
+	private Map<Integer,PartialOrderMinimumSet> computePath(StreamNode node, Set<Integer> visited, int maxScopeLevel, boolean isFirst) {
 		Map<Integer, PartialOrderMinimumSet> result = new HashMap<>();
 
 		// Insert current Node with an empty path if it's one that needs notifications
-		if(streamGraph.getOperatorIDsForNotification().contains(node.getId())) {
+		if(streamGraph.getOperatorIDsForNotification().contains(node.getId()) && !isFirst) {
 			PartialOrderMinimumSet noDistance = new PartialOrderMinimumSet(maxScopeLevel+1);
 			noDistance.update(new LinkedList<Long>(Collections.nCopies(maxScopeLevel+1, 0L)));
 			result.put(node.getId(), noDistance);
@@ -190,7 +190,7 @@ public class StreamingJobGraphGenerator {
 		// Recursion step
 
 		for(StreamNode successor : getAllSuccessors(node)) {
-			Map<Integer, PartialOrderMinimumSet> successorResult = computePath(successor, visited, maxScopeLevel);
+			Map<Integer, PartialOrderMinimumSet> successorResult = computePath(successor, visited, maxScopeLevel, false);
 
 			mergeInto(result, successorResult, node);
 		}
@@ -216,58 +216,6 @@ public class StreamingJobGraphGenerator {
 		}
 	}
 
-//	private void computePath(StreamNode currentNode, PartialOrderMinimumSet lastPaths, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>> summaries) {
-//		computePath(currentNode, lastPaths, summaries, false);
-//	}
-//
-//	private void computePath(StreamNode currentNode, PartialOrderMinimumSet lastPaths, Map<Integer, Tuple2<PartialOrderMinimumSet,Integer>> summaries, boolean ignoreThisNode) {
-//		int currentScopeLevel = currentNode.getScope().getLevel();
-//
-//		Tuple2<PartialOrderMinimumSet,Integer> tuple = summaries.get(currentNode.getId());
-//		int targetScopeLevel = lastPaths.getTimestampsLength()-1;
-//
-//		boolean better = false;
-//
-//		// check if there we were at this node before and if not, do initialisations
-//		if(tuple == null) {
-//			better = true;
-//			tuple = new Tuple2<>(new PartialOrderMinimumSet(targetScopeLevel+1), currentNode.getParallelism());
-//			summaries.put(currentNode.getId(), tuple);
-//		}
-//
-//		PartialOrderMinimumSet currentPaths = tuple.f0;
-//
-//		// ignore the start node (no path summary to itself!)
-//		//if(!ignoreThisNode) {
-//			// update the paths of the current node and check if our paths are better than eventually existing one for the node
-//			for (List<Long> path : lastPaths.getElements()) {
-//				List<Long> newPath = new LinkedList<>(path);
-//				// if feedback node, increment the timestamp at scope level of current node
-//				if (currentScopeLevel <= targetScopeLevel && isFeedbackNode(currentNode)) {
-//					newPath.set(currentScopeLevel, path.get(currentScopeLevel) + 1);
-//				}
-//
-//				if (!currentPaths.update(newPath)) {
-//					better = true;
-//				}
-//			}
-//			if (!better) {
-//				// Recursion Termination 1: none of our paths were better than previously existing paths for the node
-//				return;
-//			}
-//		//}
-//
-//		// Recursion Termination 2: We arrived at a source node
-//		if(streamGraph.getSourceIDs().contains(currentNode.getId())) {
-//			return;
-//		}
-//
-//		// Recursive call for each direct downstream operator
-//		for(StreamNode next : getAllPredecessors(currentNode)) {
-//			computePath(next, currentPaths, summaries);
-//		}
-//	}
-
 	private boolean isStreamIterationTail(StreamNode node) {
 		return node.getJobVertexClass().equals(StreamIterationTail.class);
 	}
@@ -278,7 +226,8 @@ public class StreamingJobGraphGenerator {
 			result.add(edge.getTargetVertex());
 		}
 		if(isStreamIterationTail(node)) {
-			//this is the StreamIterationTail, so we want to add the corresponding StreamIterationHead
+			//this is the StreamIterationTail, so we want to add the successor of the corresponding StreamIterationHead
+			// (the head is left out of path summaries)
 			for(Tuple2<StreamNode,StreamNode> tuple : streamGraph.getIterationSourceSinkPairs()) {
 				if(tuple.f1.equals(node)) result.add(tuple.f0);
 			}

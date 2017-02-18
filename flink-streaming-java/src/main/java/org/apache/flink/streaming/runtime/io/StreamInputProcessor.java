@@ -138,7 +138,7 @@ public class StreamInputProcessor<IN> {
 		}
 
 		// PROGRESS TRACKING: check for ready notifications and execute the registered notifyables
-		streamOperator.executeNotificationCallbacks();
+		//streamOperator.executeNotificationCallbacks();
 
 		while (true) {
 			if (currentRecordDeserializer != null) {
@@ -175,16 +175,14 @@ public class StreamInputProcessor<IN> {
 						// now we can do the actual processing
 						StreamRecord<IN> record = recordOrMark.asRecord();
 
-						// TODO check for received notifications (and add a map for Futures to the operator)
-
 						synchronized (lock) {
 							numRecordsIn.inc();
 							streamOperator.setKeyContextElement1(record);
-							streamOperator.processElement(record);
 
 							// add negative progress since we consumed the message
 							streamOperator.collectProgress(streamOperator.getId(), record.getFullTimestamp(), -1);
 
+							streamOperator.processElement(record);
 						}
 						return true;
 					}

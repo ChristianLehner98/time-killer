@@ -59,7 +59,8 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 
 		// offer the queue for the tail
 		BlockingQueueBroker.INSTANCE.handIn(brokerID, dataChannel);
-		BlockingQueueBroker.INSTANCE.setHeadOperatorId(brokerID, getConfiguration().getVertexID());
+		Integer targetOperatorId = ((RecordWriterOutput<OUT>) getStreamOutputs()[0]).getTargetOperatorId();
+		BlockingQueueBroker.INSTANCE.setHeadOperatorId(brokerID, targetOperatorId);
 		LOG.info("Iteration head {} added feedback queue under {}", getName(), brokerID);
 
 		// do the work 
@@ -82,9 +83,7 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 						}
 					} else if(nextElement.isRecord()) {
 						StreamRecord record = nextElement.asRecord();
-						record.forwardTimestamp();
 						for (RecordWriterOutput<OUT> output : outputs) {
-
 							output.collect(record);
 						}
 					}

@@ -11,6 +11,11 @@ import java.util.Map;
 public class ProgressUpdate implements Serializable {
 	private Map<Tuple3<Integer,List<Long>,Boolean>, Integer> countmap = new HashMap<>();
 
+	public ProgressUpdate() {}
+	public ProgressUpdate(ProgressUpdate other) {
+		this.countmap = other.countmap;
+	}
+
 	public int update(List<Long> element, int delta) {
 		// in case we only want to track one operator anyways, we just fill in a 0
 		return update(0, element, delta);
@@ -30,7 +35,11 @@ public class ProgressUpdate implements Serializable {
 		} else {
 			newValue += delta;
 		}
-		countmap.put(pointstamp, newValue);
+		if(newValue != 0) {
+			countmap.put(pointstamp, newValue);
+		} else {
+			countmap.remove(pointstamp);
+		}
 		return newValue;
 	}
 
@@ -42,6 +51,10 @@ public class ProgressUpdate implements Serializable {
 		Integer currentValue = countmap.get(pointstamp);
 		if(currentValue == null) return 0;
 		return currentValue;
+	}
+
+	public void clear() {
+		countmap = new HashMap<>();
 	}
 
 	@Override

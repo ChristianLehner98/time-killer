@@ -9,6 +9,9 @@ public class ProgressNotification {
 	public ProgressNotification(List<Long> timestamp, boolean done) {
 		this.timestamp = timestamp;
 		this.done = done;
+		if (done) {
+			System.out.println("done");
+		}
 	}
 
 	public void setTimestamp(List<Long> timestamp) {

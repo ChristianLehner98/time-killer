@@ -41,4 +41,8 @@ class LocalOperatorProgress(parallelism:Integer, maxScopeLevel: Integer) {
 
     result
   }
+
+  override def toString(): String = {
+    "pending: " + pendingNotifications.keys + "\n" + "frontier: " + frontier
+  }
 }

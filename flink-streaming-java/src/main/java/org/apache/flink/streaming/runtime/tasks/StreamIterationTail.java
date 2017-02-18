@@ -17,6 +17,7 @@
 
 package org.apache.flink.streaming.runtime.tasks;
 
+import java.util.LinkedList;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -70,6 +71,9 @@ public class StreamIterationTail<IN> extends OneInputStreamTask<IN, IN> {
 
 		@Override
 		public void processElement(StreamRecord<IN> record) throws Exception {
+			StreamRecord<IN> newRecord = new StreamRecord<IN>(record.getValue(),
+				new LinkedList<>(record.getContext()), record.getTimestamp());
+			record.forwardTimestamp();
 			output.collect(record);
 		}
 

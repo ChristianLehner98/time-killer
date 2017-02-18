@@ -100,4 +100,9 @@ public class PartialOrderProgressAggregator {
 		}
 		return frontierChanged;
 	}
+
+	@Override
+	public String toString() {
+		return frontier.toString() + " ===> " + occurences.getEntries().toString();
+	}
 }

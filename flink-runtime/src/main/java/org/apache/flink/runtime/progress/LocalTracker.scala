@@ -23,9 +23,10 @@ class LocalTracker() extends Actor {
 
   def receive : Receive = {
     case progress: ProgressUpdate =>
-      System.out.println(progress)
+      //System.out.println(progress)
       if (pathSummaries != null) {
         update(progress, sender())
+        //System.out.println(localOperatorProgress(7))
       } else {
         initProgressBuffer = (sender(), progress) :: initProgressBuffer
       }
@@ -41,7 +42,7 @@ class LocalTracker() extends Actor {
       initProgressBuffer = List()
 
     case registration: ProgressRegistration =>
-      System.out.println(registration)
+      //System.out.println(registration)
       if(localOperatorProgress.get(registration.getOperatorId).isEmpty) {
         localOperatorProgress +=
           (registration.getOperatorId ->
@@ -49,7 +50,7 @@ class LocalTracker() extends Actor {
       }
 
     case notificationRequest: ProgressNotificationRequest =>
-      System.out.println(notificationRequest)
+      //System.out.println(notificationRequest)
       val opProgress = localOperatorProgress(notificationRequest.getOperatorId)
 
       // add notification to pending notifications of operator
@@ -63,12 +64,12 @@ class LocalTracker() extends Actor {
       // send notifications that have eventually been hold back due to missing termination
       // information from other operator instances
       for( (actorRef, notification) <- opProgress.popReadyNotifications()) {
-        System.out.println(notification)
+        //System.out.println(notification)
         actorRef ! notification
       }
 
     case CancelJob =>
-      print("cancel")
+      //print("cancel")
       context.stop(self)
   }
 
@@ -101,7 +102,7 @@ class LocalTracker() extends Actor {
     while(it.hasNext) {
       var (_: Integer, opProgress: LocalOperatorProgress) = it.next()
       for ((actorRef, notification) <- opProgress.popReadyNotifications()) {
-        System.out.println(notification)
+        //System.out.println(notification)
         actorRef ! notification
       }
     }
