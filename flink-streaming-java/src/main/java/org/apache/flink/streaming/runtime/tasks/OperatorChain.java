@@ -357,6 +357,7 @@ public class OperatorChain<OUT, OP extends StreamOperator<OUT>> {
 				numRecordsIn.inc();
 				operator.setKeyContextElement1(record);
 				operator.processElement(record);
+				operator.collectProgress(operator.getId(), record.getFullTimestamp(), -1);
 			}
 			catch (Exception e) {
 				throw new ExceptionInChainedOperatorException(e);
@@ -415,6 +416,7 @@ public class OperatorChain<OUT, OP extends StreamOperator<OUT>> {
 				StreamRecord<T> copy = record.copy(serializer.copy(record.getValue()));
 				operator.setKeyContextElement1(copy);
 				operator.processElement(copy);
+				operator.collectProgress(operator.getId(), copy.getFullTimestamp(), -1);
 			}
 			catch (Exception e) {
 				throw new RuntimeException("Could not forward element to next operator", e);

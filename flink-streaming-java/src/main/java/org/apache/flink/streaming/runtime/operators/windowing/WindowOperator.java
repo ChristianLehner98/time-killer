@@ -434,6 +434,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	@SuppressWarnings("unchecked")
 	private void fire(W window, ACC contents) throws Exception {
 		timestampedCollector.setAbsoluteTimestamp(window.getTimeContext(), window.maxTimestamp());
+		collectInternalProgress(operatorId, timestampedCollector.getTimestamp(), -((Collection) contents).size());
 		userFunction.apply(context.key, context.window, contents, timestampedCollector);
 	}
 

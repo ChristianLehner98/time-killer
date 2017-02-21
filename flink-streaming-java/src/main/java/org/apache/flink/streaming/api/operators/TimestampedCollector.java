@@ -72,6 +72,10 @@ public class TimestampedCollector<T> implements Collector<T>, Serializable {
 		reuse.eraseTimestamp();
 	}
 
+	public List<Long> getTimestamp() {
+		return reuse.getFullTimestamp();
+	}
+
 	@Override
 	public void close() {
 		output.close();

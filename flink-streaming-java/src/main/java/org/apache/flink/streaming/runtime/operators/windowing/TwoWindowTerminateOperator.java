@@ -49,8 +49,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	public void setup(StreamTask<?, ?> containingTask, StreamConfig config, final Output<StreamRecord<Either<R,S>>> output) {
 		Output<StreamRecord<Either<R,S>>> dummyOutput = new Output<StreamRecord<Either<R,S>>>() {
 			public void collect(StreamRecord<Either<R,S>> record) {
-				collectInternalProgress(operatorId, record.getFullTimestamp(), -1);
-				collectProgress(output.getTargetOperatorId(), record.getFullTimestamp(), 1);
+				//collectProgress(output.getTargetOperatorId(), record.getFullTimestamp(), 1);
 				output.collect(record);
 			}
 			public void emitWatermark(Watermark mark){}
@@ -68,8 +67,8 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 		winOp1.setup(containingTask, config1, dummyOutput);
 		winOp2.setup(containingTask, config2, dummyOutput);
 
-		winOp1.setProgressAggregator(progressAggregator);
-		winOp2.setProgressAggregator(progressAggregator);
+		//winOp1.setProgressAggregator(progressAggregator);
+		//winOp2.setProgressAggregator(progressAggregator);
 
 		this.containingTask = containingTask;
 	}
@@ -119,21 +118,21 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	}
 
 	public void processElement2(StreamRecord<IN2> element) throws Exception {
-		notifyOnce(element.getFullTimestamp(), new Notifyable() {
-			@Override
-			public void receiveProgressNotification(List<Long> timestamp, boolean done) throws Exception {
-				long iterationId = timestamp.remove(timestamp.size()-1);
-				Watermark watermark = new Watermark(timestamp, iterationId);
-				terminationStrategy.observeWatermark(watermark);
-				winOp2.processWatermark(watermark);
-				if(done) {
-					activeIterations.remove(timestamp);
-					terminationFunction.onTermination(timestamp, collector);
+		if (activeIterations.contains(element.getContext())) {
+			notifyOnce(element.getFullTimestamp(), new Notifyable() {
+				@Override
+				public void receiveProgressNotification(List<Long> timestamp, boolean done) throws Exception {
+					long iterationId = timestamp.remove(timestamp.size() - 1);
+					Watermark watermark = new Watermark(timestamp, iterationId);
+					terminationStrategy.observeWatermark(watermark);
+					winOp2.processWatermark(watermark);
+					if (done) {
+						activeIterations.remove(timestamp);
+						terminationFunction.onTermination(timestamp, collector);
+					}
 				}
-			}
-		}, terminationStrategy.terminate(element.getContext()));
+			}, terminationStrategy.terminate(element.getContext()));
 
-		if(activeIterations.contains(element.getContext())) {
 			terminationStrategy.observeRecord(element);
 			winOp2.processElement(element);
 		}

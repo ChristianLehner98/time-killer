@@ -71,8 +71,7 @@ public class StreamIterationTail<IN> extends OneInputStreamTask<IN, IN> {
 
 		@Override
 		public void processElement(StreamRecord<IN> record) throws Exception {
-			StreamRecord<IN> newRecord = new StreamRecord<IN>(record.getValue(),
-				new LinkedList<>(record.getContext()), record.getTimestamp());
+			//System.out.println(getRuntimeContext().getIndexOfThisSubtask());
 			record.forwardTimestamp();
 			output.collect(record);
 		}
