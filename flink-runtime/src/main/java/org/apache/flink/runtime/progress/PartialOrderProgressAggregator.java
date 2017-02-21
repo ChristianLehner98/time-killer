@@ -103,6 +103,6 @@ public class PartialOrderProgressAggregator {
 
 	@Override
 	public String toString() {
-		return frontier.toString() + " ===> " + occurences.getEntries().toString();
+		return /*frontier.toString() + " ===> " +*/ occurences.getEntries().toString();
 	}
 }

@@ -3,6 +3,7 @@ package org.apache.flink.runtime.progress
 import akka.actor.ActorRef
 import java.util.{List => JList}
 import java.lang.Long
+import java.util
 
 import org.apache.flink.runtime.progress.messages.ProgressNotification
 
@@ -13,7 +14,8 @@ class LocalOperatorProgress(parallelism:Integer, maxScopeLevel: Integer) {
   private val frontier: PartialOrderProgressAggregator = new PartialOrderProgressAggregator(maxScopeLevel+1)
 
   def addNotification(timestamp: java.util.List[Long], instanceId: Integer, done: Boolean, actorRef: ActorRef): Unit = {
-    pendingNotifications += (timestamp -> (pendingNotifications(timestamp) + InstanceStatus(actorRef, instanceId, done)))
+    var timestampCopy: java.util.List[Long] = new util.LinkedList[Long](timestamp)
+    pendingNotifications += (timestampCopy -> (pendingNotifications(timestampCopy) + InstanceStatus(actorRef, instanceId, done)))
   }
 
   def updateFrontier(timestamp: java.util.List[Long], delta: Integer): Boolean = {
@@ -43,6 +45,6 @@ class LocalOperatorProgress(parallelism:Integer, maxScopeLevel: Integer) {
   }
 
   override def toString(): String = {
-    "pending: " + pendingNotifications.keys + "\n" + "frontier: " + frontier
+    /*"pending: " + pendingNotifications.keys + "\n" + "frontier: " +*/ frontier.toString
   }
 }

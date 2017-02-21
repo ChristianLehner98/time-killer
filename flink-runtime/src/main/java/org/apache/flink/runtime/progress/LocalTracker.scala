@@ -65,7 +65,7 @@ class LocalTracker() extends Actor {
       // information from other operator instances
       for( (actorRef, notification) <- opProgress.popReadyNotifications()) {
         //System.out.println(notification)
-        actorRef ! notification
+        actorRef ! new ProgressNotification(notification.getTimestamp, notification.isDone)
       }
 
     case CancelJob =>
@@ -101,9 +101,12 @@ class LocalTracker() extends Actor {
     it = localOperatorProgress.iterator
     while(it.hasNext) {
       var (_: Integer, opProgress: LocalOperatorProgress) = it.next()
-      for ((actorRef, notification) <- opProgress.popReadyNotifications()) {
-        //System.out.println(notification)
-        actorRef ! notification
+      val result: Set[(ActorRef, ProgressNotification)] = opProgress.popReadyNotifications()
+
+      val it2: Iterator[(ActorRef, ProgressNotification)] = result.iterator
+      while(it2.hasNext) {
+        val tuple: (ActorRef, ProgressNotification) = it2.next()
+        tuple._1 ! new ProgressNotification(new util.LinkedList[Long](tuple._2.getTimestamp), tuple._2.isDone)
       }
     }
   }
