@@ -21,8 +21,10 @@ package org.apache.flink.streaming.runtime.tasks;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.io.network.partition.consumer.InputGate;
+import org.apache.flink.runtime.progress.messages.ProgressUpdate;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.runtime.io.StreamInputProcessor;
 
 @Internal
@@ -62,7 +64,8 @@ public class OneInputStreamTask<IN, OUT> extends StreamTask<OUT, OneInputStreamO
 		
 		while (running && inputProcessor.processInput(operator, lock)) {
 			// report progress to progress tracking service
-			operator.sendProgress();
+			//operator.sendProgress();
+			sendProgress();
 		}
 	}
 

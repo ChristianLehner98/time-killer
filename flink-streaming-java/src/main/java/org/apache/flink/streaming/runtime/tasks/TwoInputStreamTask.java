@@ -86,7 +86,8 @@ public class TwoInputStreamTask<IN1, IN2, OUT> extends StreamTask<OUT, TwoInputS
 		
 		while (running && inputProcessor.processInput(operator, lock)) {
 			// report progress to progress tracking service
-			operator.sendProgress();
+			//operator.sendProgress();
+			sendProgress();
 		}
 	}
 

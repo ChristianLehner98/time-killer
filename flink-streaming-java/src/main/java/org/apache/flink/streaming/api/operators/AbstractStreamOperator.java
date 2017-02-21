@@ -179,7 +179,8 @@ public abstract class AbstractStreamOperator<OUT>
 		this.config = config;
 
 		// PROGRESS TRACKING
-		operatorId = container.getConfiguration().getVertexID();
+		operatorId = config.getVertexID();
+		containingTask.addProgressUpdateReference(progressAggregator);
 
 		if(wantsProgressNotifications()) {
 			container.getLocalTrackerRef().tell(new ProgressRegistration(operatorId, scopeLevel, container.getCurrentNumberOfSubtasks()), null);
@@ -941,6 +942,7 @@ public abstract class AbstractStreamOperator<OUT>
 							registeredNotifications.remove(new Tuple2<>(timestamp, done));
 						} catch (Exception e) {
 							System.out.println("Could not execute notifyable");
+							e.printStackTrace();
 						}
 					}
 				} else {

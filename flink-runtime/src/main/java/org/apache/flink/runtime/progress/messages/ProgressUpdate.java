@@ -16,6 +16,12 @@ public class ProgressUpdate implements Serializable {
 		this.countmap = other.countmap;
 	}
 
+	public void mergeIn(ProgressUpdate other) {
+		for(Map.Entry<Tuple3<Integer,List<Long>,Boolean>, Integer> entry : other.getEntries().entrySet()) {
+			update(entry.getKey().f0, entry.getKey().f1, entry.getKey().f2, entry.getValue());
+		}
+	}
+
 	public int update(List<Long> element, int delta) {
 		// in case we only want to track one operator anyways, we just fill in a 0
 		return update(0, element, delta);

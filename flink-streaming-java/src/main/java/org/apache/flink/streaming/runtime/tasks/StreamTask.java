@@ -35,6 +35,7 @@ import org.apache.flink.runtime.io.network.api.CancelCheckpointMarker;
 import org.apache.flink.runtime.io.network.api.writer.ResultPartitionWriter;
 import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.runtime.jobgraph.tasks.StatefulTask;
+import org.apache.flink.runtime.progress.messages.ProgressUpdate;
 import org.apache.flink.runtime.state.AbstractKeyedStateBackend;
 import org.apache.flink.runtime.state.AbstractStateBackend;
 import org.apache.flink.runtime.state.ChainedStateHandle;
@@ -67,10 +68,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RunnableFuture;
@@ -126,6 +124,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
 	/** The logger used by the StreamTask and its subclasses */
 	private static final Logger LOG = LoggerFactory.getLogger(StreamTask.class);
+
+	public List<ProgressUpdate> progressUpdates = new LinkedList<>();
 
 	// ------------------------------------------------------------------------
 
@@ -1109,5 +1109,19 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 			owner.cancelables.registerClosable(asyncCheckpointRunnable);
 			owner.asyncOperationsThreadPool.submit(asyncCheckpointRunnable);
 		}
+	}
+
+	public void addProgressUpdateReference(ProgressUpdate update) {
+		progressUpdates.add(update);
+	}
+
+	public void sendProgress() {
+		ActorRef ref = getLocalTrackerRef();
+		ProgressUpdate update = new ProgressUpdate();
+		for(ProgressUpdate operatorUpdate : progressUpdates) {
+			update.mergeIn(operatorUpdate);
+			operatorUpdate.clear();
+		}
+		ref.tell(new ProgressUpdate(update), null);
 	}
 }
