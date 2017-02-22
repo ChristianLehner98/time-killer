@@ -938,7 +938,6 @@ public abstract class AbstractStreamOperator<OUT>
 					synchronized (container.getCheckpointLock()) {
 						ProgressNotification notification = (ProgressNotification) result;
 						try {
-							System.out.println(notification);
 							notifyable.receiveProgressNotification(notification.getTimestamp(), notification.isDone());
 							registeredNotifications.remove(new Tuple2<>(timestamp, done));
 						} catch (Exception e) {

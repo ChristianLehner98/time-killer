@@ -14,11 +14,13 @@ import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.OperatorStateHandles;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.apache.flink.streaming.runtime.tasks.SystemProcessingTimeService;
 import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
 import org.apache.flink.types.Either;
 
 import java.io.Serializable;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
@@ -106,34 +108,46 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	public void processElement1(StreamRecord<IN1> element) throws Exception {
 		activeIterations.add(element.getContext());
 
+		final List<Long> context = element.getContext();
 		notifyOnce(element.getFullTimestamp(), new Notifyable() {
 			@Override
 			public void receiveProgressNotification(List<Long> timestamp, boolean done) throws Exception {
-				long iterationId = timestamp.remove(timestamp.size()-1);
-				winOp1.processWatermark(new Watermark(timestamp, iterationId));
+			long iterationId = timestamp.remove(timestamp.size()-1);
+			winOp1.processWatermark(new Watermark(timestamp, iterationId));
+
+			List<Long> nextTimestamp = new LinkedList<>(timestamp);
+			nextTimestamp.add(iterationId + 1);
+			notifyNext(nextTimestamp, context);
 			}
-		}, terminationStrategy.terminate(element.getContext()));
+		}, terminationStrategy.terminate(context));
 
 		winOp1.processElement(element);
 	}
 
-	public void processElement2(StreamRecord<IN2> element) throws Exception {
-		if (activeIterations.contains(element.getContext())) {
-			notifyOnce(element.getFullTimestamp(), new Notifyable() {
-				@Override
-				public void receiveProgressNotification(List<Long> timestamp, boolean done) throws Exception {
-					System.out.println("Notification: " + timestamp + " / " + done);
-					long iterationId = timestamp.remove(timestamp.size() - 1);
-					Watermark watermark = new Watermark(timestamp, iterationId);
+	private void notifyNext(final List<Long> nextTimestamp, final List<Long> context) {
+		notifyOnce(nextTimestamp, new Notifyable() {
+			@Override
+			public void receiveProgressNotification(List<Long> nextTs, boolean done) throws Exception {
+				long iterationId = nextTs.remove(nextTs.size() - 1);
+				if (done) {
+					activeIterations.remove(nextTs);
+					terminationFunction.onTermination(nextTs, collector);
+				} else {
+					Watermark watermark = new Watermark(nextTs, iterationId);
 					terminationStrategy.observeWatermark(watermark);
 					winOp2.processWatermark(watermark);
-					if (done) {
-						activeIterations.remove(timestamp);
-						terminationFunction.onTermination(timestamp, collector);
-					}
-				}
-			}, terminationStrategy.terminate(element.getContext()));
 
+					List<Long> nextNextTimestamp = new LinkedList<>(nextTs);
+					nextNextTimestamp.add(iterationId + 1);
+					notifyNext(nextNextTimestamp, nextTs);
+				}
+			}
+		}, terminationStrategy.terminate(context));
+		winOp2.sendProgress();
+	}
+
+	public void processElement2(StreamRecord<IN2> element) throws Exception {
+		if (activeIterations.contains(element.getContext())) {
 			terminationStrategy.observeRecord(element);
 			winOp2.processElement(element);
 		}
