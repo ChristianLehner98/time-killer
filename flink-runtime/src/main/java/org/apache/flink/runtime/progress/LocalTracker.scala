@@ -65,7 +65,7 @@ class LocalTracker() extends Actor {
       // information from other operator instances
       for( (actorRef, notification) <- opProgress.popReadyNotifications()) {
         //System.out.println(notification)
-        actorRef ! new ProgressNotification(notification.getTimestamp, notification.isDone)
+        actorRef ! new ProgressNotification(new util.LinkedList[Long](notification.getTimestamp), notification.isDone)
       }
 
     case CancelJob =>
