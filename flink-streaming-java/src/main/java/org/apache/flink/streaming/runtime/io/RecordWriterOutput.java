@@ -125,6 +125,9 @@ public class RecordWriterOutput<OUT> implements Output<StreamRecord<OUT>> {
 	}
 
 	@Override
+	public Integer getTargetOperatorId(StreamRecord<OUT> record) {
+		return targetOperatorId;
+	}
 	public Integer getTargetOperatorId() {
 		return targetOperatorId;
 	}

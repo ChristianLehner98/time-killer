@@ -54,7 +54,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 			}
 			public void emitWatermark(Watermark mark){}
 			public void emitLatencyMarker(LatencyMarker latencyMarker){}
-			public Integer getTargetOperatorId() {return output.getTargetOperatorId();}
+			public Integer getTargetOperatorId(StreamRecord record) {return output.getTargetOperatorId(record);}
 			public void close() {}
 		};
 		super.setup(containingTask, config, dummyOutput);
@@ -122,6 +122,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 			notifyOnce(element.getFullTimestamp(), new Notifyable() {
 				@Override
 				public void receiveProgressNotification(List<Long> timestamp, boolean done) throws Exception {
+					System.out.println("Notification: " + timestamp + " / " + done);
 					long iterationId = timestamp.remove(timestamp.size() - 1);
 					Watermark watermark = new Watermark(timestamp, iterationId);
 					terminationStrategy.observeWatermark(watermark);

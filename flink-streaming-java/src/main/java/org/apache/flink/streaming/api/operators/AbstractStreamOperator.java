@@ -778,7 +778,7 @@ public abstract class AbstractStreamOperator<OUT>
 		public void collect(StreamRecord<OUT> record) {
 			numRecordsOut.inc();
 			output.collect(record);
-			aggregator.update(output.getTargetOperatorId(), record.getFullTimestamp(), 1);
+			aggregator.update(output.getTargetOperatorId(record), record.getFullTimestamp(), 1);
 		}
 
 		@Override
@@ -787,8 +787,8 @@ public abstract class AbstractStreamOperator<OUT>
 		}
 
 		@Override
-		public Integer getTargetOperatorId() {
-			return output.getTargetOperatorId();
+		public Integer getTargetOperatorId(StreamRecord<OUT> record) {
+			return output.getTargetOperatorId(record);
 		}
 	}
 
@@ -929,7 +929,7 @@ public abstract class AbstractStreamOperator<OUT>
 		int instanceId = getRuntimeContext().getIndexOfThisSubtask();
 
 		Future<Object> future = Patterns.ask(ref,
-			new ProgressNotificationRequest(operatorId, instanceId, timestamp, done),
+			new ProgressNotificationRequest(operatorId, instanceId, new LinkedList<>(timestamp), done),
 			new Timeout(Duration.create(200, TimeUnit.DAYS)));
 
 		future.onComplete(new OnComplete<Object>() {
@@ -938,6 +938,7 @@ public abstract class AbstractStreamOperator<OUT>
 					synchronized (container.getCheckpointLock()) {
 						ProgressNotification notification = (ProgressNotification) result;
 						try {
+							System.out.println(notification);
 							notifyable.receiveProgressNotification(notification.getTimestamp(), notification.isDone());
 							registeredNotifications.remove(new Tuple2<>(timestamp, done));
 						} catch (Exception e) {
@@ -972,9 +973,5 @@ public abstract class AbstractStreamOperator<OUT>
 	@Override
 	public Integer getId() {
 		return config.getVertexID();
-	}
-
-	public void setProgressAggregator(ProgressUpdate progressAggregator) {
-		this.progressAggregator = progressAggregator;
 	}
 }

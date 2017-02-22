@@ -29,6 +29,7 @@ import java.util.Set;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.graph.StreamEdge;
 import org.apache.flink.streaming.api.operators.Output;
+import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
@@ -146,7 +147,7 @@ public class DirectedOutput<OUT> implements Output<StreamRecord<OUT>> {
 	}
 
 	@Override
-	public Integer getTargetOperatorId() {
-		return allOutputs[0].getTargetOperatorId();
+	public Integer getTargetOperatorId(StreamRecord record) {
+		return selectOutputs((StreamRecord<OUT>) record).iterator().next().getTargetOperatorId(record);
 	}
 }

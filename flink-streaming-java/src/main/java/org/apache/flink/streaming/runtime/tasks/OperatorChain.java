@@ -395,7 +395,7 @@ public class OperatorChain<OUT, OP extends StreamOperator<OUT>> {
 		}
 
 		@Override
-		public Integer getTargetOperatorId() {
+		public Integer getTargetOperatorId(StreamRecord record) {
 			return operator.getId();
 		}
 	}
@@ -468,8 +468,8 @@ public class OperatorChain<OUT, OP extends StreamOperator<OUT>> {
 		}
 
 		@Override
-		public Integer getTargetOperatorId() {
-			return outputs[0].getTargetOperatorId();
+		public Integer getTargetOperatorId(StreamRecord record) {
+			return outputs[0].getTargetOperatorId(record);
 		}
 	}
 

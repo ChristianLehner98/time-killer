@@ -136,7 +136,7 @@ public class StreamIterationTail<IN> extends OneInputStreamTask<IN, IN> {
 		}
 
 		@Override
-		public Integer getTargetOperatorId() {
+		public Integer getTargetOperatorId(StreamRecord<IN> record) {
 			return targetOperatorId;
 		}
 	}

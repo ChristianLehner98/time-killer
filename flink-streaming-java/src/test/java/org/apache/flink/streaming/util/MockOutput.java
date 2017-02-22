@@ -54,7 +54,7 @@ public class MockOutput<T> implements Output<StreamRecord<T>> {
 	}
 
 	@Override
-	public Integer getTargetOperatorId() {
+	public Integer getTargetOperatorId(StreamRecord<T> record) {
 		// this is never used
 		return 0;
 	}

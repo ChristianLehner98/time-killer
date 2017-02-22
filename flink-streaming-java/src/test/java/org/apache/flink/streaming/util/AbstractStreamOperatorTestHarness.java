@@ -555,7 +555,7 @@ public class AbstractStreamOperatorTestHarness<OUT> {
 		}
 
 		@Override
-		public Integer getTargetOperatorId() {
+		public Integer getTargetOperatorId(StreamRecord<OUT> record) {
 			// this is never called
 			return 0;
 		}

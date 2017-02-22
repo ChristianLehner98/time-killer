@@ -56,7 +56,7 @@ public class CollectorOutput<T> implements Output<StreamRecord<T>> {
 	public void close() {}
 
 	@Override
-	public Integer getTargetOperatorId() {
+	public Integer getTargetOperatorId(StreamRecord record) {
 		// this is never used
 		return 0;
 	}
