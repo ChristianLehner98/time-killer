@@ -5,6 +5,7 @@ import org.apache.flink.api.java.tuple.Tuple3;
 
 import java.io.Serializable;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -13,7 +14,7 @@ public class ProgressUpdate implements Serializable {
 
 	public ProgressUpdate() {}
 	public ProgressUpdate(ProgressUpdate other) {
-		this.countmap = other.countmap;
+		this.countmap = new HashMap<>(other.countmap);
 	}
 
 	public void mergeIn(ProgressUpdate other) {
