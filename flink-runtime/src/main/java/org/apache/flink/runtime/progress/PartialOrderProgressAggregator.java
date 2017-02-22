@@ -14,6 +14,7 @@ public class PartialOrderProgressAggregator {
 	private ProgressUpdate occurences = new ProgressUpdate(); // occurence count of each time
 	private Map<List<Long>, Integer> precedents = new HashMap<>(); // counts number of distinct times in occurences strictly less than element
 	private Set<List<Long>> frontier = new HashSet<>(); // the set of times with precedent count == 0
+	private boolean hasEverBeenUpdated = false;
 
 	private int elementLength;
 
@@ -27,7 +28,7 @@ public class PartialOrderProgressAggregator {
 				return false;
 			}
 		}
-		return !frontier.isEmpty();
+		return hasEverBeenUpdated;
 	}
 
 	public boolean updateAll(Map<List<Long>, Integer> elements) {
@@ -41,6 +42,8 @@ public class PartialOrderProgressAggregator {
 	public boolean update(List<Long> timestamp, int delta) {
 		if(timestamp.size() != elementLength) throw new RuntimeException("Trying to add an element of wrong size to PartialOrderProgressAggregator");
 		if(delta == 0) return false;
+
+		hasEverBeenUpdated = true;
 
 		boolean frontierChanged = false;
 		int newValue = occurences.update(0, timestamp, delta);
