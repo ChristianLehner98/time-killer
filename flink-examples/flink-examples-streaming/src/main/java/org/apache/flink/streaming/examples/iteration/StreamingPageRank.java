@@ -35,9 +35,9 @@ public class StreamingPageRank {
 
 	public StreamingPageRank() throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-		env.setParallelism(1);
+		env.setParallelism(4);
 
-		DataStream<Tuple2<Long,List<Long>>> inputStream = env.addSource(new PageRankSource(1));
+		DataStream<Tuple2<Long,List<Long>>> inputStream = env.addSource(new PageRankSource(4));
 		inputStream
 			.keyBy(0)
 			.timeWindow(Time.milliseconds(1))
