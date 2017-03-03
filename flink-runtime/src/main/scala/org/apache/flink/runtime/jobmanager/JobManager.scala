@@ -71,7 +71,7 @@ import org.apache.flink.runtime.metrics.{MetricRegistryConfiguration, MetricRegi
 import org.apache.flink.runtime.metrics.util.MetricUtils
 import org.apache.flink.runtime.process.ProcessReaper
 import org.apache.flink.runtime.progress.CentralTracker
-import org.apache.flink.runtime.progress.messages.RegisterLocalTracker
+import org.apache.flink.runtime.progress.messages.{NumberOfActiveTaskManagers, RegisterLocalTracker}
 import org.apache.flink.runtime.query.KvStateMessage.{LookupKvStateLocation, NotifyKvStateRegistered, NotifyKvStateUnregistered}
 import org.apache.flink.runtime.query.{KvStateMessage, UnknownKvStateLocation}
 import org.apache.flink.runtime.security.SecurityUtils
@@ -1225,6 +1225,10 @@ class JobManager(
 
       log.info(s"Submitting job $jobId ($jobName)" + (if (isRecovery) " (Recovery)" else "") + ".")
 
+      // INIT PROGRESS TRACKING FOR THIS JOB
+      val actorRef: ActorRef = context.actorOf(Props(new CentralTracker(jobGraph.getPathSummaries, jobGraph.getMaxScopeLevel)))
+      centralTrackers += (jobId -> actorRef)
+
       try {
         // Important: We need to make sure that the library registration is the first action,
         // because this makes sure that the uploaded jar files are removed in case of
@@ -1248,11 +1252,6 @@ class JobManager(
         if (jobGraph.getNumberOfVertices == 0) {
           throw new JobSubmissionException(jobId, "The given job is empty")
         }
-
-        // INIT PROGRESS TRACKING FOR THIS JOB
-        var actorRef: ActorRef = context.actorOf(Props(new CentralTracker(taskManagerMap.size, jobGraph.getPathSummaries, jobGraph.getMaxScopeLevel)))
-        centralTrackers += (jobId -> actorRef)
-
 
         val restartStrategy =
           Option(jobGraph.getSerializedExecutionConfig()
@@ -1413,6 +1412,12 @@ class JobManager(
             log.info(s"Scheduling job $jobId ($jobName).")
 
             executionGraph.scheduleForExecution(scheduler)
+
+            // INIT PROGRESS TRACKING FOR THIS JOB
+            val numberOfActiveTaskManagers = executionGraph.getRegisteredExecutions.values()
+              .asScala.map(_.getAssignedResourceLocation.getResourceID).toSet.size
+            actorRef ! NumberOfActiveTaskManagers(numberOfActiveTaskManagers)
+
           } else {
             // Remove the job graph. Otherwise it will be lingering around and possibly removed from
             // ZooKeeper by this JM.

@@ -1165,6 +1165,8 @@ class TaskManager(
         tdd.getExecutionAttemptId,
         config.timeout)
 
+      System.out.println(progressTrackingActorsPerJob(jobID))
+
       val task = new Task(
         jobInformation,
         taskInformation,

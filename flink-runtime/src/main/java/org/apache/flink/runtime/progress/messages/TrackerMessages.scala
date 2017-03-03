@@ -8,3 +8,4 @@ import org.apache.flink.api.java.tuple.Tuple2
 
 case class RegisterLocalTracker(jobId: JobID, taskManagerId: InstanceID, actorRef: ActorRef)
 case class InitLocalTracker(otherNodes: Set[ActorRef], pathSummaries: java.util.Map[Integer, java.util.Map[Integer, PartialOrderMinimumSet]], maxScopeLevel: Integer)
+case class NumberOfActiveTaskManagers(value: Int)

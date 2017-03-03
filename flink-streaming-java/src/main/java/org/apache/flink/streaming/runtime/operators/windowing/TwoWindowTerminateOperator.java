@@ -129,6 +129,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 			@Override
 			public void receiveProgressNotification(List<Long> nextTs, boolean done) throws Exception {
 				long iterationId = nextTs.remove(nextTs.size() - 1);
+				LOG.info(iterationId + " -> " + done);
 				if (done) {
 					activeIterations.remove(nextTs);
 					terminationFunction.onTermination(nextTs, collector);

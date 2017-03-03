@@ -10,6 +10,7 @@ import org.apache.flink.api.java.tuple.{Tuple3 => JTuple3}
 import java.util.{Collections, List => JList}
 
 import org.apache.flink.runtime.messages.JobManagerMessages.CancelJob
+import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.JavaConverters._
 
@@ -20,6 +21,7 @@ class LocalTracker() extends Actor {
   // used to buffer up progress messages until the connection to the central tracker is established and we got the path summaries
   private var initProgressBuffer: List[(ActorRef, ProgressUpdate)] = List()
   private var maxScopeLevel: Integer = 0
+  private var LOG: Logger = LoggerFactory.getLogger(classOf[LocalTracker])
 
   def receive : Receive = {
     case progress: ProgressUpdate =>
@@ -34,7 +36,8 @@ class LocalTracker() extends Actor {
     case init: InitLocalTracker =>
       // initialisation through central tracker giving us the pathSummaries and references to the other nodes
       pathSummaries = init.pathSummaries
-      otherNodes = init.otherNodes
+      otherNodes = init.otherNodes.filter(!_.equals(self))
+      LOG.info(otherNodes.toString)
       maxScopeLevel = init.maxScopeLevel
       for((from, progress) <- initProgressBuffer.reverse) {
         update(progress, from)
@@ -53,6 +56,10 @@ class LocalTracker() extends Actor {
       //System.out.println(notificationRequest)
       val opProgress = localOperatorProgress(notificationRequest.getOperatorId)
 
+      if(self.path.name.contains("stream42")) {
+        LOG.info(notificationRequest.toString)
+      }
+
       // add notification to pending notifications of operator
       opProgress.addNotification(
         notificationRequest.getTimestamp,
@@ -66,6 +73,9 @@ class LocalTracker() extends Actor {
       for( (actorRef, notification) <- opProgress.popReadyNotifications()) {
         //System.out.println(notification)
         actorRef ! new ProgressNotification(new util.LinkedList[Long](notification.getTimestamp), notification.isDone)
+        if(self.path.name.contains("stream42")) {
+          LOG.info(notification.toString)
+        }
       }
 
     case CancelJob =>
@@ -107,6 +117,9 @@ class LocalTracker() extends Actor {
       while(it2.hasNext) {
         val tuple: (ActorRef, ProgressNotification) = it2.next()
         tuple._1 ! new ProgressNotification(new util.LinkedList[Long](tuple._2.getTimestamp), tuple._2.isDone)
+        if(self.path.name.contains("stream42")) {
+          LOG.info(tuple._2.toString)
+        }
       }
     }
   }
