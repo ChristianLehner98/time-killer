@@ -89,6 +89,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 		super.open();
 		winOp1.open("window-timers1");
 		winOp2.open("window-timers2");
+		System.out.println("INSTANCE: " + getRuntimeContext().getIndexOfThisSubtask());
 	}
 
 	@Override
@@ -107,34 +108,36 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 
 	public void processElement1(StreamRecord<IN1> element) throws Exception {
 		activeIterations.add(element.getContext());
+		terminationStrategy.observeRecord(element);
+
+		winOp1.processElement(element);
 
 		final List<Long> context = element.getContext();
 		notifyOnce(element.getFullTimestamp(), new Notifyable() {
 			@Override
 			public void receiveProgressNotification(List<Long> timestamp, boolean done) throws Exception {
-			long iterationId = timestamp.remove(timestamp.size()-1);
-			winOp1.processWatermark(new Watermark(timestamp, iterationId));
+				long iterationId = timestamp.remove(timestamp.size()-1);
+				winOp1.processWatermark(new Watermark(timestamp, iterationId));
 
-			List<Long> nextTimestamp = new LinkedList<>(timestamp);
-			nextTimestamp.add(iterationId + 1);
-			notifyNext(nextTimestamp, context);
+				List<Long> nextTimestamp = new LinkedList<>(timestamp);
+				nextTimestamp.add(iterationId + 1);
+				notifyNext(nextTimestamp, context);
 			}
 		}, terminationStrategy.terminate(context));
-
-		winOp1.processElement(element);
 	}
 
 	private void notifyNext(final List<Long> nextTimestamp, final List<Long> context) {
+		LOG.info("Request: " + nextTimestamp + " / " + context + ", done: " + terminationStrategy.terminate(context));
 		notifyOnce(nextTimestamp, new Notifyable() {
 			@Override
 			public void receiveProgressNotification(List<Long> nextTs, boolean done) throws Exception {
 				long iterationId = nextTs.remove(nextTs.size() - 1);
-				LOG.info(iterationId + " -> " + done);
 				if (done) {
 					activeIterations.remove(nextTs);
 					terminationFunction.onTermination(nextTs, collector);
 				} else {
 					Watermark watermark = new Watermark(nextTs, iterationId);
+					System.out.println(watermark);
 					terminationStrategy.observeWatermark(watermark);
 					winOp2.processWatermark(watermark);
 

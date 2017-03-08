@@ -19,7 +19,7 @@ public class ProgressUpdate implements Serializable {
 
 	public void mergeIn(ProgressUpdate other) {
 		for(Map.Entry<Tuple3<Integer,List<Long>,Boolean>, Integer> entry : other.getEntries().entrySet()) {
-			update(entry.getKey().f0, entry.getKey().f1, entry.getKey().f2, entry.getValue());
+			update(entry.getKey().f0, new LinkedList<>(entry.getKey().f1), entry.getKey().f2, entry.getValue());
 		}
 	}
 

@@ -25,10 +25,9 @@ class LocalTracker() extends Actor {
 
   def receive : Receive = {
     case progress: ProgressUpdate =>
-      //System.out.println(progress)
       if (pathSummaries != null) {
         update(progress, sender())
-        //System.out.println(localOperatorProgress(7))
+        //LOG.info(localOperatorProgress.toString())
       } else {
         initProgressBuffer = (sender(), progress) :: initProgressBuffer
       }
@@ -37,7 +36,6 @@ class LocalTracker() extends Actor {
       // initialisation through central tracker giving us the pathSummaries and references to the other nodes
       pathSummaries = init.pathSummaries
       otherNodes = init.otherNodes.filter(!_.equals(self))
-      LOG.info(otherNodes.toString)
       maxScopeLevel = init.maxScopeLevel
       for((from, progress) <- initProgressBuffer.reverse) {
         update(progress, from)
@@ -53,12 +51,10 @@ class LocalTracker() extends Actor {
       }
 
     case notificationRequest: ProgressNotificationRequest =>
-      //System.out.println(notificationRequest)
+      System.out.println(notificationRequest)
       val opProgress = localOperatorProgress(notificationRequest.getOperatorId)
 
-      if(self.path.name.contains("stream42")) {
-        LOG.info(notificationRequest.toString)
-      }
+      broadcastDone(IsDone(notificationRequest.isDone, notificationRequest.getOperatorId, notificationRequest.getInstanceId, notificationRequest.getTimestamp))
 
       // add notification to pending notifications of operator
       opProgress.addNotification(
@@ -68,13 +64,22 @@ class LocalTracker() extends Actor {
         sender()
       )
 
+      if(notificationRequest.isDone) LOG.info(opProgress.toString())
+
       // send notifications that have eventually been hold back due to missing termination
       // information from other operator instances
       for( (actorRef, notification) <- opProgress.popReadyNotifications()) {
-        //System.out.println(notification)
+        //LOG.info("DUE TO TERMINATION" + notification.toString + " " + actorRef)
         actorRef ! new ProgressNotification(new util.LinkedList[Long](notification.getTimestamp), notification.isDone)
-        if(self.path.name.contains("stream42")) {
-          LOG.info(notification.toString)
+      }
+
+    case IsDone(done, operatorId, instanceId, timestamp) =>
+      if(localOperatorProgress.contains(operatorId)) {
+        localOperatorProgress(operatorId).otherNodeDone(done, timestamp, instanceId)
+        if(done) LOG.info(localOperatorProgress(operatorId).toString())
+        for( (actorRef, notification) <- localOperatorProgress(operatorId).popReadyNotifications()) {
+          //System.out.println("DUE TO DONE: " + notification)
+          actorRef ! new ProgressNotification(new util.LinkedList[Long](timestamp), notification.isDone)
         }
       }
 
@@ -87,12 +92,14 @@ class LocalTracker() extends Actor {
     if(!otherNodes.contains(from)) {
       // update comes from local operator and needs to be broadcast to other nodes
       broadcastUpdate(progress)
+    } else {
+      LOG.info(progress.toString)
     }
 
+    // update progress
     var it = localOperatorProgress.iterator
     while(it.hasNext) {
       var (op: Integer, opProgress: LocalOperatorProgress) = it.next()
-      // update progress
       val progIt = progress.getEntries.asScala.iterator
       while (progIt.hasNext) {
         val (pointstamp: JTuple3[Integer,JList[Long], Boolean], delta: Integer) = progIt.next()
@@ -117,16 +124,21 @@ class LocalTracker() extends Actor {
       while(it2.hasNext) {
         val tuple: (ActorRef, ProgressNotification) = it2.next()
         tuple._1 ! new ProgressNotification(new util.LinkedList[Long](tuple._2.getTimestamp), tuple._2.isDone)
-        if(self.path.name.contains("stream42")) {
-          LOG.info(tuple._2.toString)
-        }
+        //LOG.info("DUE TO NORMAL: " + tuple._2 + " " + tuple._1)
       }
     }
   }
 
-  private def broadcastUpdate(progress : ProgressUpdate) : Unit = {
+  private def broadcastUpdate(message : ProgressUpdate) : Unit = {
     for(node : ActorRef <- otherNodes) {
-      node ! progress
+      node ! message
+    }
+  }
+
+  private def broadcastDone(message : IsDone) : Unit = {
+    //LOG.info(message.timestamp + " " + message.operatorId + " / " + message.instanceId + "done to: " + otherNodes)
+    for(node : ActorRef <- otherNodes) {
+      node ! message
     }
   }
 
