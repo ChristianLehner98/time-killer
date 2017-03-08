@@ -35,7 +35,7 @@ public class StreamingConnectedComponents {
 
 	public StreamingConnectedComponents() throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-		env.setParallelism(4);
+		env.setParallelism(2);
 
 		DataStream<Tuple2<Long,Set<Long>>> inputStream = env.addSource(new ConnectedComponentsSource(1));
 		inputStream
@@ -77,9 +77,6 @@ public class StreamingConnectedComponents {
 					if(entry.f0 % parallelism == parallelTask) {
 						ctx.collectWithTimestamp(entry, i);
 					}
-				}
-				if(i!= 2) {
-					ctx.emitWatermark(new Watermark(i));
 				}
 			}
 		}
