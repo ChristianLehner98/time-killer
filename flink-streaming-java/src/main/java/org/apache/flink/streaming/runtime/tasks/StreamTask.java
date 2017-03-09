@@ -125,8 +125,11 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 	/** The logger used by the StreamTask and its subclasses */
 	private static final Logger LOG = LoggerFactory.getLogger(StreamTask.class);
 
+	/**
+	 *  Keeps references to all progress update objects corresponding to the chained operators in the task
+	 */
 	public List<ProgressUpdate> progressUpdates = new LinkedList<>();
-
+	
 	// ------------------------------------------------------------------------
 
 	/**

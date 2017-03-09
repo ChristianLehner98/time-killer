@@ -99,17 +99,17 @@ class LocalTracker() extends Actor {
     // update progress
     var it = localOperatorProgress.iterator
     while(it.hasNext) {
-      var (op: Integer, opProgress: LocalOperatorProgress) = it.next()
+      var (target: Integer, targetProgress: LocalOperatorProgress) = it.next()
       val progIt = progress.getEntries.asScala.iterator
       while (progIt.hasNext) {
         val (pointstamp: JTuple3[Integer,JList[Long], Boolean], delta: Integer) = progIt.next()
-        val from: Integer = pointstamp.f0
+        val src: Integer = pointstamp.f0
         val timestamp: java.util.List[Long] = pointstamp.f1
         val isInternal: Boolean = pointstamp.f2
 
-        for (summary: java.util.List[Long] <- getPathSummaries(from, op, isInternal)) {
-          val timeAtTo = resultsIn(timestamp, summary)
-          opProgress.updateFrontier(timeAtTo, delta)
+        for (summary: java.util.List[Long] <- getPathSummaries(src, target, isInternal)) {
+          val progressAtTarget = resultsIn(timestamp, summary)
+          targetProgress.updateFrontier(progressAtTarget, delta)
         }
       }
     }
@@ -142,6 +142,12 @@ class LocalTracker() extends Actor {
     }
   }
 
+  /**
+    *  
+    * @param ts : the progress update received from the first operator (look below)
+    * @param summary : a path between the operator where progress was reported and the operator that requests a progress notification
+    * @return a timestamp (calculated forward) of the estimated minimum time at the second operator (look up) computed through the summary path
+    */
   private def resultsIn(ts: java.util.List[Long], summary: java.util.List[Long]): java.util.List[Long] = {
     val paddedTs: java.util.List[Long] = new util.LinkedList[Long]()
     for(i <- 0 to maxScopeLevel) {

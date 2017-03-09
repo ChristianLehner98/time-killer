@@ -10,7 +10,7 @@ import static org.apache.flink.runtime.progress.PartialOrderComparator.PartialCo
 import static org.apache.flink.runtime.progress.PartialOrderComparator.partialCmp;
 
 // called Mutable Antichain in timely-dataflow
-public class PartialOrderProgressAggregator {
+public class Frontier {
 	private ProgressUpdate occurences = new ProgressUpdate(); // occurence count of each time
 	private Map<List<Long>, Integer> precedents = new HashMap<>(); // counts number of distinct times in occurences strictly less than element
 	private Set<List<Long>> frontier = new HashSet<>(); // the set of times with precedent count == 0
@@ -18,7 +18,7 @@ public class PartialOrderProgressAggregator {
 
 	private int elementLength;
 
-	public PartialOrderProgressAggregator(int elementLength) {
+	public Frontier(int elementLength) {
 		this.elementLength = elementLength;
 	}
 
@@ -53,7 +53,7 @@ public class PartialOrderProgressAggregator {
 			int precededBy = 0;
 
 			for(Map.Entry<List<Long>, Integer> precedent : precedents.entrySet()) {
-				// General Goal: add timestamp to all datastructures and change other entries accordingly
+				// General Goal: add timestamp to all data structures and change other entries accordingly
 
 				PartialOrderComparator.PartialComparison cmp = partialCmp(timestamp, precedent.getKey());
 

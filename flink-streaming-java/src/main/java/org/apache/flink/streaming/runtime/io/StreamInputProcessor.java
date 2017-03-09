@@ -80,6 +80,7 @@ public class StreamInputProcessor<IN> {
 
 	private Counter numRecordsIn;
 
+	// IGNORE-ME NOT USED IN THIS VERSION
 	private StreamInputProgressHandler progressHandler;
 
 	@SuppressWarnings("unchecked")

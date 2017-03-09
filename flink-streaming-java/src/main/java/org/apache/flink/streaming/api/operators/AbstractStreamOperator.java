@@ -187,6 +187,7 @@ public abstract class AbstractStreamOperator<OUT>
 		}
 
 		this.metrics = container.getEnvironment().getMetricGroup().addOperator(config.getOperatorName());
+		
 		this.output = new CountingOutput(output, ((OperatorMetricGroup) this.metrics).getIOMetricGroup().getNumRecordsOutCounter(), progressAggregator);
 		if (config.isChainStart()) {
 			((OperatorMetricGroup) this.metrics).getIOMetricGroup().reuseInputMetricsForTask();
