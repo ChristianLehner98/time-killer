@@ -131,6 +131,11 @@ public class StreamingJobGraphGenerator {
 		// set the ExecutionConfig last when it has been finalized
 		jobGraph.setExecutionConfig(streamGraph.getExecutionConfig());
 
+		//add evaluation parameters for reporting
+		jobGraph.getJobConfiguration().setInteger("numWindows", streamGraph.getExecutionConfig().getNumWindows());
+		jobGraph.getJobConfiguration().setLong("winSize", streamGraph.getExecutionConfig().getWindowSize());
+		jobGraph.getJobConfiguration().setInteger("parallelism", streamGraph.getExecutionConfig().getParallelism());
+		
 		return jobGraph;
 	}
 

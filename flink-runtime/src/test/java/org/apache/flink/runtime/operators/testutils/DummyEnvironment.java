@@ -18,6 +18,7 @@
 
 package org.apache.flink.runtime.operators.testutils;
 
+import akka.actor.ActorRef;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.TaskInfo;
@@ -188,4 +189,8 @@ public class DummyEnvironment implements Environment {
 		return null;
 	}
 
+	@Override
+	public ActorRef getJobManagerRef() {
+		return null;
+	}
 }

@@ -481,6 +481,7 @@ class TaskManager(
             log.debug(s"Cannot find task to stop for execution ${executionID})")
             sender ! decorateMessage(Acknowledge.get())
           }
+
  
         // cancels a task
         case CancelTask(executionID) =>
@@ -492,10 +493,11 @@ class TaskManager(
             log.debug(s"Cannot find task to cancel for execution $executionID)")
             sender ! decorateMessage(Acknowledge.get())
           }
+
       }
       }
   }
-
+  
   /**
    * Handler for messages related to checkpoints.
    *
@@ -1173,7 +1175,9 @@ class TaskManager(
         taskMetricGroup,
         resultPartitionConsumableNotifier,
         partitionStateChecker,
-        context.dispatcher)
+        context.dispatcher,
+        jobManagerActor
+      )
 
       log.info(s"Received task ${task.getTaskInfo.getTaskNameWithSubtasks()}")
 

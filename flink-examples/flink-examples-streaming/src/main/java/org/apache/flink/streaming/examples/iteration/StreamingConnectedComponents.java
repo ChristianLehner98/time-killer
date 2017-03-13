@@ -12,6 +12,7 @@ import org.apache.flink.streaming.api.datastream.FeedbackBuilder;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
+import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.functions.windowing.CoWindowTerminateFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
@@ -21,23 +22,38 @@ import org.apache.flink.streaming.runtime.tasks.progress.StructuredIterationTerm
 import org.apache.flink.types.Either;
 import org.apache.flink.util.Collector;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.InputStreamReader;
 import java.io.Serializable;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 public class StreamingConnectedComponents {
 	StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
 	public static void main(String[] args) throws Exception {
+		int numWindows = Integer.parseInt(args[0]);
+		long windSize = Long.parseLong(args[1]);
+		int parallelism = Integer.parseInt(args[2]);
+		String inputDir = args.length > 3 ? args[3] : "";
 
-		StreamingConnectedComponents example = new StreamingConnectedComponents();
+		StreamingConnectedComponents example = new StreamingConnectedComponents(numWindows, windSize, parallelism, inputDir);
 		example.run();
 	}
 
-	public StreamingConnectedComponents() throws Exception {
+	public StreamingConnectedComponents(int numWindows, long windSize, int parallelism, String inputDir) throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-		env.setParallelism(4);
+		env.setParallelism(parallelism);
 
-		DataStream<Tuple2<Long,Set<Long>>> inputStream = env.addSource(new ConnectedComponentsSource(1));
+		SourceFunction source;
+		if(inputDir != "") {
+			source = new ConnectedComponentsFileSource(numWindows, inputDir);
+		} else {
+			source = new ConnectedComponentsSource(numWindows);
+		}
+		DataStream<Tuple2<Long,Set<Long>>> inputStream = env.addSource(source);
 		inputStream
 			.keyBy(0)
 			.timeWindow(Time.milliseconds(1))
@@ -46,7 +62,7 @@ public class StreamingConnectedComponents {
 				new MyFeedbackBuilder(),
 				new TupleTypeInfo<Tuple2<Long, Long>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.LONG_TYPE_INFO))
 			.print();
-		System.out.println(env.getExecutionPlan());
+		env.getConfig().setExperimentConstants(numWindows, windSize);
 	}
 
 	protected void run() throws Exception {
@@ -78,9 +94,7 @@ public class StreamingConnectedComponents {
 						ctx.collectWithTimestamp(entry, i);
 					}
 				}
-				if(i!= 2) {
-					ctx.emitWatermark(new Watermark(i));
-				}
+				ctx.emitWatermark(new Watermark(i));
 			}
 		}
 
@@ -110,6 +124,37 @@ public class StreamingConnectedComponents {
 			}
 			return input;
 		}
+	}
+
+	private static class ConnectedComponentsFileSource extends RichParallelSourceFunction<Tuple2<Long,Set<Long>>> {
+		private int numberOfGraphs;
+		private BufferedReader fileReader;
+
+		public ConnectedComponentsFileSource(int numberOfGraphs, String directory) throws Exception{
+			this.numberOfGraphs = numberOfGraphs;
+			String path = directory + "/" + getRuntimeContext().getIndexOfThisSubtask();
+			fileReader = new BufferedReader(new FileReader(path));
+		}
+
+		@Override
+		public void run(SourceContext<Tuple2<Long, Set<Long>>> ctx) throws Exception {
+			for(int i=0; i<numberOfGraphs; i++) {
+				String line;
+				while( (line = fileReader.readLine()) != null) {
+					String[] splitLine = line.split(" ");
+					Long node = Long.parseLong(splitLine[0]);
+					Set<Long> neighbours = new HashSet<>();
+					for(int neighbouri=1; neighbouri<splitLine.length; ++neighbouri) {
+						neighbours.add(Long.parseLong(splitLine[neighbouri]));
+					}
+					ctx.collectWithTimestamp(new Tuple2<>(node, neighbours), i);
+				}
+				ctx.emitWatermark(new Watermark(i));
+			}
+		}
+
+		@Override
+		public void cancel() {}
 	}
 
 	private static class MyCoWindowTerminateFunction implements CoWindowTerminateFunction<Tuple2<Long, Set<Long>>, Tuple2<Long, Long>, Tuple2<Long,Long>, Tuple2<Long, Long>, Tuple, TimeWindow>, Serializable {

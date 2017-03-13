@@ -70,6 +70,8 @@ import org.apache.flink.runtime.metrics.groups.JobManagerMetricGroup
 import org.apache.flink.runtime.metrics.{MetricRegistryConfiguration, MetricRegistry => FlinkMetricRegistry}
 import org.apache.flink.runtime.metrics.util.MetricUtils
 import org.apache.flink.runtime.process.ProcessReaper
+import org.apache.flink.runtime.progress.ProgressMetricsLogger
+import org.apache.flink.runtime.progress.messages.ProgressMetricsReport
 import org.apache.flink.runtime.query.KvStateMessage.{LookupKvStateLocation, NotifyKvStateRegistered, NotifyKvStateUnregistered}
 import org.apache.flink.runtime.query.{KvStateMessage, UnknownKvStateLocation}
 import org.apache.flink.runtime.security.SecurityUtils
@@ -179,6 +181,8 @@ class JobManager(
   var currentResourceManager: Option[ActorRef] = None
 
   val taskManagerMap = mutable.Map[ActorRef, InstanceID]()
+
+  var progressMetricsTrackers = Map[JobID, ActorRef]()
 
   /**
    * Run when the job manager is started. Simply logs an informational message.
@@ -1171,6 +1175,9 @@ class JobManager(
 
     case RequestWebMonitorPort =>
       sender() ! ResponseWebMonitorPort(webMonitorPort)
+
+    case ptracking : ProgressMetricsReport =>
+      progressMetricsTrackers(ptracking.jobId) ! ptracking
   }
 
   /**
@@ -1213,6 +1220,12 @@ class JobManager(
 
       log.info(s"Submitting job $jobId ($jobName)" + (if (isRecovery) " (Recovery)" else "") + ".")
 
+      progressMetricsTrackers += (jobId -> context.actorOf(Props(new ProgressMetricsLogger(
+        jobGraph.getJobConfiguration.getInteger("numWindows",0),
+        jobGraph.getJobConfiguration.getInteger("parallelism",0),
+        jobGraph.getJobConfiguration.getLong("winSize",0)
+        )))); 
+      
       try {
         // Important: We need to make sure that the library registration is the first action,
         // because this makes sure that the uploaded jar files are removed in case of
@@ -1415,7 +1428,12 @@ class JobManager(
       }(context.dispatcher)
     }
   }
-
+  
+  private def cleanupJobActors(jobId:JobID): Unit = {
+    progressMetricsTrackers(jobId) ! PoisonPill
+    progressMetricsTrackers -= jobId
+  }
+  
   /**
    * Dedicated handler for checkpoint messages.
    *

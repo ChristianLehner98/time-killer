@@ -158,7 +158,8 @@ public class BlockingCheckpointsTest {
 				new UnregisteredTaskMetricsGroup(),
 				mock(ResultPartitionConsumableNotifier.class),
 				mock(PartitionProducerStateChecker.class),
-				Executors.directExecutor());
+				Executors.directExecutor(),
+			null);
 	}
 
 	// ------------------------------------------------------------------------

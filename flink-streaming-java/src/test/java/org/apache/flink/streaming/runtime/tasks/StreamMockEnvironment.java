@@ -18,6 +18,7 @@
 
 package org.apache.flink.streaming.runtime.tasks;
 
+import akka.actor.ActorRef;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.TaskInfo;
@@ -341,5 +342,9 @@ public class StreamMockEnvironment implements Environment {
 	@Override
 	public TaskMetricGroup getMetricGroup() {
 		return new UnregisteredTaskMetricsGroup();
+	}
+	@Override
+	public ActorRef getJobManagerRef() {
+		return null;
 	}
 }

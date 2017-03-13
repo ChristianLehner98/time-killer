@@ -343,7 +343,8 @@ public class StreamTaskTest {
 			new UnregisteredTaskMetricsGroup(),
 			consumableNotifier,
 			partitionProducerStateChecker,
-			executor);
+			executor,
+			null);
 	}
 	
 	// ------------------------------------------------------------------------

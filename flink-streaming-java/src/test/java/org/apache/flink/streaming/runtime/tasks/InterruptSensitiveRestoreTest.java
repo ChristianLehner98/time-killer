@@ -181,7 +181,8 @@ public class InterruptSensitiveRestoreTest {
 			new UnregisteredTaskMetricsGroup(),
 			mock(ResultPartitionConsumableNotifier.class),
 			mock(PartitionProducerStateChecker.class),
-			mock(Executor.class));
+			mock(Executor.class),
+			null);
 
 	}
 
