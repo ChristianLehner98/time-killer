@@ -183,7 +183,7 @@ public class InterruptSensitiveRestoreTest {
 			mock(PartitionProducerStateChecker.class),
 			mock(Executor.class),
 			null,
-			null);
+			null, null);
 
 	}
 

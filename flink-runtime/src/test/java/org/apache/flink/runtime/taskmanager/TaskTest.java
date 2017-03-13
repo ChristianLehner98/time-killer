@@ -964,7 +964,7 @@ public class TaskTest extends TestLogger {
 			partitionProducerStateChecker,
 			executor,
 			null,
-			null);
+			null, null);
 	}
 
 	// ------------------------------------------------------------------------

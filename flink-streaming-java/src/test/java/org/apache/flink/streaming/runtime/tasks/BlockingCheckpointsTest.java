@@ -160,6 +160,7 @@ public class BlockingCheckpointsTest {
 				mock(PartitionProducerStateChecker.class),
 				Executors.directExecutor(),
 			null,
+			null,
 			null);
 	}
 

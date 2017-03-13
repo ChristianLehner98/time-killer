@@ -98,7 +98,7 @@ public class TaskStopTest {
 			mock(PartitionProducerStateChecker.class),
 			mock(Executor.class),
 			null,
-			null);
+			null, null);
 		Field f = task.getClass().getDeclaredField("invokable");
 		f.setAccessible(true);
 		f.set(task, taskMock);

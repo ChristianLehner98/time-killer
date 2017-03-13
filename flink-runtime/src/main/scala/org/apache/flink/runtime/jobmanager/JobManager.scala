@@ -70,8 +70,8 @@ import org.apache.flink.runtime.metrics.groups.JobManagerMetricGroup
 import org.apache.flink.runtime.metrics.{MetricRegistryConfiguration, MetricRegistry => FlinkMetricRegistry}
 import org.apache.flink.runtime.metrics.util.MetricUtils
 import org.apache.flink.runtime.process.ProcessReaper
-import org.apache.flink.runtime.progress.CentralTracker
-import org.apache.flink.runtime.progress.messages.{NumberOfActiveTaskManagers, RegisterLocalTracker}
+import org.apache.flink.runtime.progress.{CentralTracker, ProgressMetricsLogger}
+import org.apache.flink.runtime.progress.messages.{NumberOfActiveTaskManagers, ProgressMetricsReport, RegisterLocalTracker}
 import org.apache.flink.runtime.query.KvStateMessage.{LookupKvStateLocation, NotifyKvStateRegistered, NotifyKvStateUnregistered}
 import org.apache.flink.runtime.query.{KvStateMessage, UnknownKvStateLocation}
 import org.apache.flink.runtime.security.SecurityUtils
@@ -183,6 +183,8 @@ class JobManager(
   val taskManagerMap = mutable.Map[ActorRef, InstanceID]()
 
   var centralTrackers = Map[JobID, ActorRef]()
+
+  var progressMetricsTrackers = Map[JobID, ActorRef]()
 
   /**
    * Run when the job manager is started. Simply logs an informational message.
@@ -1183,6 +1185,9 @@ class JobManager(
     // RECEIVE LOCAL PROGRESS TRACKER REGISTRATION
     case m: RegisterLocalTracker =>
       centralTrackers(m.jobId) ! m
+
+    case ptracking : ProgressMetricsReport =>
+      progressMetricsTrackers(ptracking.jobId) ! ptracking
   }
 
   /**
@@ -1228,7 +1233,13 @@ class JobManager(
       // INIT PROGRESS TRACKING FOR THIS JOB
       val actorRef: ActorRef = context.actorOf(Props(new CentralTracker(jobGraph.getPathSummaries, jobGraph.getMaxScopeLevel)))
       centralTrackers += (jobId -> actorRef)
-
+      
+      progressMetricsTrackers += (jobId -> context.actorOf(Props(new ProgressMetricsLogger(
+        jobGraph.getJobConfiguration.getInteger("numWindows",0),
+        jobGraph.getJobConfiguration.getInteger("parallelism",0),
+        jobGraph.getJobConfiguration.getLong("winSize",0)
+        )))); 
+      
       try {
         // Important: We need to make sure that the library registration is the first action,
         // because this makes sure that the uploaded jar files are removed in case of
@@ -1437,7 +1448,15 @@ class JobManager(
       }(context.dispatcher)
     }
   }
-
+  
+  private def cleanupJobActors(jobId:JobID): Unit = {
+    centralTrackers(jobId) ! PoisonPill
+    centralTrackers -= jobId
+    
+    progressMetricsTrackers(jobId) ! PoisonPill
+    progressMetricsTrackers -= jobId
+  }
+  
   /**
    * Dedicated handler for checkpoint messages.
    *

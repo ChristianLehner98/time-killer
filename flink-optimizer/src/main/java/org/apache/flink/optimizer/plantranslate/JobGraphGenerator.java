@@ -249,7 +249,7 @@ public class JobGraphGenerator implements Visitor<PlanNode> {
 		this.auxVertices = null;
 		this.iterations = null;
 		this.iterationStack = null;
-
+		
 		// return job graph
 		return graph;
 	}

@@ -199,4 +199,9 @@ public class DummyEnvironment implements Environment {
 	public ActorSystem getActorSystem() {
 		return null;
 	}
+
+	@Override
+	public ActorRef getJobManagerRef() {
+		return null;
+	}
 }

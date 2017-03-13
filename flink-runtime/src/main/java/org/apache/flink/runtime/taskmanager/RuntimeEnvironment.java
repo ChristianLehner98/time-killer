@@ -269,6 +269,11 @@ public class RuntimeEnvironment implements Environment {
 	public ActorRef getLocalTrackerRef() {
 		return containingTask.getLocalTrackerRef();
 	}
+	
+	@Override
+	public ActorRef getJobManagerRef(){
+		return containingTask.getJobManager();
+	}
 
 	public ActorSystem getActorSystem() {
 		return containingTask.getActorSystem();
