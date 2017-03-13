@@ -1,7 +1,9 @@
 package org.apache.flink.streaming.runtime.operators.windowing;
 
+import akka.actor.ActorRef;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.progress.Notifyable;
+import org.apache.flink.runtime.progress.messages.ProgressMetricsReport;
 import org.apache.flink.streaming.api.functions.windowing.TerminationFunction;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
@@ -110,6 +112,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 		activeIterations.add(element.getContext());
 		terminationStrategy.observeRecord(element);
 
+		// window start
 		winOp1.processElement(element);
 
 		final List<Long> context = element.getContext();
@@ -117,16 +120,17 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 			@Override
 			public void receiveProgressNotification(List<Long> timestamp, boolean done) throws Exception {
 				long iterationId = timestamp.remove(timestamp.size()-1);
+				long lastWinStart = System.currentTimeMillis();
 				winOp1.processWatermark(new Watermark(timestamp, iterationId));
-
+				long lastLocalEnd = System.currentTimeMillis();
 				List<Long> nextTimestamp = new LinkedList<>(timestamp);
 				nextTimestamp.add(iterationId + 1);
-				notifyNext(nextTimestamp, context);
+				notifyNext(nextTimestamp, context, lastWinStart,lastLocalEnd);
 			}
 		}, terminationStrategy.terminate(context));
 	}
 
-	private void notifyNext(final List<Long> nextTimestamp, final List<Long> context) {
+	private void notifyNext(final List<Long> nextTimestamp, final List<Long> context, final long lastWinStart, final long lastLocalEnd) {
 		LOG.info("Request: " + nextTimestamp + " / " + context + ", done: " + terminationStrategy.terminate(context));
 		notifyOnce(nextTimestamp, new Notifyable() {
 			@Override
@@ -136,14 +140,21 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 					activeIterations.remove(nextTs);
 					terminationFunction.onTermination(nextTs, collector);
 				} else {
+					getContainingTask().getEnvironment().getJobManagerRef().tell(
+						new ProgressMetricsReport(getContainingTask().getEnvironment().getJobID(),
+							getOperatorConfig().getVertexID(),
+							getRuntimeContext().getIndexOfThisSubtask(),
+							context, lastWinStart,lastLocalEnd,System.currentTimeMillis()
+							), ActorRef.noSender());
 					Watermark watermark = new Watermark(nextTs, iterationId);
 					System.out.println(watermark);
 					terminationStrategy.observeWatermark(watermark);
+					long nextWinStart = System.currentTimeMillis();
 					winOp2.processWatermark(watermark);
-
+					long nextLocalEnd = System.currentTimeMillis();
 					List<Long> nextNextTimestamp = new LinkedList<>(nextTs);
 					nextNextTimestamp.add(iterationId + 1);
-					notifyNext(nextNextTimestamp, nextTs);
+					notifyNext(nextNextTimestamp, nextTs, nextWinStart, nextLocalEnd);
 				}
 			}
 		}, terminationStrategy.terminate(context));
