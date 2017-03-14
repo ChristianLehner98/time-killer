@@ -60,6 +60,7 @@ import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.runtime.jobgraph.tasks.InputSplitProvider;
 import org.apache.flink.runtime.jobgraph.tasks.StatefulTask;
 import org.apache.flink.runtime.jobgraph.tasks.StoppableTask;
+import org.apache.flink.runtime.jobmanager.JobManager;
 import org.apache.flink.runtime.jobmanager.PartitionProducerDisposedException;
 import org.apache.flink.runtime.memory.MemoryManager;
 import org.apache.flink.runtime.metrics.groups.TaskMetricGroup;
@@ -247,6 +248,8 @@ public class Task implements Runnable, TaskActions {
 	private long taskCancellationTimeout;
 
 	private final ActorRef localTracker;
+	private final ActorRef jobManager;
+	
 	private final ActorSystem actorSystem;
 
 	/**
@@ -278,6 +281,7 @@ public class Task implements Runnable, TaskActions {
 		PartitionProducerStateChecker partitionProducerStateChecker,
 		Executor executor,
 		ActorRef localTracker,
+		ActorRef jobManager,
 		ActorSystem actorSystem) {
 
 		Preconditions.checkNotNull(jobInformation);
@@ -394,11 +398,17 @@ public class Task implements Runnable, TaskActions {
 
 		this.localTracker = localTracker;
 		this.actorSystem = actorSystem;
+		this.jobManager = jobManager;
 	}
 
 	// ------------------------------------------------------------------------
 	//  Accessors
 	// ------------------------------------------------------------------------
+
+
+	public ActorRef getJobManager() {
+		return jobManager;
+	}
 
 	public JobID getJobID() {
 		return jobId;

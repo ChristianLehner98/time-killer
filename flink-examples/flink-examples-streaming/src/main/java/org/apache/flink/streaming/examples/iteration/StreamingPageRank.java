@@ -29,15 +29,27 @@ public class StreamingPageRank {
 
 	public static void main(String[] args) throws Exception {
 
-		StreamingPageRank example = new StreamingPageRank();
+		int numWindows = Integer.parseInt(args[0]);
+		long windSize = Long.parseLong(args[1]);
+		int parallelism = Integer.parseInt(args[2]);
+		
+		StreamingPageRank example = new StreamingPageRank(numWindows, windSize, parallelism);
 		example.run();
 	}
 
-	public StreamingPageRank() throws Exception {
+	/**
+	 * TODO configure the windSize parameter and generalize the evaluation framework
+	 * 
+	 * @param numWindows
+	 * @param windSize
+	 * @param parallelism
+	 * @throws Exception
+	 */
+	public StreamingPageRank(int numWindows, long windSize, int parallelism) throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-		env.setParallelism(4);
+		env.setParallelism(parallelism);
 
-		DataStream<Tuple2<Long,List<Long>>> inputStream = env.addSource(new PageRankSource(4));
+		DataStream<Tuple2<Long,List<Long>>> inputStream = env.addSource(new PageRankSource(numWindows));
 		inputStream
 			.keyBy(0)
 			.timeWindow(Time.milliseconds(1))
@@ -46,7 +58,7 @@ public class StreamingPageRank {
 				new MyFeedbackBuilder(),
 				new TupleTypeInfo<Tuple2<Long, Double>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO))
 			.print();
-
+		env.getConfig().setExperimentConstants(numWindows, windSize);
 		System.out.println(env.getExecutionPlan());
 	}
 

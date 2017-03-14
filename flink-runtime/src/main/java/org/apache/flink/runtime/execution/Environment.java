@@ -212,4 +212,6 @@ public interface Environment {
 
 	ActorRef getLocalTrackerRef();
 	ActorSystem getActorSystem();
+	
+	ActorRef getJobManagerRef();
 }

@@ -194,7 +194,7 @@ public class TaskAsyncCallTest {
 			partitionProducerStateChecker,
 			executor,
 			null,
-			null);
+			null, null);
 	}
 
 	public static class CheckpointsInOrderInvokable extends AbstractInvokable implements StatefulTask {

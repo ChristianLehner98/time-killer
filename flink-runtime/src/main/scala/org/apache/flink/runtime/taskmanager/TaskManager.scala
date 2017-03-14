@@ -470,7 +470,7 @@ class TaskManager(
           } else {
             log.debug(s"Cannot find task to fail for execution $executionID)")
           }
-
+          cleanupInactiveTrackers();
         // stops a task
         case StopTask(executionID) =>
           val task = runningTasks.get(executionID)
@@ -486,6 +486,7 @@ class TaskManager(
             log.debug(s"Cannot find task to stop for execution ${executionID})")
             sender ! decorateMessage(Acknowledge.get())
           }
+          cleanupInactiveTrackers()
  
         // cancels a task
         case CancelTask(executionID) =>
@@ -497,10 +498,21 @@ class TaskManager(
             log.debug(s"Cannot find task to cancel for execution $executionID)")
             sender ! decorateMessage(Acknowledge.get())
           }
+          cleanupInactiveTrackers()
       }
       }
   }
 
+  private def cleanupInactiveTrackers() : Unit = {
+    progressTrackingActorsPerJob.keySet.filter(e => 
+      !runningTasks.asScala.mapValues(_.getJobID).toSet.contains(e)).foreach(eliminateTracker);
+  }
+  
+  private def eliminateTracker(jobId: JobID) : Unit = {
+    progressTrackingActorsPerJob(jobId) ! PoisonPill;
+    progressTrackingActorsPerJob -= jobId
+  }
+  
   /**
    * Handler for messages related to checkpoints.
    *
@@ -1192,6 +1204,7 @@ class TaskManager(
         partitionStateChecker,
         context.dispatcher,
         progressTrackingActorsPerJob(jobID),
+        jobManagerActor,
         context.system
       )
 

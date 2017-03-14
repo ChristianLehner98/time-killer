@@ -345,7 +345,7 @@ public class StreamTaskTest {
 			partitionProducerStateChecker,
 			executor,
 			null,
-			null);
+			null, null);
 	}
 	
 	// ------------------------------------------------------------------------

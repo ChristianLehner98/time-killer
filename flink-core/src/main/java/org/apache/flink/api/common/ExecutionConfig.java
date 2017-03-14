@@ -163,6 +163,23 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 
 	// --------------------------------------------------------------------------------------------
 
+	private int numWindows;
+	private long windowSize;
+
+
+	public void setExperimentConstants(int numWindows, long winSize){
+		this.numWindows = numWindows;
+		this.windowSize = winSize;
+	}
+
+	public int getNumWindows() {
+		return numWindows;
+	}
+
+	public long getWindowSize() {
+		return windowSize;
+	}
+
 	/**
 	 * Enables the ClosureCleaner. This analyzes user code functions and sets fields to null
 	 * that are not used. This will in most cases make closures or anonymous inner classes
