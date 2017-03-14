@@ -21,7 +21,12 @@ import org.apache.flink.streaming.runtime.tasks.progress.StructuredIterationTerm
 import org.apache.flink.types.Either;
 import org.apache.flink.util.Collector;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.InputStreamReader;
 import java.io.Serializable;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 public class StreamingConnectedComponents {
@@ -107,6 +112,36 @@ public class StreamingConnectedComponents {
 			}
 			return input;
 		}
+	}
+
+	private static class ConnectedComponentsFileSource extends RichParallelSourceFunction<Tuple2<Long,Set<Long>>> {
+		private int numberOfGraphs;
+		private BufferedReader fileReader;
+
+		public ConnectedComponentsFileSource(int numberOfGraphs, String directory) throws Exception{
+			this.numberOfGraphs = numberOfGraphs;
+			String path = directory + "/" + getRuntimeContext().getIndexOfThisSubtask();
+			fileReader = new BufferedReader(new FileReader(path));
+		}
+
+		@Override
+		public void run(SourceContext<Tuple2<Long, Set<Long>>> ctx) throws Exception {
+			for(int i=0; i<numberOfGraphs; i++) {
+				String line;
+				while( (line = fileReader.readLine()) != null) {
+					String[] splitLine = line.split(" ");
+					Long node = Long.parseLong(splitLine[0]);
+					Set<Long> neighbours = new HashSet<>();
+					for(int neighbouri=1; neighbouri<splitLine.length; ++neighbouri) {
+						neighbours.add(Long.parseLong(splitLine[neighbouri]));
+					}
+					ctx.collectWithTimestamp(new Tuple2<>(node, neighbours), i);
+				}
+			}
+		}
+
+		@Override
+		public void cancel() {}
 	}
 
 	private static class MyCoWindowTerminateFunction implements CoWindowTerminateFunction<Tuple2<Long, Set<Long>>, Tuple2<Long, Long>, Tuple2<Long,Long>, Tuple2<Long, Long>, Tuple, TimeWindow>, Serializable {
