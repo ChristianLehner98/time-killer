@@ -11,6 +11,7 @@ import org.apache.flink.streaming.api.datastream.FeedbackBuilder;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
+import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.functions.windowing.CoWindowTerminateFunction;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
@@ -18,11 +19,10 @@ import org.apache.flink.types.Either;
 import org.apache.flink.util.Collector;
 
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.Serializable;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 
 public class StreamingPageRank {
 	StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -32,8 +32,9 @@ public class StreamingPageRank {
 		int numWindows = Integer.parseInt(args[0]);
 		long windSize = Long.parseLong(args[1]);
 		int parallelism = Integer.parseInt(args[2]);
+		String inputDir = args.length > 3 ? args[3] : "";
 		
-		StreamingPageRank example = new StreamingPageRank(numWindows, windSize, parallelism);
+		StreamingPageRank example = new StreamingPageRank(numWindows, windSize, parallelism, inputDir);
 		example.run();
 	}
 
@@ -45,11 +46,17 @@ public class StreamingPageRank {
 	 * @param parallelism
 	 * @throws Exception
 	 */
-	public StreamingPageRank(int numWindows, long windSize, int parallelism) throws Exception {
+	public StreamingPageRank(int numWindows, long windSize, int parallelism, String inputDir) throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 		env.setParallelism(parallelism);
 
-		DataStream<Tuple2<Long,List<Long>>> inputStream = env.addSource(new PageRankSource(numWindows));
+		SourceFunction source;
+		if(inputDir != "") {
+			source = new PageRankFileSource(numWindows, inputDir);
+		} else {
+			source = new PageRankSource(numWindows);
+		}
+		DataStream<Tuple2<Long,List<Long>>> inputStream = env.addSource(source);
 		inputStream
 			.keyBy(0)
 			.timeWindow(Time.milliseconds(1))
@@ -59,7 +66,6 @@ public class StreamingPageRank {
 				new TupleTypeInfo<Tuple2<Long, Double>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO))
 			.print();
 		env.getConfig().setExperimentConstants(numWindows, windSize);
-		System.out.println(env.getExecutionPlan());
 	}
 
 	protected void run() throws Exception {
@@ -113,6 +119,37 @@ public class StreamingPageRank {
 			}
 			return input;
 		}
+	}
+
+
+	private static class PageRankFileSource extends RichParallelSourceFunction<Tuple2<Long,List<Long>>> {
+		private int numberOfGraphs;
+		private BufferedReader fileReader;
+
+		public PageRankFileSource(int numberOfGraphs, String directory) throws Exception{
+			this.numberOfGraphs = numberOfGraphs;
+			String path = directory + "/" + getRuntimeContext().getIndexOfThisSubtask();
+			fileReader = new BufferedReader(new FileReader(path));
+		}
+
+		@Override
+		public void run(SourceContext<Tuple2<Long, List<Long>>> ctx) throws Exception {
+			for(int i=0; i<numberOfGraphs; i++) {
+				String line;
+				while( (line = fileReader.readLine()) != null) {
+					String[] splitLine = line.split(" ");
+					Long node = Long.parseLong(splitLine[0]);
+					List<Long> neighbours = new LinkedList<>();
+					for(int neighbouri=1; neighbouri<splitLine.length; ++neighbouri) {
+						neighbours.add(Long.parseLong(splitLine[neighbouri]));
+					}
+					ctx.collectWithTimestamp(new Tuple2<>(node, neighbours), i);
+				}
+			}
+		}
+
+		@Override
+		public void cancel() {}
 	}
 
 	private static class MyCoWindowTerminateFunction implements CoWindowTerminateFunction<Tuple2<Long, List<Long>>, Tuple2<Long, Double>, Tuple2<Long,Double>, Tuple2<Long, Double>, Tuple, TimeWindow>, Serializable {

@@ -12,6 +12,7 @@ import org.apache.flink.streaming.api.datastream.FeedbackBuilder;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
+import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.functions.windowing.CoWindowTerminateFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
@@ -33,16 +34,26 @@ public class StreamingConnectedComponents {
 	StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
 	public static void main(String[] args) throws Exception {
+		int numWindows = Integer.parseInt(args[0]);
+		long windSize = Long.parseLong(args[1]);
+		int parallelism = Integer.parseInt(args[2]);
+		String inputDir = args.length > 3 ? args[3] : "";
 
-		StreamingConnectedComponents example = new StreamingConnectedComponents();
+		StreamingConnectedComponents example = new StreamingConnectedComponents(numWindows, windSize, parallelism, inputDir);
 		example.run();
 	}
 
-	public StreamingConnectedComponents() throws Exception {
+	public StreamingConnectedComponents(int numWindows, long windSize, int parallelism, String inputDir) throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-		env.setParallelism(2);
+		env.setParallelism(parallelism);
 
-		DataStream<Tuple2<Long,Set<Long>>> inputStream = env.addSource(new ConnectedComponentsSource(1));
+		SourceFunction source;
+		if(inputDir != "") {
+			source = new ConnectedComponentsFileSource(numWindows, inputDir);
+		} else {
+			source = new ConnectedComponentsSource(numWindows);
+		}
+		DataStream<Tuple2<Long,Set<Long>>> inputStream = env.addSource(source);
 		inputStream
 			.keyBy(0)
 			.timeWindow(Time.milliseconds(1))
@@ -51,7 +62,7 @@ public class StreamingConnectedComponents {
 				new MyFeedbackBuilder(),
 				new TupleTypeInfo<Tuple2<Long, Long>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.LONG_TYPE_INFO))
 			.print();
-		System.out.println(env.getExecutionPlan());
+		env.getConfig().setExperimentConstants(numWindows, windSize);
 	}
 
 	protected void run() throws Exception {
