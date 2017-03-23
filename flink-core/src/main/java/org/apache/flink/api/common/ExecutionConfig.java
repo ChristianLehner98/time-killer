@@ -165,20 +165,22 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 
 	private int numWindows;
 	private long windowSize;
+	private String outputDir;
 
 
-	public void setExperimentConstants(int numWindows, long winSize){
+	public void setExperimentConstants(int numWindows, long winSize, String outputDir){
 		this.numWindows = numWindows;
 		this.windowSize = winSize;
+		this.outputDir = outputDir;
 	}
 
 	public int getNumWindows() {
 		return numWindows;
 	}
-
 	public long getWindowSize() {
 		return windowSize;
 	}
+	public String getOutputDir() { return outputDir; }
 
 	/**
 	 * Enables the ClosureCleaner. This analyzes user code functions and sets fields to null

@@ -28,7 +28,8 @@ public class FixpointIterationTermination implements StreamIterationTermination 
 			convergedTracker.remove(watermark.getContext());
 			done.remove(watermark.getContext());
 		} else {
-			if(convergedTracker.get(watermark.getContext())) {
+			Boolean converged = convergedTracker.get(watermark.getContext());
+			if(converged != null && converged) {
 				done.add(watermark.getContext());
 			} else {
 				convergedTracker.put(watermark.getContext(), true);

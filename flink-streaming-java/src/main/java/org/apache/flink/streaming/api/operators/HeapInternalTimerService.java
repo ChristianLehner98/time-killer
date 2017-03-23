@@ -275,7 +275,6 @@ public class HeapInternalTimerService<K, N> implements InternalTimerService<N>, 
 
 		PriorityQueue<InternalTimer<K, N>> eventTimeTimersQueue = getEventTimeTimersQueue(timeContext);
 		while ((timer = eventTimeTimersQueue.peek()) != null && timer.getTimestamp() <= time) {
-
 			Set<InternalTimer<K, N>> timerSet = getEventTimeTimerSetForTimer(timer);
 			timerSet.remove(timer);
 			eventTimeTimersQueue.remove();

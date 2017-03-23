@@ -1223,7 +1223,8 @@ class JobManager(
       progressMetricsTrackers += (jobId -> context.actorOf(Props(new ProgressMetricsLogger(
         jobGraph.getJobConfiguration.getInteger("numWindows",0),
         jobGraph.getJobConfiguration.getInteger("parallelism",0),
-        jobGraph.getJobConfiguration.getLong("winSize",0)
+        jobGraph.getJobConfiguration.getLong("winSize",0),
+        jobGraph.getJobConfiguration.getString("metricsOutputDir", "out")
         )))); 
       
       try {

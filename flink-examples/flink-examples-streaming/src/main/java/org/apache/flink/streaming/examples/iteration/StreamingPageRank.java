@@ -32,9 +32,10 @@ public class StreamingPageRank {
 		int numWindows = Integer.parseInt(args[0]);
 		long windSize = Long.parseLong(args[1]);
 		int parallelism = Integer.parseInt(args[2]);
-		String inputDir = args.length > 3 ? args[3] : "";
+		String outputDir = args[3];
+		String inputDir = args.length > 4 ? args[4] : "";
 		
-		StreamingPageRank example = new StreamingPageRank(numWindows, windSize, parallelism, inputDir);
+		StreamingPageRank example = new StreamingPageRank(numWindows, windSize, parallelism, inputDir, outputDir);
 		example.run();
 	}
 
@@ -46,7 +47,7 @@ public class StreamingPageRank {
 	 * @param parallelism
 	 * @throws Exception
 	 */
-	public StreamingPageRank(int numWindows, long windSize, int parallelism, String inputDir) throws Exception {
+	public StreamingPageRank(int numWindows, long windSize, int parallelism, String inputDir, String outputDir) throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 		env.setParallelism(parallelism);
 
@@ -60,12 +61,12 @@ public class StreamingPageRank {
 		inputStream
 			.keyBy(0)
 			.timeWindow(Time.milliseconds(1))
-			.iterateSyncFor(20,
+			.iterateSyncFor(10,
 				new MyCoWindowTerminateFunction(),
 				new MyFeedbackBuilder(),
 				new TupleTypeInfo<Tuple2<Long, Double>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO))
 			.print();
-		env.getConfig().setExperimentConstants(numWindows, windSize);
+		env.getConfig().setExperimentConstants(numWindows, windSize, outputDir);
 	}
 
 	protected void run() throws Exception {
@@ -125,17 +126,18 @@ public class StreamingPageRank {
 
 	private static class PageRankFileSource extends RichParallelSourceFunction<Tuple2<Long,List<Long>>> {
 		private int numberOfGraphs;
-		private BufferedReader fileReader;
+		private String directory;
 
 		public PageRankFileSource(int numberOfGraphs, String directory) throws Exception{
 			this.numberOfGraphs = numberOfGraphs;
-			String path = directory + "/" + getRuntimeContext().getIndexOfThisSubtask();
-			fileReader = new BufferedReader(new FileReader(path));
+			this.directory = directory;
 		}
 
 		@Override
 		public void run(SourceContext<Tuple2<Long, List<Long>>> ctx) throws Exception {
-			for(int i=0; i<numberOfGraphs; i++) {
+			String path = directory + "/" + getRuntimeContext().getNumberOfParallelSubtasks() + "/part-" + getRuntimeContext().getIndexOfThisSubtask();
+			for(int i=0; i<3; i++) {
+				BufferedReader fileReader = new BufferedReader(new FileReader(path));
 				String line;
 				while( (line = fileReader.readLine()) != null) {
 					String[] splitLine = line.split(" ");
@@ -164,6 +166,7 @@ public class StreamingPageRank {
 
 		@Override
 		public void entry(Tuple key, TimeWindow win, Iterable<Tuple2<Long, List<Long>>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
+			//System.out.println(win.getTimeContext() + " " + win.getStart());
 			Map<Long, List<Long>> neighbours = neighboursPerContext.get(win.getTimeContext());
 			if(neighbours == null) {
 				neighbours = new HashMap<>();
@@ -190,7 +193,7 @@ public class StreamingPageRank {
 
 		@Override
 		public void step(Tuple key, TimeWindow win, Iterable<Tuple2<Long, Double>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
-
+			System.out.println(win.getTimeContext() + " " + win.getStart());
 			Map<Long,Double> summed = new HashMap<>();
 			for(Tuple2<Long,Double> entry : iterable) {
 				Double current = summed.get(entry.f0);
@@ -211,6 +214,7 @@ public class StreamingPageRank {
 
 				// generate new ranks for neighbours
 				Double rankToDistribute = currentRank / (double) neighbourIDs.size();
+
 				for(Long neighbourID : neighbourIDs) {
 					collector.collect(new Either.Left(new Tuple2<>(neighbourID, rankToDistribute)));
 				}

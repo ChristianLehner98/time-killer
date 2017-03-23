@@ -139,16 +139,19 @@ class LocalBufferPool implements BufferPool {
 	}
 
 	private Buffer requestBuffer(boolean isBlocking) throws InterruptedException, IOException {
+		System.out.println("in");
 		synchronized (availableMemorySegments) {
 			returnExcessMemorySegments();
 
 			boolean askToRecycle = owner != null;
 
 			while (availableMemorySegments.isEmpty()) {
+				System.out.println("hello");
 				if (isDestroyed) {
 					throw new IllegalStateException("Buffer pool is destroyed.");
 				}
 
+				System.out.println(numberOfRequestedMemorySegments + " / " + currentPoolSize);
 				if (numberOfRequestedMemorySegments < currentPoolSize) {
 					final MemorySegment segment = networkBufferPool.requestMemorySegment();
 
@@ -168,10 +171,12 @@ class LocalBufferPool implements BufferPool {
 					availableMemorySegments.wait(2000);
 				}
 				else {
+					System.out.println("out");
 					return null;
 				}
 			}
 
+			System.out.println("out");
 			return new Buffer(availableMemorySegments.poll(), this);
 		}
 	}

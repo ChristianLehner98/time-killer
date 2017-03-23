@@ -211,9 +211,11 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 						StreamElement recordOrWatermark = deserializationDelegate2.getInstance();
 						recordOrWatermark = progressHandler2.adaptTimestamp(recordOrWatermark, streamOperator.getContextLevel());
 						if (recordOrWatermark.isWatermark()) {
+							long currentTime = System.currentTimeMillis();
 							Watermark next = progressHandler2.getNextWatermark(
 								recordOrWatermark.asWatermark(), currentChannel-numInputChannels1);
 							if(next != null) {
+								streamOperator.sendMetrics(currentTime, next.getContext());
 								synchronized (lock) {
 									streamOperator.processWatermark2(next);
 								}

@@ -127,6 +127,7 @@ public class StreamIterationTail<IN> extends OneInputStreamTask<IN, IN> {
 
 		@Override
 		public void close() {
+			System.out.println("EXIT");
 		}
 	}
 }

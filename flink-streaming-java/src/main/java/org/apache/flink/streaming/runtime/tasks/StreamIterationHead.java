@@ -86,6 +86,7 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 
 						mark.forwardTimestamp();
 						for (RecordWriterOutput<OUT> output : outputs) {
+							System.out.println("@HEAD: " + mark);
 							output.emitWatermark(mark);
 						}
 					} else if(nextElement.isRecord()) {

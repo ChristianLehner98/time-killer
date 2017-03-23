@@ -976,24 +976,28 @@ public class WindowedStream<T, K, W extends Window> {
 								StreamIterationTermination terminationStrategy, 
 								FeedbackBuilder<R> feedbackBuilder, 
 								TypeInformation<R> feedbackType) throws Exception {
-		// add watermark filler
-		OneInputTransformation<T, T> watermarkfiller = new OneInputTransformation<T,T>(
-			input.getTransformation(),
-			"OneWatermarkPerContext",
-			new WindowedStreamWatermarkFiller<T>(),
-			input.getTransformation().getOutputType(),
-			input.getTransformation().getParallelism()
-		);
 
 		DataStream<T> scopedStreamInput = new SingleOutputStreamOperator<T>(input.getExecutionEnvironment(),
-			new ScopeTransformation<T>(watermarkfiller, ScopeTransformation.SCOPE_TYPE.INGRESS));
+			new ScopeTransformation<T>(input.getTransformation(), ScopeTransformation.SCOPE_TYPE.INGRESS));
+
+		// add watermark filler
+//		OneInputTransformation<T, T> watermarkfiller = new OneInputTransformation<T,T>(
+//			scopedStreamInput.getTransformation(),
+//			"OneWatermarkPerContext",
+//			new WindowedStreamWatermarkFiller<T>(),
+//			scopedStreamInput.getTransformation().getOutputType(),
+//			scopedStreamInput.getTransformation().getParallelism()
+//		);
 
 		WindowedStream<T,K,W> scopedWindowStream = new WindowedStream<>(
 			new KeyedStream<>(scopedStreamInput, input.getKeySelector(),
 				input.getKeyType()), getWindowAssigner());
 
+		//new KeyedStream<>(new SingleOutputStreamOperator<>(scopedStreamInput.getExecutionEnvironment(), watermarkfiller), input.getKeySelector(),
+		//		input.getKeyType()), getWindowAssigner());
+
 		IterativeWindowStream<T,W,F,K,R,OUT> iterativeStream = new IterativeWindowStream<>(
-			scopedWindowStream, coWinTermFun, terminationStrategy, feedbackBuilder, feedbackType, 3000);
+			scopedWindowStream, coWinTermFun, terminationStrategy, feedbackBuilder, feedbackType, 100000);
 
 		DataStream<OUT> outStream = iterativeStream.loop();
 

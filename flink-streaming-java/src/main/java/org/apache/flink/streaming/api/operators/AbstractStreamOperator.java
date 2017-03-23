@@ -18,6 +18,7 @@
 
 package org.apache.flink.streaming.api.operators;
 
+import akka.actor.ActorRef;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.flink.annotation.PublicEvolving;
@@ -37,6 +38,7 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.metrics.groups.OperatorMetricGroup;
+import org.apache.flink.runtime.progress.messages.ProgressMetricsReport;
 import org.apache.flink.runtime.state.AbstractKeyedStateBackend;
 import org.apache.flink.runtime.state.CheckpointStreamFactory;
 import org.apache.flink.runtime.state.DefaultKeyedStateStore;
@@ -66,10 +68,7 @@ import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
-import java.util.ConcurrentModificationException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 
@@ -855,4 +854,7 @@ public abstract class AbstractStreamOperator<OUT>
 		}
 		return count;
 	}
+
+	@Override
+	public void sendMetrics(long windowEnd, List<Long> context) {}
 }

@@ -356,13 +356,16 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 					windowStateDescriptor);
 		}
 
+
 		ACC contents = windowState.get();
 		if (contents == null) {
 			// if we have no state, there is nothing to do
 			return;
 		}
 
+
 		TriggerResult triggerResult = context.onEventTime(timer.getTimeContext(), timer.getTimestamp());
+
 		if (triggerResult.isFire()) {
 			fire(context.window, contents);
 		}

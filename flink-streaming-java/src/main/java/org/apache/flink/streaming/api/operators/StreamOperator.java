@@ -26,6 +26,7 @@ import org.apache.flink.streaming.runtime.tasks.OperatorStateHandles;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * Basic interface for stream operators. Implementers would implement one of
@@ -142,5 +143,5 @@ public interface StreamOperator<OUT> extends Serializable {
 	void setChainingStrategy(ChainingStrategy strategy);
 	
 	MetricGroup getMetricGroup();
-	
+	void sendMetrics(long windowEnd, List<Long> context);
 }
