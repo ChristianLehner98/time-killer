@@ -57,7 +57,9 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 
 		// create feedback sink
 		Tuple2<DataStream<R>, DataStream<S>> streams = applyCoWinTerm(coWinTerm, windowedStream1, windowedStream2);
-		coFeedbackTransformation.addFeedbackEdge(streams.f0.getTransformation());
+		
+		
+		coFeedbackTransformation.addFeedbackEdge(feedbackBuilder.<R,K>feedback(streams.f0).getTransformation());
 		outStream = streams.f1;
 	}
 

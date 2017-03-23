@@ -583,7 +583,12 @@ public class Task implements Runnable, TaskActions {
 
 			LOG.info("Registering task at network: {}.", this);
 
-			network.registerTask(this);
+			if(this.getTaskInfo().getTaskName().contains("TwoWindow")){
+				network.registerTask(this);
+			}
+			else{
+				network.registerTask(this);
+			}
 
 			// next, kick off the background copying of files for the distributed cache
 			try {

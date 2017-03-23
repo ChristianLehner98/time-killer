@@ -101,7 +101,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 
 	public void processWatermark1(Watermark mark) throws Exception {
 		lastWinStartPerContext.put(mark.getContext(), System.currentTimeMillis());
-		System.out.println(mark);
+		//System.out.println(mark);
 		winOp1.processWatermark(mark);
 		lastLocalEndPerContext.put(mark.getContext(), System.currentTimeMillis());
 

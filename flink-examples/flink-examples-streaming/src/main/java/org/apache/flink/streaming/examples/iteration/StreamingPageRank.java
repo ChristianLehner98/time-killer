@@ -70,6 +70,7 @@ public class StreamingPageRank {
 	}
 
 	protected void run() throws Exception {
+		System.out.println(env.getExecutionPlan());
 		env.execute("Streaming Sync Iteration Example");
 	}
 
@@ -193,7 +194,7 @@ public class StreamingPageRank {
 
 		@Override
 		public void step(Tuple key, TimeWindow win, Iterable<Tuple2<Long, Double>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
-			System.out.println(win.getTimeContext() + " " + win.getStart());
+			//System.out.println(win.getTimeContext() + " " + win.getStart());
 			Map<Long,Double> summed = new HashMap<>();
 			for(Tuple2<Long,Double> entry : iterable) {
 				Double current = summed.get(entry.f0);
