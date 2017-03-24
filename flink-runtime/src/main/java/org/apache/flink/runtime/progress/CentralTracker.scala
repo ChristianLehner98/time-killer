@@ -8,7 +8,7 @@ import org.apache.flink.runtime.progress.messages.{InitLocalTracker, NumberOfAct
 import org.apache.flink.api.java.tuple.Tuple2
 import org.slf4j.{Logger, LoggerFactory}
 
-class CentralTracker(pathSummaries: java.util.Map[Integer, java.util.Map[Integer, PartialOrderMinimumSet]], maxScopeLevel: Integer) extends Actor {
+class CentralTracker(pathSummaries: java.util.Map[Integer, java.util.Map[Integer, PartialOrderMinimumSet]], maxScopeLevel: Integer, numberOfGlobalInstances: Integer) extends Actor {
   private var localTrackers = Set[ActorRef]()
   private var LOG: Logger = LoggerFactory.getLogger(classOf[CentralTracker])
   private var taskManagerCount: Option[Int] = None
@@ -35,7 +35,7 @@ class CentralTracker(pathSummaries: java.util.Map[Integer, java.util.Map[Integer
       // now all task managers registered and we can send out the initialisation
       hasBeenSentOut = true
       for(actorRef <- localTrackers) {
-        actorRef ! InitLocalTracker(localTrackers, pathSummaries, maxScopeLevel)
+        actorRef ! InitLocalTracker(localTrackers, pathSummaries, maxScopeLevel, numberOfGlobalInstances)
       }
     }
   }

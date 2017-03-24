@@ -18,6 +18,7 @@
 
 package org.apache.flink.streaming.api.functions;
 
+import org.apache.flink.runtime.progress.messages.ProgressUpdate;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
 
@@ -79,4 +80,16 @@ public class ListSourceContext<T> implements SourceFunction.SourceContext<T> {
 	public void close() {
 
 	}
+
+	@Override
+	public ProgressUpdate getProgressAggregator() { return null; }
+
+	@Override
+	public Integer getOperatorId() { return null ;}
+
+	@Override
+	public void sendProgress() {}
+
+	@Override
+	public void collectInternalProgress(Integer operatorId, List<Long> timestamp, int delta) {}
 }

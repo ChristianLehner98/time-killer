@@ -121,6 +121,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 			public void receiveProgressNotification(List<Long> timestamp, boolean done) throws Exception {
 				long iterationId = timestamp.remove(timestamp.size()-1);
 				long lastWinStart = System.currentTimeMillis();
+				System.out.println(new Watermark(timestamp, iterationId) + " @ " + getRuntimeContext().getIndexOfThisSubtask());
 				winOp1.processWatermark(new Watermark(timestamp, iterationId));
 				long lastLocalEnd = System.currentTimeMillis();
 				List<Long> nextTimestamp = new LinkedList<>(timestamp);
@@ -131,7 +132,6 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	}
 
 	private void notifyNext(final List<Long> nextTimestamp, final List<Long> context, final long lastWinStart, final long lastLocalEnd) {
-		LOG.info("Request: " + nextTimestamp + " / " + context + ", done: " + terminationStrategy.terminate(context));
 		notifyOnce(nextTimestamp, new Notifyable() {
 			@Override
 			public void receiveProgressNotification(List<Long> nextTs, boolean done) throws Exception {
@@ -147,7 +147,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 							context, lastWinStart,lastLocalEnd,System.currentTimeMillis()
 							), ActorRef.noSender());
 					Watermark watermark = new Watermark(nextTs, iterationId);
-					System.out.println(watermark);
+					System.out.println(watermark + " @ " + getRuntimeContext().getIndexOfThisSubtask());
 					terminationStrategy.observeWatermark(watermark);
 					long nextWinStart = System.currentTimeMillis();
 					winOp2.processWatermark(watermark);

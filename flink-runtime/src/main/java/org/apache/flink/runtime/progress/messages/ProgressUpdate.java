@@ -11,10 +11,15 @@ import java.util.Map;
 
 public class ProgressUpdate implements Serializable {
 	private Map<Tuple3<Integer,List<Long>,Boolean>, Integer> countmap = new HashMap<>();
+	private Integer instanceId;
 
 	public ProgressUpdate() {}
 	public ProgressUpdate(ProgressUpdate other) {
 		this.countmap = new HashMap<>(other.countmap);
+	}
+	public ProgressUpdate(ProgressUpdate other, Integer instanceId) {
+		this.countmap = new HashMap<>(other.countmap);
+		this.instanceId = instanceId;
 	}
 
 	public void mergeIn(ProgressUpdate other) {
@@ -67,5 +72,9 @@ public class ProgressUpdate implements Serializable {
 	@Override
 	public String toString() {
 		return "ProgressUpdate: " + countmap;
+	}
+
+	public Integer getInstanceId() {
+		return instanceId;
 	}
 }

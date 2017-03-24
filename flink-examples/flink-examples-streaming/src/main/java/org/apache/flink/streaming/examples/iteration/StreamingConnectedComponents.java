@@ -37,13 +37,14 @@ public class StreamingConnectedComponents {
 		int numWindows = Integer.parseInt(args[0]);
 		long windSize = Long.parseLong(args[1]);
 		int parallelism = Integer.parseInt(args[2]);
-		String inputDir = args.length > 3 ? args[3] : "";
+		String outputDir = args[3];
+		String inputDir = args.length > 4 ? args[4] : "";
 
-		StreamingConnectedComponents example = new StreamingConnectedComponents(numWindows, windSize, parallelism, inputDir);
+		StreamingConnectedComponents example = new StreamingConnectedComponents(numWindows, windSize, parallelism, inputDir, outputDir);
 		example.run();
 	}
 
-	public StreamingConnectedComponents(int numWindows, long windSize, int parallelism, String inputDir) throws Exception {
+	public StreamingConnectedComponents(int numWindows, long windSize, int parallelism, String inputDir, String outputDir) throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 		env.setParallelism(parallelism);
 
@@ -62,7 +63,7 @@ public class StreamingConnectedComponents {
 				new MyFeedbackBuilder(),
 				new TupleTypeInfo<Tuple2<Long, Long>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.LONG_TYPE_INFO))
 			.print();
-		env.getConfig().setExperimentConstants(numWindows, windSize);
+		env.getConfig().setExperimentConstants(numWindows, windSize, outputDir);
 	}
 
 	protected void run() throws Exception {
@@ -127,17 +128,23 @@ public class StreamingConnectedComponents {
 
 	private static class ConnectedComponentsFileSource extends RichParallelSourceFunction<Tuple2<Long,Set<Long>>> {
 		private int numberOfGraphs;
-		private BufferedReader fileReader;
+		private String directory;
 
 		public ConnectedComponentsFileSource(int numberOfGraphs, String directory) throws Exception{
 			this.numberOfGraphs = numberOfGraphs;
-			String path = directory + "/" + getRuntimeContext().getIndexOfThisSubtask();
-			fileReader = new BufferedReader(new FileReader(path));
+			this.directory = directory;
 		}
 
 		@Override
 		public void run(SourceContext<Tuple2<Long, Set<Long>>> ctx) throws Exception {
+			int operatorId = ctx.getOperatorId();
+			String path = directory + "/" + getRuntimeContext().getNumberOfParallelSubtasks() + "/part-" + getRuntimeContext().getIndexOfThisSubtask();
 			for(int i=0; i<numberOfGraphs; i++) {
+				BufferedReader fileReader = new BufferedReader(new FileReader(path));
+				List<Long> context = new LinkedList<>();
+				context.add(new Long(i));
+				ctx.collectInternalProgress(operatorId, context, 1000);
+				ctx.sendProgress();
 				String line;
 				while( (line = fileReader.readLine()) != null) {
 					String[] splitLine = line.split(" ");
@@ -148,6 +155,7 @@ public class StreamingConnectedComponents {
 					}
 					ctx.collectWithTimestamp(new Tuple2<>(node, neighbours), i);
 				}
+				ctx.collectInternalProgress(operatorId, context, -1000);
 			}
 		}
 

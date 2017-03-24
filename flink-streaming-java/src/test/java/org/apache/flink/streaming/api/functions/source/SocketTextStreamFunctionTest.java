@@ -20,6 +20,7 @@ package org.apache.flink.streaming.api.functions.source;
 
 import org.apache.commons.io.IOUtils;
 
+import org.apache.flink.runtime.progress.messages.ProgressUpdate;
 import org.apache.flink.streaming.api.watermark.Watermark;
 
 import org.junit.Test;
@@ -28,6 +29,7 @@ import java.io.EOFException;
 import java.io.OutputStreamWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -292,6 +294,18 @@ public class SocketTextStreamFunctionTest {
 
 					@Override
 					public void close() {}
+
+					@Override
+					public ProgressUpdate getProgressAggregator() { return null; }
+
+					@Override
+					public Integer getOperatorId() { return null ;}
+
+					@Override
+					public void sendProgress() {}
+
+					@Override
+					public void collectInternalProgress(Integer operatorId, List<Long> timestamp, int delta) {}
 				};
 				
 				socketSource.run(ctx);

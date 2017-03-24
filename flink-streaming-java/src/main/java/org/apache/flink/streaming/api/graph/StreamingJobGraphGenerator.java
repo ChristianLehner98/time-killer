@@ -132,6 +132,7 @@ public class StreamingJobGraphGenerator {
 		jobGraph.getJobConfiguration().setInteger("numWindows", streamGraph.getExecutionConfig().getNumWindows());
 		jobGraph.getJobConfiguration().setLong("winSize", streamGraph.getExecutionConfig().getWindowSize());
 		jobGraph.getJobConfiguration().setInteger("parallelism", streamGraph.getExecutionConfig().getParallelism());
+		jobGraph.getJobConfiguration().setString("metricsOutputDir", streamGraph.getExecutionConfig().getOutputDir());
 		
 		return jobGraph;
 	}

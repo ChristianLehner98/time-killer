@@ -1231,14 +1231,18 @@ class JobManager(
       log.info(s"Submitting job $jobId ($jobName)" + (if (isRecovery) " (Recovery)" else "") + ".")
 
       // INIT PROGRESS TRACKING FOR THIS JOB
-      val actorRef: ActorRef = context.actorOf(Props(new CentralTracker(jobGraph.getPathSummaries, jobGraph.getMaxScopeLevel)))
+
+      val numberOfGlobalInstances = (jobGraph.getVertices().asScala.filter(!_.getName.contains("IterationSource")).size) * jobGraph.getMaximumParallelism // TODO!!
+      val actorRef: ActorRef = context.actorOf(Props(new CentralTracker(
+        jobGraph.getPathSummaries, jobGraph.getMaxScopeLevel, numberOfGlobalInstances)))
       centralTrackers += (jobId -> actorRef)
       
       progressMetricsTrackers += (jobId -> context.actorOf(Props(new ProgressMetricsLogger(
         jobGraph.getJobConfiguration.getInteger("numWindows",0),
         jobGraph.getJobConfiguration.getInteger("parallelism",0),
-        jobGraph.getJobConfiguration.getLong("winSize",0)
-        )))); 
+        jobGraph.getJobConfiguration.getLong("winSize",0),
+        jobGraph.getJobConfiguration.getString("metricsOutputDir", "out")
+        ))))
       
       try {
         // Important: We need to make sure that the library registration is the first action,

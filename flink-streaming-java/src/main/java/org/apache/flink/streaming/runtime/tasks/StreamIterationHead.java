@@ -40,8 +40,6 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 
 	// ------------------------------------------------------------------------
 
-	
-
 	@Override
 	protected void run() throws Exception {
 		final String iterationId = getConfiguration().getIterationId();

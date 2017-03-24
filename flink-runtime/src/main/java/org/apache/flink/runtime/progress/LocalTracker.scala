@@ -9,6 +9,7 @@ import org.apache.flink.runtime.progress.messages._
 import org.apache.flink.api.java.tuple.{Tuple3 => JTuple3}
 import java.util.{Collections, List => JList}
 
+import org.apache.flink.runtime.jobgraph.JobVertexID
 import org.apache.flink.runtime.messages.JobManagerMessages.CancelJob
 import org.slf4j.{Logger, LoggerFactory}
 
@@ -23,11 +24,19 @@ class LocalTracker() extends Actor {
   private var maxScopeLevel: Integer = 0
   private var LOG: Logger = LoggerFactory.getLogger(classOf[LocalTracker])
 
+  private var seenInstances = Set[(JobVertexID,Integer)]()
+  private var numberOfGlobalInstances: Integer = _
+
   def receive : Receive = {
     case progress: ProgressUpdate =>
-      if (pathSummaries != null) {
+      if (pathSummaries != null && seenInstances.size == numberOfGlobalInstances) {
+        if(initProgressBuffer.nonEmpty) {
+          for ((from, progress) <- initProgressBuffer.reverse) {
+            update(progress, from)
+          }
+          initProgressBuffer = List()
+        }
         update(progress, sender())
-        //LOG.info(localOperatorProgress.toString())
       } else {
         initProgressBuffer = (sender(), progress) :: initProgressBuffer
       }
@@ -37,10 +46,20 @@ class LocalTracker() extends Actor {
       pathSummaries = init.pathSummaries
       otherNodes = init.otherNodes.filter(!_.equals(self))
       maxScopeLevel = init.maxScopeLevel
-      for((from, progress) <- initProgressBuffer.reverse) {
-        update(progress, from)
+      numberOfGlobalInstances = init.numberOfGlobalInstances
+      if(seenInstances.size == numberOfGlobalInstances) {
+        for ((from, progress) <- initProgressBuffer.reverse) {
+          update(progress, from)
+        }
       }
       initProgressBuffer = List()
+
+    case hello: InstanceReady =>
+      if(!otherNodes.contains(sender())) {
+        // hello comes from local operator and needs to be broadcast to other nodes
+        broadcastHello(hello)
+      }
+      seenInstances += (hello.operatorId -> hello.instanceId)
 
     case registration: ProgressRegistration =>
       //System.out.println(registration)
@@ -51,7 +70,7 @@ class LocalTracker() extends Actor {
       }
 
     case notificationRequest: ProgressNotificationRequest =>
-      System.out.println(notificationRequest)
+      //System.out.println(notificationRequest)
       val opProgress = localOperatorProgress(notificationRequest.getOperatorId)
 
       broadcastDone(IsDone(notificationRequest.isDone, notificationRequest.getOperatorId, notificationRequest.getInstanceId, notificationRequest.getTimestamp))
@@ -92,8 +111,6 @@ class LocalTracker() extends Actor {
     if(!otherNodes.contains(from)) {
       // update comes from local operator and needs to be broadcast to other nodes
       broadcastUpdate(progress)
-    } else {
-      LOG.info(progress.toString)
     }
 
     // update progress
@@ -130,6 +147,12 @@ class LocalTracker() extends Actor {
   }
 
   private def broadcastUpdate(message : ProgressUpdate) : Unit = {
+    for(node : ActorRef <- otherNodes) {
+      node ! message
+    }
+  }
+
+  private def broadcastHello(message : InstanceReady) : Unit = {
     for(node : ActorRef <- otherNodes) {
       node ! message
     }

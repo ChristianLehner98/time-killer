@@ -19,6 +19,7 @@
 package org.apache.flink.streaming.api.functions;
 
 import org.apache.flink.core.testutils.OneShotLatch;
+import org.apache.flink.runtime.progress.messages.ProgressUpdate;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.functions.source.StatefulSequenceSource;
 import org.apache.flink.streaming.api.operators.StreamSource;
@@ -238,5 +239,17 @@ public class StatefulSequenceSourceTest {
 		@Override
 		public void close() {
 		}
+
+		@Override
+		public ProgressUpdate getProgressAggregator() { return null; }
+
+		@Override
+		public Integer getOperatorId() { return null ;}
+
+		@Override
+		public void sendProgress() {}
+
+		@Override
+		public void collectInternalProgress(Integer operatorId, List<Long> timestamp, int delta) {}
 	}
 }

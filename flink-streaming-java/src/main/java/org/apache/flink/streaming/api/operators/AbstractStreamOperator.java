@@ -178,14 +178,6 @@ public abstract class AbstractStreamOperator<OUT>
 		this.container = containingTask;
 		this.config = config;
 
-		// PROGRESS TRACKING
-		operatorId = config.getVertexID();
-		containingTask.addProgressUpdateReference(progressAggregator);
-
-		if(wantsProgressNotifications()) {
-			container.getLocalTrackerRef().tell(new ProgressRegistration(operatorId, scopeLevel, container.getCurrentNumberOfSubtasks()), null);
-		}
-
 		this.metrics = container.getEnvironment().getMetricGroup().addOperator(config.getOperatorName());
 		
 		this.output = new CountingOutput(output, ((OperatorMetricGroup) this.metrics).getIOMetricGroup().getNumRecordsOutCounter(), progressAggregator);
@@ -204,6 +196,14 @@ public abstract class AbstractStreamOperator<OUT>
 
 		latencyGauge = this.metrics.gauge("latency", new LatencyGauge(historySize));
 		this.runtimeContext = new StreamingRuntimeContext(this, container.getEnvironment(), container.getAccumulatorMap());
+
+		// PROGRESS TRACKING
+		operatorId = config.getVertexID();
+		containingTask.addProgressUpdateReference(progressAggregator);
+		if(wantsProgressNotifications()) {
+			container.getLocalTrackerRef().tell(new ProgressRegistration(operatorId, scopeLevel, container.getCurrentNumberOfSubtasks()), null);
+		}
+		container.getLocalTrackerRef().tell(new InstanceReady(containingTask.getEnvironment().getJobVertexId(), this.runtimeContext.getIndexOfThisSubtask()), null);
 
 		stateKeySelector1 = config.getStatePartitioner(0, getUserCodeClassloader());
 		stateKeySelector2 = config.getStatePartitioner(1, getUserCodeClassloader());
@@ -957,6 +957,13 @@ public abstract class AbstractStreamOperator<OUT>
 	public void sendProgress() {
 		ActorRef ref = container.getLocalTrackerRef();
 		ref.tell(new ProgressUpdate(progressAggregator), null);
+		progressAggregator.clear();
+	}
+
+	@Override
+	public void sendProgressWithInstanceId() {
+		ActorRef ref = container.getLocalTrackerRef();
+		ref.tell(new ProgressUpdate(progressAggregator, getRuntimeContext().getIndexOfThisSubtask()), null);
 		progressAggregator.clear();
 	}
 

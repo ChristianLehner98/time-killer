@@ -150,6 +150,7 @@ public interface StreamOperator<OUT> extends Serializable {
 	//void executeNotificationCallbacks();
 	void notifyOnce(List<Long> timestamp, Notifyable notifyable, boolean done);
 	void sendProgress();
+	void sendProgressWithInstanceId();
 	void collectProgress(Integer operatorId, List<Long> timestamp, int delta);
 	void collectInternalProgress(Integer operatorId, List<Long> timestamp, int delta);
 

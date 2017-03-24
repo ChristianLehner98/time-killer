@@ -19,9 +19,12 @@
 package org.apache.flink.streaming.api.functions.source;
 
 import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.runtime.progress.messages.ProgressUpdate;
 import org.apache.flink.streaming.api.watermark.Watermark;
 
 import org.junit.Test;
+
+import java.util.List;
 
 /**
  * Tests for the {@link org.apache.flink.streaming.api.functions.source.FileMonitoringFunction}.
@@ -62,6 +65,18 @@ public class FileMonitoringFunctionTest {
 
 					@Override
 					public void close() {}
+
+					@Override
+					public ProgressUpdate getProgressAggregator() { return null; }
+
+					@Override
+					public Integer getOperatorId() { return null ;}
+
+					@Override
+					public void sendProgress() {}
+
+					@Override
+					public void collectInternalProgress(Integer operatorId, List<Long> timestamp, int delta) {}
 				});
 	}
 }

@@ -27,11 +27,11 @@ class LocalOperatorProgress(parallelism:Integer, maxScopeLevel: Integer) {
     */
   def addNotification(timestamp: java.util.List[Long], instanceId: Integer, done: Boolean, actorRef: ActorRef): Unit = {
     var timestampCopy: java.util.List[Long] = new util.LinkedList[Long](timestamp)
-    System.out.println("NOTIFICATION REQUEST: " + instanceId + " -> " + timestamp)
-    System.out.println("PENDING BEFORE: " + pendingNotifications)
+    //System.out.println("NOTIFICATION REQUEST: " + instanceId + " -> " + timestamp)
+    //System.out.println("PENDING BEFORE: " + pendingNotifications)
     pendingNotifications += (timestampCopy -> (pendingNotifications(timestampCopy) + Instance(actorRef, instanceId)))
     doneCollector += (timestamp -> (doneCollector(timestamp) + (instanceId -> done)))
-    System.out.println("PENDING AFTER: " + pendingNotifications)
+    //System.out.println("PENDING AFTER: " + pendingNotifications)
   }
 
   def updateFrontier(timestamp: java.util.List[Long], delta: Integer): Boolean = {
@@ -64,8 +64,8 @@ class LocalOperatorProgress(parallelism:Integer, maxScopeLevel: Integer) {
         // allDoneInfoReceived corresponds to all actual instances (parallelism)
         var allDoneInfoReceived = doneCollector(timestamp).size == parallelism
 
-        System.out.println(doneCollector(timestamp))
-        System.out.println("ALLDONE: " + allInstancesDone + ", " + "ALLINFO: " + allDoneInfoReceived)
+        //System.out.println(doneCollector(timestamp))
+        //System.out.println("ALLDONE: " + allInstancesDone + ", " + "ALLINFO: " + allDoneInfoReceived)
 
         if(frontier.ready(timestamp) && (!allInstancesDone || allDoneInfoReceived)) {
           for(instance <- instances) {

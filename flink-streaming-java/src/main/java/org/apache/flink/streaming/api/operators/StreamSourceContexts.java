@@ -17,6 +17,7 @@
 
 package org.apache.flink.streaming.api.operators;
 
+import org.apache.flink.runtime.progress.messages.ProgressUpdate;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -25,6 +26,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.util.Preconditions;
 
+import java.util.List;
 import java.util.concurrent.ScheduledFuture;
 
 /**
@@ -42,13 +44,14 @@ public class StreamSourceContexts {
 	 * </ul>
 	 * */
 	public static <OUT> SourceFunction.SourceContext<OUT> getSourceContext(
-			TimeCharacteristic timeCharacteristic, ProcessingTimeService processingTimeService,
-			Object checkpointLock, Output<StreamRecord<OUT>> output, long watermarkInterval) {
+		TimeCharacteristic timeCharacteristic, ProcessingTimeService processingTimeService,
+		Object checkpointLock, Output<StreamRecord<OUT>> output, long watermarkInterval,
+		ProgressUpdate progressAggregator, Integer operatorId, StreamSource source) {
 
 		final SourceFunction.SourceContext<OUT> ctx;
 		switch (timeCharacteristic) {
 			case EventTime:
-				ctx = new ManualWatermarkContext<>(checkpointLock, output);
+				ctx = new ManualWatermarkContext<>(checkpointLock, output, progressAggregator, operatorId, source);
 				break;
 			case IngestionTime:
 				ctx = new AutomaticWatermarkContext<>(processingTimeService, checkpointLock, output, watermarkInterval);
@@ -103,6 +106,18 @@ public class StreamSourceContexts {
 
 		@Override
 		public void close() {}
+
+		@Override
+		public ProgressUpdate getProgressAggregator() { return null; }
+
+		@Override
+		public Integer getOperatorId() { return null ;}
+
+		@Override
+		public void collectInternalProgress(Integer operatorId, List<Long> timestamp, int delta) {}
+
+		@Override
+		public void sendProgress() {}
 	}
 
 	/**
@@ -237,6 +252,18 @@ public class StreamSourceContexts {
 						nextWatermark, new WatermarkEmittingTask(this.timeService, lock, output));
 			}
 		}
+
+		@Override
+		public ProgressUpdate getProgressAggregator() { return null; }
+
+		@Override
+		public Integer getOperatorId() { return null ;}
+
+		@Override
+		public void sendProgress() {}
+
+		@Override
+		public void collectInternalProgress(Integer operatorId, List<Long> timestamp, int delta) {}
 	}
 
 	/**
@@ -252,11 +279,17 @@ public class StreamSourceContexts {
 		private final Object lock;
 		private final Output<StreamRecord<T>> output;
 		private final StreamRecord<T> reuse;
+		private ProgressUpdate progressAggregator;
+		private Integer operatorId;
+		private StreamSource source;
 
-		private ManualWatermarkContext(Object checkpointLock, Output<StreamRecord<T>> output) {
+		private ManualWatermarkContext(Object checkpointLock, Output<StreamRecord<T>> output, ProgressUpdate progressAggregator, Integer operatorId, StreamSource source) {
 			this.lock = Preconditions.checkNotNull(checkpointLock, "The checkpoint lock cannot be null.");
 			this.output = Preconditions.checkNotNull(output, "The output cannot be null.");
 			this.reuse = new StreamRecord<>(null);
+			this.progressAggregator = progressAggregator;
+			this.operatorId = operatorId;
+			this.source = source;
 		}
 
 		@Override
@@ -287,5 +320,25 @@ public class StreamSourceContexts {
 
 		@Override
 		public void close() {}
+
+		@Override
+		public ProgressUpdate getProgressAggregator() {
+			return progressAggregator;
+		}
+
+		@Override
+		public Integer getOperatorId() {
+			return operatorId;
+		}
+
+		@Override
+		public void sendProgress() {
+			source.sendProgressWithInstanceId();
+		}
+
+		@Override
+		public void collectInternalProgress(Integer operatorId, List<Long> timestamp, int delta) {
+			source.collectInternalProgress(operatorId, timestamp, delta);
+		}
 	}
 }

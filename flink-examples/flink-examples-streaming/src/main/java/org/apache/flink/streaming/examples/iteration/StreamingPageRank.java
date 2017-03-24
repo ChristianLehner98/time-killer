@@ -32,9 +32,10 @@ public class StreamingPageRank {
 		int numWindows = Integer.parseInt(args[0]);
 		long windSize = Long.parseLong(args[1]);
 		int parallelism = Integer.parseInt(args[2]);
-		String inputDir = args.length > 3 ? args[3] : "";
+		String outputDir = args[3];
+		String inputDir = args.length > 4 ? args[4] : "";
 		
-		StreamingPageRank example = new StreamingPageRank(numWindows, windSize, parallelism, inputDir);
+		StreamingPageRank example = new StreamingPageRank(numWindows, windSize, parallelism, inputDir, outputDir);
 		example.run();
 	}
 
@@ -46,12 +47,12 @@ public class StreamingPageRank {
 	 * @param parallelism
 	 * @throws Exception
 	 */
-	public StreamingPageRank(int numWindows, long windSize, int parallelism, String inputDir) throws Exception {
+	public StreamingPageRank(int numWindows, long windSize, int parallelism, String inputDir, String outputDir) throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 		env.setParallelism(parallelism);
 
 		SourceFunction source;
-		if(inputDir != "") {
+		if(!inputDir.equals("")) {
 			source = new PageRankFileSource(numWindows, inputDir);
 		} else {
 			source = new PageRankSource(numWindows);
@@ -60,12 +61,12 @@ public class StreamingPageRank {
 		inputStream
 			.keyBy(0)
 			.timeWindow(Time.milliseconds(1))
-			.iterateSyncFor(20,
+			.iterateSyncFor(10,
 				new MyCoWindowTerminateFunction(),
 				new MyFeedbackBuilder(),
 				new TupleTypeInfo<Tuple2<Long, Double>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO))
 			.print();
-		env.getConfig().setExperimentConstants(numWindows, windSize);
+		env.getConfig().setExperimentConstants(numWindows, windSize, outputDir);
 	}
 
 	protected void run() throws Exception {
@@ -124,17 +125,23 @@ public class StreamingPageRank {
 
 	private static class PageRankFileSource extends RichParallelSourceFunction<Tuple2<Long,List<Long>>> {
 		private int numberOfGraphs;
-		private BufferedReader fileReader;
+		private String directory;
 
 		public PageRankFileSource(int numberOfGraphs, String directory) throws Exception{
 			this.numberOfGraphs = numberOfGraphs;
-			String path = directory + "/" + getRuntimeContext().getIndexOfThisSubtask();
-			fileReader = new BufferedReader(new FileReader(path));
+			this.directory = directory;
 		}
 
 		@Override
 		public void run(SourceContext<Tuple2<Long, List<Long>>> ctx) throws Exception {
+			int operatorId = ctx.getOperatorId();
+			String path = directory + "/" + getRuntimeContext().getNumberOfParallelSubtasks() + "/part-" + getRuntimeContext().getIndexOfThisSubtask();
 			for(int i=0; i<numberOfGraphs; i++) {
+				BufferedReader fileReader = new BufferedReader(new FileReader(path));
+				List<Long> context = new LinkedList<>();
+				context.add(new Long(i));
+				ctx.collectInternalProgress(operatorId, context, 1000);
+				ctx.sendProgress();
 				String line;
 				while( (line = fileReader.readLine()) != null) {
 					String[] splitLine = line.split(" ");
@@ -145,6 +152,7 @@ public class StreamingPageRank {
 					}
 					ctx.collectWithTimestamp(new Tuple2<>(node, neighbours), i);
 				}
+				ctx.collectInternalProgress(operatorId, context, -1000);
 			}
 		}
 

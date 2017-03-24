@@ -31,6 +31,7 @@ import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.runtime.jobgraph.tasks.InputSplitProvider;
 import org.apache.flink.runtime.memory.MemoryManager;
 import org.apache.flink.runtime.operators.testutils.MockEnvironment;
+import org.apache.flink.runtime.progress.messages.ProgressUpdate;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.StreamingRuntimeContext;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -39,6 +40,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 public class InputFormatSourceFunctionTest {
 
@@ -233,6 +235,18 @@ public class InputFormatSourceFunctionTest {
 		public void close() {
 			throw new UnsupportedOperationException();
 		}
+
+		@Override
+		public ProgressUpdate getProgressAggregator() { return null; }
+
+		@Override
+		public Integer getOperatorId() { return null ;}
+
+		@Override
+		public void sendProgress() {}
+
+		@Override
+		public void collectInternalProgress(Integer operatorId, List<Long> timestamp, int delta) {}
 
 		public int getSplitsSeen() {
 			return this.splitIdx;

@@ -18,6 +18,7 @@
 
 package org.apache.flink.streaming.connectors.kafka.internals;
 
+import org.apache.flink.runtime.progress.messages.ProgressUpdate;
 import org.apache.flink.streaming.api.functions.AssignerWithPeriodicWatermarks;
 import org.apache.flink.streaming.api.functions.AssignerWithPunctuatedWatermarks;
 import org.apache.flink.streaming.api.functions.source.SourceFunction.SourceContext;
@@ -263,6 +264,18 @@ public class AbstractFetcherTimestampsTest {
 
 		@Override
 		public void close() {}
+
+		@Override
+		public ProgressUpdate getProgressAggregator() { return null; }
+
+		@Override
+		public Integer getOperatorId() { return null ;}
+
+		@Override
+		public void sendProgress() {}
+
+		@Override
+		public void collectInternalProgress(Integer operatorId, List<Long> timestamp, int delta) {}
 
 		public StreamRecord<T> getLatestElement() {
 			return latestElement;

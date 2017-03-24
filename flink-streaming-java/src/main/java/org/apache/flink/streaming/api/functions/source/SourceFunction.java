@@ -21,11 +21,13 @@ package org.apache.flink.streaming.api.functions.source;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.annotation.Public;
 import org.apache.flink.api.common.functions.Function;
+import org.apache.flink.runtime.progress.messages.ProgressUpdate;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.functions.TimestampAssigner;
 import org.apache.flink.streaming.api.watermark.Watermark;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * Base interface for all stream data sources in Flink. The contract of a stream source
@@ -230,5 +232,10 @@ public interface SourceFunction<T> extends Function, Serializable {
 		 * This method is called by the system to shut down the context.
 		 */
 		void close();
+
+		ProgressUpdate getProgressAggregator();
+		Integer getOperatorId();
+		void sendProgress();
+		void collectInternalProgress(Integer operatorId, List<Long> timestamp, int delta);
 	}
 }

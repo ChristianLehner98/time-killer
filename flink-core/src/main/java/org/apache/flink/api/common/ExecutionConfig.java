@@ -165,11 +165,12 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 
 	private int numWindows;
 	private long windowSize;
+	private String outputDir;
 
-
-	public void setExperimentConstants(int numWindows, long winSize){
+	public void setExperimentConstants(int numWindows, long winSize, String outputDir){
 		this.numWindows = numWindows;
 		this.windowSize = winSize;
+		this.outputDir = outputDir;
 	}
 
 	public int getNumWindows() {
@@ -178,6 +179,10 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 
 	public long getWindowSize() {
 		return windowSize;
+	}
+
+	public String getOutputDir() {
+		return outputDir;
 	}
 
 	/**

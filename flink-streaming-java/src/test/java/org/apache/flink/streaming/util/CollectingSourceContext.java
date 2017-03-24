@@ -19,12 +19,14 @@
 package org.apache.flink.streaming.util;
 
 import org.apache.flink.core.testutils.CommonTestUtils;
+import org.apache.flink.runtime.progress.messages.ProgressUpdate;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
 
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.List;
 
 public class CollectingSourceContext<T extends Serializable> implements SourceFunction.SourceContext<T> {
 	
@@ -62,4 +64,16 @@ public class CollectingSourceContext<T extends Serializable> implements SourceFu
 
 	@Override
 	public void close() {}
+
+	@Override
+	public ProgressUpdate getProgressAggregator() { return null; }
+
+	@Override
+	public Integer getOperatorId() { return null ;}
+
+	@Override
+	public void sendProgress() {}
+
+	@Override
+	public void collectInternalProgress(Integer operatorId, List<Long> timestamp, int delta) {}
 }
