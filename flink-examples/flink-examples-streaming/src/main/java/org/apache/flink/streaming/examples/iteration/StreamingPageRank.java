@@ -136,7 +136,7 @@ public class StreamingPageRank {
 		@Override
 		public void run(SourceContext<Tuple2<Long, List<Long>>> ctx) throws Exception {
 			String path = directory + "/" + getRuntimeContext().getNumberOfParallelSubtasks() + "/part-" + getRuntimeContext().getIndexOfThisSubtask();
-			for(int i=0; i<3; i++) {
+			for(int i=0; i<numberOfGraphs; i++) {
 				BufferedReader fileReader = new BufferedReader(new FileReader(path));
 				String line;
 				while( (line = fileReader.readLine()) != null) {
@@ -193,7 +193,7 @@ public class StreamingPageRank {
 
 		@Override
 		public void step(Tuple key, TimeWindow win, Iterable<Tuple2<Long, Double>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
-			System.out.println(win.getTimeContext() + " " + win.getStart());
+			//System.out.println(win.getTimeContext() + " " + win.getStart());
 			Map<Long,Double> summed = new HashMap<>();
 			for(Tuple2<Long,Double> entry : iterable) {
 				Double current = summed.get(entry.f0);
