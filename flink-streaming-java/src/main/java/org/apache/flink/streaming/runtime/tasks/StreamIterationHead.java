@@ -53,7 +53,7 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 		final long iterationWaitTime = getConfiguration().getIterationWaitTime();
 		final boolean shouldWait = iterationWaitTime > 0;
 
-		final BlockingQueue<StreamElement> dataChannel = new ArrayBlockingQueue<>(1);
+		final BlockingQueue<StreamElement> dataChannel = new ArrayBlockingQueue<>(100000);
 
 		// offer the queue for the tail
 		BlockingQueueBroker.INSTANCE.handIn(brokerID, dataChannel);

@@ -140,7 +140,7 @@ public class StreamingPageRank {
 				BufferedReader fileReader = new BufferedReader(new FileReader(path));
 				List<Long> context = new LinkedList<>();
 				context.add(new Long(i));
-				ctx.collectInternalProgress(operatorId, context, 1000);
+				ctx.collectInternalProgress(operatorId, context, 1000000);
 				ctx.sendProgress();
 				String line;
 				while( (line = fileReader.readLine()) != null) {
@@ -152,7 +152,7 @@ public class StreamingPageRank {
 					}
 					ctx.collectWithTimestamp(new Tuple2<>(node, neighbours), i);
 				}
-				ctx.collectInternalProgress(operatorId, context, -1000);
+				ctx.collectInternalProgress(operatorId, context, -1000000);
 			}
 		}
 
@@ -196,7 +196,6 @@ public class StreamingPageRank {
 
 		@Override
 		public void step(Tuple key, TimeWindow win, Iterable<Tuple2<Long, Double>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
-
 			Map<Long,Double> summed = new HashMap<>();
 			for(Tuple2<Long,Double> entry : iterable) {
 				Double current = summed.get(entry.f0);

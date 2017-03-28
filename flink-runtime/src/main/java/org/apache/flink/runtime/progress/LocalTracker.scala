@@ -83,19 +83,16 @@ class LocalTracker() extends Actor {
         sender()
       )
 
-      if(notificationRequest.isDone) LOG.info(opProgress.toString())
-
       // send notifications that have eventually been hold back due to missing termination
       // information from other operator instances
       for( (actorRef, notification) <- opProgress.popReadyNotifications()) {
-        //LOG.info("DUE TO TERMINATION" + notification.toString + " " + actorRef)
+        //println("DUE TO TERMINATION" + notification.toString + " " + actorRef)
         actorRef ! new ProgressNotification(new util.LinkedList[Long](notification.getTimestamp), notification.isDone)
       }
 
     case IsDone(done, operatorId, instanceId, timestamp) =>
       if(localOperatorProgress.contains(operatorId)) {
         localOperatorProgress(operatorId).otherNodeDone(done, timestamp, instanceId)
-        if(done) LOG.info(localOperatorProgress(operatorId).toString())
         for( (actorRef, notification) <- localOperatorProgress(operatorId).popReadyNotifications()) {
           //System.out.println("DUE TO DONE: " + notification)
           actorRef ! new ProgressNotification(new util.LinkedList[Long](timestamp), notification.isDone)
@@ -141,7 +138,7 @@ class LocalTracker() extends Actor {
       while(it2.hasNext) {
         val tuple: (ActorRef, ProgressNotification) = it2.next()
         tuple._1 ! new ProgressNotification(new util.LinkedList[Long](tuple._2.getTimestamp), tuple._2.isDone)
-        //LOG.info("DUE TO NORMAL: " + tuple._2 + " " + tuple._1)
+        //println("DUE TO NORMAL: " + tuple._2 + " " + tuple._1)
       }
     }
   }
@@ -159,7 +156,7 @@ class LocalTracker() extends Actor {
   }
 
   private def broadcastDone(message : IsDone) : Unit = {
-    //LOG.info(message.timestamp + " " + message.operatorId + " / " + message.instanceId + "done to: " + otherNodes)
+    //println(message.timestamp + " " + message.operatorId + " / " + message.instanceId + "done to: " + otherNodes)
     for(node : ActorRef <- otherNodes) {
       node ! message
     }
