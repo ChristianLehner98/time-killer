@@ -39,6 +39,9 @@ public class Broker<V> {
 	}
 
 	public Integer getHeadOperatorId(String key) {
+		if(headOperatorId.get(key) == null) {
+			System.out.println("HEADOPERATORID.GET(KEY) IS NULL: " + headOperatorId);
+		}
 		return headOperatorId.get(key);
 	}
 

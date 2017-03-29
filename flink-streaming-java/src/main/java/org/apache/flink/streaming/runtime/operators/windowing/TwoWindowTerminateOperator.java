@@ -158,7 +158,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 				}
 			}
 		}, terminationStrategy.terminate(context));
-		winOp2.sendProgress();
+		//winOp2.sendProgress();
 	}
 
 	public void processElement2(StreamRecord<IN2> element) throws Exception {

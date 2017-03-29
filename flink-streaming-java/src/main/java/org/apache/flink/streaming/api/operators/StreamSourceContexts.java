@@ -333,7 +333,7 @@ public class StreamSourceContexts {
 
 		@Override
 		public void sendProgress() {
-			source.sendProgressWithInstanceId();
+			source.sendProgress();
 		}
 
 		@Override

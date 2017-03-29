@@ -3,6 +3,7 @@ package org.apache.flink.runtime.progress
 import java.lang.Long
 import java.lang.Boolean
 import java.util
+import java.util.concurrent.TimeUnit
 
 import akka.actor.{Actor, ActorRef}
 import org.apache.flink.runtime.progress.messages._
@@ -12,7 +13,9 @@ import java.util.{Collections, List => JList}
 import org.apache.flink.runtime.jobgraph.JobVertexID
 import org.apache.flink.runtime.messages.JobManagerMessages.CancelJob
 import org.slf4j.{Logger, LoggerFactory}
+import scala.concurrent.ExecutionContext.Implicits.global
 
+import scala.concurrent.duration._
 import scala.collection.JavaConverters._
 
 class LocalTracker() extends Actor {
@@ -20,25 +23,28 @@ class LocalTracker() extends Actor {
   private var otherNodes : Set[ActorRef] = _
   private var pathSummaries: java.util.Map[Integer, java.util.Map[Integer, PartialOrderMinimumSet]] = _
   // used to buffer up progress messages until the connection to the central tracker is established and we got the path summaries
-  private var initProgressBuffer: List[(ActorRef, ProgressUpdate)] = List()
+  private val initialProgress = new ProgressUpdate()
+  //private var initProgressBuffer: List[(ActorRef, ProgressUpdate)] = List()
   private var maxScopeLevel: Integer = 0
   private var LOG: Logger = LoggerFactory.getLogger(classOf[LocalTracker])
 
   private var seenInstances = Set[(JobVertexID,Integer)]()
   private var numberOfGlobalInstances: Integer = _
 
+  // we're now aggregating messages for a certain time interval before sending to the other nodes
+  private var localProgressForOtherLocalTrackers = new ProgressUpdate()
+  private val scheduler = context.system.scheduler.schedule(Duration.create(20, TimeUnit.MILLISECONDS), Duration.create(200, TimeUnit.MILLISECONDS), self, "broadcastBuffer")
+
   def receive : Receive = {
     case progress: ProgressUpdate =>
       if (pathSummaries != null && seenInstances.size == numberOfGlobalInstances) {
-        if(initProgressBuffer.nonEmpty) {
-          for ((from, progress) <- initProgressBuffer.reverse) {
-            update(progress, from)
-          }
-          initProgressBuffer = List()
+        if(!initialProgress.isEmpty) {
+          update(initialProgress, null)
+          initialProgress.clear()
         }
         update(progress, sender())
       } else {
-        initProgressBuffer = (sender(), progress) :: initProgressBuffer
+        initialProgress.mergeIn(progress)
       }
 
     case init: InitLocalTracker =>
@@ -47,12 +53,10 @@ class LocalTracker() extends Actor {
       otherNodes = init.otherNodes.filter(!_.equals(self))
       maxScopeLevel = init.maxScopeLevel
       numberOfGlobalInstances = init.numberOfGlobalInstances
-      if(seenInstances.size == numberOfGlobalInstances) {
-        for ((from, progress) <- initProgressBuffer.reverse) {
-          update(progress, from)
-        }
+      if(seenInstances.size == numberOfGlobalInstances && !initialProgress.isEmpty) {
+        update(initialProgress, null)
+        initialProgress.clear()
       }
-      initProgressBuffer = List()
 
     case hello: InstanceReady =>
       if(!otherNodes.contains(sender())) {
@@ -86,7 +90,8 @@ class LocalTracker() extends Actor {
       // send notifications that have eventually been hold back due to missing termination
       // information from other operator instances
       for( (actorRef, notification) <- opProgress.popReadyNotifications()) {
-        //println("DUE TO TERMINATION" + notification.toString + " " + actorRef)
+        println("DUE TO TERMINATION" + notification.toString + " " + actorRef)
+        println(localOperatorProgress)
         actorRef ! new ProgressNotification(new util.LinkedList[Long](notification.getTimestamp), notification.isDone)
       }
 
@@ -94,9 +99,16 @@ class LocalTracker() extends Actor {
       if(localOperatorProgress.contains(operatorId)) {
         localOperatorProgress(operatorId).otherNodeDone(done, timestamp, instanceId)
         for( (actorRef, notification) <- localOperatorProgress(operatorId).popReadyNotifications()) {
-          //System.out.println("DUE TO DONE: " + notification)
+          println("DUE TO DONE: " + notification)
+          println(localOperatorProgress)
           actorRef ! new ProgressNotification(new util.LinkedList[Long](timestamp), notification.isDone)
         }
+      }
+
+    case "broadcastBuffer" =>
+      if(!localProgressForOtherLocalTrackers.isEmpty) {
+        broadcastUpdate(localProgressForOtherLocalTrackers)
+        localProgressForOtherLocalTrackers = new ProgressUpdate()
       }
 
     case CancelJob =>
@@ -106,8 +118,10 @@ class LocalTracker() extends Actor {
 
   private def update(progress : ProgressUpdate, from: ActorRef): Unit = {
     if(!otherNodes.contains(from)) {
-      // update comes from local operator and needs to be broadcast to other nodes
-      broadcastUpdate(progress)
+      // update comes from local operator and needs to be aggregated (this is broadcasted+emptied periodically in receive -> broadCastBuffer)
+      localProgressForOtherLocalTrackers.mergeIn(progress)
+    } else {
+      println("FROM OTHER: " + progress)
     }
 
     // update progress
@@ -138,7 +152,8 @@ class LocalTracker() extends Actor {
       while(it2.hasNext) {
         val tuple: (ActorRef, ProgressNotification) = it2.next()
         tuple._1 ! new ProgressNotification(new util.LinkedList[Long](tuple._2.getTimestamp), tuple._2.isDone)
-        //println("DUE TO NORMAL: " + tuple._2 + " " + tuple._1)
+        println("DUE TO NORMAL: " + tuple._2 + " " + tuple._1)
+        println(localOperatorProgress)
       }
     }
   }
@@ -156,7 +171,6 @@ class LocalTracker() extends Actor {
   }
 
   private def broadcastDone(message : IsDone) : Unit = {
-    //println(message.timestamp + " " + message.operatorId + " / " + message.instanceId + "done to: " + otherNodes)
     for(node : ActorRef <- otherNodes) {
       node ! message
     }

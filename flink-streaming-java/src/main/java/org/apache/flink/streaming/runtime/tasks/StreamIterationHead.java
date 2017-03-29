@@ -38,18 +38,12 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 
 	private volatile boolean running = true;
 
+	private String brokerID;
+
 	// ------------------------------------------------------------------------
 
 	@Override
 	protected void run() throws Exception {
-		final String iterationId = getConfiguration().getIterationId();
-		if (iterationId == null || iterationId.length() == 0) {
-			throw new Exception("Missing iteration ID in the task configuration");
-		}
-		
-		final String brokerID = createBrokerIdString(getEnvironment().getJobID(), iterationId ,
-				getEnvironment().getTaskInfo().getIndexOfThisSubtask());
-		
 		final long iterationWaitTime = getConfiguration().getIterationWaitTime();
 		final boolean shouldWait = iterationWaitTime > 0;
 
@@ -57,8 +51,7 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 
 		// offer the queue for the tail
 		BlockingQueueBroker.INSTANCE.handIn(brokerID, dataChannel);
-		Integer targetOperatorId = ((RecordWriterOutput<OUT>) getStreamOutputs()[0]).getTargetOperatorId();
-		BlockingQueueBroker.INSTANCE.setHeadOperatorId(brokerID, targetOperatorId);
+
 		LOG.info("Iteration head {} added feedback queue under {}", getName(), brokerID);
 
 		// do the work 
@@ -108,7 +101,16 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 
 	@Override
 	public void init() {
-		// does not hold any resources, no initialization necessary
+		final String iterationId = getConfiguration().getIterationId();
+		//if (iterationId == null || iterationId.length() == 0) {
+		//	throw new Exception("Missing iteration ID in the task configuration");
+		//}
+
+		brokerID = createBrokerIdString(getEnvironment().getJobID(), iterationId ,
+			getEnvironment().getTaskInfo().getIndexOfThisSubtask());
+
+		Integer targetOperatorId = ((RecordWriterOutput<OUT>) getStreamOutputs()[0]).getTargetOperatorId();
+		BlockingQueueBroker.INSTANCE.setHeadOperatorId(brokerID, targetOperatorId);
 	}
 
 	@Override

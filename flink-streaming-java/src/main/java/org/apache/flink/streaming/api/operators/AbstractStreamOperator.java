@@ -961,13 +961,6 @@ public abstract class AbstractStreamOperator<OUT>
 	}
 
 	@Override
-	public void sendProgressWithInstanceId() {
-		ActorRef ref = container.getLocalTrackerRef();
-		ref.tell(new ProgressUpdate(progressAggregator, getRuntimeContext().getIndexOfThisSubtask()), null);
-		progressAggregator.clear();
-	}
-
-	@Override
 	public void collectProgress(Integer operatorId, List<Long> timestamp, int delta) {
 		progressAggregator.update(operatorId, timestamp, false, delta);
 	}
