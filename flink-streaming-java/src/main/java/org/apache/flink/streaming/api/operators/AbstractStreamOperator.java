@@ -947,7 +947,7 @@ public abstract class AbstractStreamOperator<OUT>
 						}
 					}
 				} else {
-					System.out.println("Actor Message Failure");
+					System.out.println("Actor Message Failure: " + failure);
 				}
 			}
 		}, container.getActorSystem().dispatcher());

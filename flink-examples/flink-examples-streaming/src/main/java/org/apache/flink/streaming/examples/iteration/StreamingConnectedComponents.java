@@ -37,14 +37,15 @@ public class StreamingConnectedComponents {
 		int numWindows = Integer.parseInt(args[0]);
 		long windSize = Long.parseLong(args[1]);
 		int parallelism = Integer.parseInt(args[2]);
-		String outputDir = args[3];
-		String inputDir = args.length > 4 ? args[4] : "";
+		int progressBufferInterval = Integer.parseInt(args[3]);
+		String outputDir = args[4];
+		String inputDir = args.length > 5 ? args[5] : "";
 
-		StreamingConnectedComponents example = new StreamingConnectedComponents(numWindows, windSize, parallelism, inputDir, outputDir);
+		StreamingConnectedComponents example = new StreamingConnectedComponents(numWindows, windSize, parallelism, inputDir, outputDir, progressBufferInterval);
 		example.run();
 	}
 
-	public StreamingConnectedComponents(int numWindows, long windSize, int parallelism, String inputDir, String outputDir) throws Exception {
+	public StreamingConnectedComponents(int numWindows, long windSize, int parallelism, String inputDir, String outputDir, int progressBufferInterval) throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 		env.setParallelism(parallelism);
 
@@ -63,7 +64,7 @@ public class StreamingConnectedComponents {
 				new MyFeedbackBuilder(),
 				new TupleTypeInfo<Tuple2<Long, Long>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.LONG_TYPE_INFO))
 			.print();
-		env.getConfig().setExperimentConstants(numWindows, windSize, outputDir);
+		env.getConfig().setExperimentConstants(numWindows, windSize, outputDir, progressBufferInterval);
 	}
 
 	protected void run() throws Exception {

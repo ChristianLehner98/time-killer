@@ -166,11 +166,13 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 	private int numWindows;
 	private long windowSize;
 	private String outputDir;
+	private int progressBufferInterval;
 
-	public void setExperimentConstants(int numWindows, long winSize, String outputDir){
+	public void setExperimentConstants(int numWindows, long winSize, String outputDir, int progressBufferInterval){
 		this.numWindows = numWindows;
 		this.windowSize = winSize;
 		this.outputDir = outputDir;
+		this.progressBufferInterval = progressBufferInterval;
 	}
 
 	public int getNumWindows() {
@@ -183,6 +185,10 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 
 	public String getOutputDir() {
 		return outputDir;
+	}
+
+	public Integer getProgressBufferInterval() {
+		return progressBufferInterval;
 	}
 
 	/**

@@ -17,6 +17,7 @@ import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.types.Either;
 import org.apache.flink.util.Collector;
+import scala.Int;
 
 
 import java.io.BufferedReader;
@@ -32,10 +33,11 @@ public class StreamingPageRank {
 		int numWindows = Integer.parseInt(args[0]);
 		long windSize = Long.parseLong(args[1]);
 		int parallelism = Integer.parseInt(args[2]);
-		String outputDir = args[3];
-		String inputDir = args.length > 4 ? args[4] : "";
+		int progressBufferInterval = Integer.parseInt(args[3]);
+		String outputDir = args[4];
+		String inputDir = args.length > 5 ? args[5] : "";
 		
-		StreamingPageRank example = new StreamingPageRank(numWindows, windSize, parallelism, inputDir, outputDir);
+		StreamingPageRank example = new StreamingPageRank(numWindows, windSize, parallelism, inputDir, outputDir, progressBufferInterval);
 		example.run();
 	}
 
@@ -47,7 +49,7 @@ public class StreamingPageRank {
 	 * @param parallelism
 	 * @throws Exception
 	 */
-	public StreamingPageRank(int numWindows, long windSize, int parallelism, String inputDir, String outputDir) throws Exception {
+	public StreamingPageRank(int numWindows, long windSize, int parallelism, String inputDir, String outputDir, int progressBufferInterval) throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 		env.setParallelism(parallelism);
 
@@ -66,7 +68,7 @@ public class StreamingPageRank {
 				new MyFeedbackBuilder(),
 				new TupleTypeInfo<Tuple2<Long, Double>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO))
 			.print();
-		env.getConfig().setExperimentConstants(numWindows, windSize, outputDir);
+		env.getConfig().setExperimentConstants(numWindows, windSize, outputDir, progressBufferInterval);
 	}
 
 	protected void run() throws Exception {

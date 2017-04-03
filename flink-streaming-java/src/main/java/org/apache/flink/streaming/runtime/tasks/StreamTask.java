@@ -128,7 +128,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 	/**
 	 *  Keeps references to all progress update objects corresponding to the chained operators in the task
 	 */
-	public List<ProgressUpdate> progressUpdates = new LinkedList<>();
+	private List<ProgressUpdate> progressUpdates = new LinkedList<>();
 	
 	// ------------------------------------------------------------------------
 
@@ -1125,6 +1125,6 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 			update.mergeIn(operatorUpdate);
 			operatorUpdate.clear();
 		}
-		ref.tell(new ProgressUpdate(update), null);
+		ref.tell(update, null);
 	}
 }

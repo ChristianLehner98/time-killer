@@ -144,7 +144,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 						new ProgressMetricsReport(getContainingTask().getEnvironment().getJobID(),
 							getOperatorConfig().getVertexID(),
 							getRuntimeContext().getIndexOfThisSubtask(),
-							context, lastWinStart,lastLocalEnd,System.currentTimeMillis()
+							context, iterationId, lastWinStart,lastLocalEnd,System.currentTimeMillis()
 							), ActorRef.noSender());
 					Watermark watermark = new Watermark(nextTs, iterationId);
 					System.out.println(watermark + " @ " + getRuntimeContext().getIndexOfThisSubtask());
@@ -158,7 +158,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 				}
 			}
 		}, terminationStrategy.terminate(context));
-		//winOp2.sendProgress();
+		winOp2.sendProgress();
 	}
 
 	public void processElement2(StreamRecord<IN2> element) throws Exception {

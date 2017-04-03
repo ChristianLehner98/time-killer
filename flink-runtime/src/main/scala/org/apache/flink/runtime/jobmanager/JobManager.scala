@@ -1234,14 +1234,15 @@ class JobManager(
 
       val numberOfGlobalInstances = (jobGraph.getVertices().asScala.filter(!_.getName.contains("IterationSource")).size) * jobGraph.getMaximumParallelism // TODO!!
       val actorRef: ActorRef = context.actorOf(Props(new CentralTracker(
-        jobGraph.getPathSummaries, jobGraph.getMaxScopeLevel, numberOfGlobalInstances)))
+        jobGraph.getPathSummaries, jobGraph.getMaxScopeLevel, numberOfGlobalInstances, jobGraph.getProgressBufferInterval())))
       centralTrackers += (jobId -> actorRef)
       
       progressMetricsTrackers += (jobId -> context.actorOf(Props(new ProgressMetricsLogger(
         jobGraph.getJobConfiguration.getInteger("numWindows",0),
         jobGraph.getJobConfiguration.getInteger("parallelism",0),
         jobGraph.getJobConfiguration.getLong("winSize",0),
-        jobGraph.getJobConfiguration.getString("metricsOutputDir", "out")
+        jobGraph.getJobConfiguration.getString("metricsOutputDir", "out"),
+        jobGraph.getProgressBufferInterval
         ))))
       
       try {

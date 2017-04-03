@@ -102,6 +102,7 @@ public class JobGraph implements Serializable {
 
 	private Map<Integer, Map<Integer, PartialOrderMinimumSet>> pathSummaries;
 	private Integer maxScopeLevel;
+	private Integer progressBufferInterval;
 
 	/** List of classpaths required to run this job. */
 	private List<URL> classpaths = Collections.emptyList();
@@ -127,6 +128,13 @@ public class JobGraph implements Serializable {
 	}
 	public void setMaxScopeLevel(Integer maxScopeLevel) {
 		this.maxScopeLevel = maxScopeLevel;
+	}
+
+	public Integer getProgressBufferInterval() {
+		return progressBufferInterval;
+	}
+	public void setProgressBufferInterval(Integer progressBufferInterval) {
+		this.progressBufferInterval = progressBufferInterval;
 	}
 
 	/**

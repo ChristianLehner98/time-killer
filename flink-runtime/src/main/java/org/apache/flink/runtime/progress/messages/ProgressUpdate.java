@@ -18,19 +18,17 @@ public class ProgressUpdate implements Serializable {
 	}
 
 	public void mergeIn(ProgressUpdate other) {
-		for(Map.Entry<Tuple3<Integer,List<Long>,Boolean>, Integer> entry : other.getEntries().entrySet()) {
+		ProgressUpdate otherCopy = new ProgressUpdate(other);
+		for(Map.Entry<Tuple3<Integer,List<Long>,Boolean>, Integer> entry : otherCopy.getEntries().entrySet()) {
 			update(entry.getKey().f0, new LinkedList<>(entry.getKey().f1), entry.getKey().f2, entry.getValue());
 		}
 	}
 
-	public int update(Integer operatorId, List<Long> element, int delta) {
+	public int update(int operatorId, List<Long> element, int delta) {
 		return update(operatorId, element, false, delta);
 	}
 
-	public int update(Integer operatorId, List<Long> element, boolean isCapability, int delta) {
-		if(operatorId == null) {
-			System.out.println("ISNULL! " + element);
-		}
+	public int update(int operatorId, List<Long> element, boolean isCapability, int delta) {
 		Tuple3<Integer, List<Long>, Boolean> pointstamp = new Tuple3<>(operatorId, element, isCapability);
 		if(delta == 0) return get(pointstamp);
 
