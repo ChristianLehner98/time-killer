@@ -165,6 +165,8 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 			return false;
 		}
 
+		long startTime = System.currentTimeMillis();
+
 		while (true) {
 			if (currentRecordDeserializer != null) {
 				DeserializationResult result;
@@ -188,7 +190,7 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 								recordOrWatermark.asWatermark(), currentChannel);
 							if(next != null) {
 								synchronized (lock) {
-									streamOperator.processWatermark1(next);
+									streamOperator.processWatermark1(next, startTime);
 								}
 							}
 							continue;
@@ -215,9 +217,9 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 							Watermark next = progressHandler2.getNextWatermark(
 								recordOrWatermark.asWatermark(), currentChannel-numInputChannels1);
 							if(next != null) {
-								streamOperator.sendMetrics(currentTime, next.getContext());
+								streamOperator.sendMetrics(currentTime, next.getContext(), next.getTimestamp());
 								synchronized (lock) {
-									streamOperator.processWatermark2(next);
+									streamOperator.processWatermark2(next, startTime);
 								}
 							}
 							continue;

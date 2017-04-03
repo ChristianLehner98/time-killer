@@ -819,7 +819,7 @@ public abstract class AbstractStreamOperator<OUT>
 		output.emitWatermark(mark);
 	}
 
-	public void processWatermark1(Watermark mark) throws Exception {
+	public void processWatermark1(Watermark mark, long startTime) throws Exception {
 		input1Watermark = mark.getTimestamp();
 		long newMin = Math.min(input1Watermark, input2Watermark);
 		if (newMin > combinedWatermark) {
@@ -828,7 +828,7 @@ public abstract class AbstractStreamOperator<OUT>
 		}
 	}
 
-	public void processWatermark2(Watermark mark) throws Exception {
+	public void processWatermark2(Watermark mark, long startTime) throws Exception {
 		input2Watermark = mark.getTimestamp();
 		long newMin = Math.min(input1Watermark, input2Watermark);
 		if (newMin > combinedWatermark) {
@@ -856,5 +856,5 @@ public abstract class AbstractStreamOperator<OUT>
 	}
 
 	@Override
-	public void sendMetrics(long windowEnd, List<Long> context) {}
+	public void sendMetrics(long windowEnd, List<Long> context, Long iterationId) {}
 }

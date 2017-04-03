@@ -297,12 +297,12 @@ public class StreamTaskTimerITCase extends StreamingMultipleProgramsTestBase {
 		}
 
 		@Override
-		public void processWatermark1(Watermark mark) throws Exception {
+		public void processWatermark1(Watermark mark, long startTime) throws Exception {
 			//ignore
 		}
 
 		@Override
-		public void processWatermark2(Watermark mark) throws Exception {
+		public void processWatermark2(Watermark mark, long startTime) throws Exception {
 			//ignore
 		}
 	}

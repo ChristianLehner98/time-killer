@@ -99,15 +99,15 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 		}
 	}
 
-	public void processWatermark1(Watermark mark) throws Exception {
-		lastWinStartPerContext.put(mark.getContext(), System.currentTimeMillis());
+	public void processWatermark1(Watermark mark, long startTime) throws Exception {
+		lastWinStartPerContext.put(mark.getContext(), startTime);
 		System.out.println(mark);
 		winOp1.processWatermark(mark);
 		lastLocalEndPerContext.put(mark.getContext(), System.currentTimeMillis());
 
 	}
-	public void processWatermark2(Watermark mark) throws Exception {
-		lastWinStartPerContext.put(mark.getContext(), System.currentTimeMillis());
+	public void processWatermark2(Watermark mark, long startTime) throws Exception {
+		lastWinStartPerContext.put(mark.getContext(), startTime);
 		if(mark.iterationDone()) {
 			activeIterations.remove(mark.getContext());
 			if(mark.getContext().get(mark.getContext().size()-1) != Long.MAX_VALUE ) {
@@ -124,12 +124,12 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	public void processLatencyMarker2(LatencyMarker latencyMarker) throws Exception {}
 
 	@Override
-	public void sendMetrics(long windowEnd, List<Long> context) {
+	public void sendMetrics(long windowEnd, List<Long> context, Long iterationId) {
 		getContainingTask().getEnvironment().getJobManagerRef().tell(
 			new ProgressMetricsReport(getContainingTask().getEnvironment().getJobID(),
 				getOperatorConfig().getVertexID(),
 				getRuntimeContext().getIndexOfThisSubtask(),
-				context, lastWinStartPerContext.get(context),lastLocalEndPerContext.get(context), windowEnd
+				context, iterationId, lastWinStartPerContext.get(context),lastLocalEndPerContext.get(context), windowEnd
 			), ActorRef.noSender());
 	}
 }
