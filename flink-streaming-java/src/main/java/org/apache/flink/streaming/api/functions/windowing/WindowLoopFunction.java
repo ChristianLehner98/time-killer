@@ -31,7 +31,7 @@ import java.util.List;
  * @param <W_IN>  The Window type if the input
  */
 @Public
-public interface CoWindowTerminateFunction<IN,F_IN,OUT,R,KEY,W_IN extends Window> extends TerminationFunction<Either<R,OUT>>, Serializable {
+public interface WindowLoopFunction<IN,F_IN,OUT,R,KEY,W_IN extends Window> extends TerminationFunction<Either<R,OUT>>, Serializable {
 	void entry(KEY key, W_IN window, Iterable<IN> input, Collector<Either<R,OUT>> out) throws Exception;
 	void step(KEY key, TimeWindow window, Iterable<F_IN> input, Collector<Either<R,OUT>> out) throws Exception;
 	void onTermination(List<Long> timeContext, Collector<Either<R,OUT>> out) throws Exception;

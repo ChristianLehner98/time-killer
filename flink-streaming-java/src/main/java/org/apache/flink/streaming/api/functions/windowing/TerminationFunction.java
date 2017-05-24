@@ -8,6 +8,6 @@ import java.io.Serializable;
 import java.util.List;
 
 @Public
-public interface TerminationFunction<OUT> extends Function, Serializable {
+public interface  TerminationFunction<OUT> extends Function, Serializable {
 	void onTermination(List<Long> timeContext, Collector<OUT> out) throws Exception;
 }

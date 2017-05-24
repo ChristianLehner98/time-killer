@@ -1,6 +1,7 @@
 package org.apache.flink.streaming.examples.iteration;
 
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple1;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -13,21 +14,17 @@ import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
-import org.apache.flink.streaming.api.functions.windowing.CoWindowTerminateFunction;
+import org.apache.flink.streaming.api.functions.windowing.WindowLoopFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.runtime.tasks.progress.FixpointIterationTermination;
-import org.apache.flink.streaming.runtime.tasks.progress.StructuredIterationTermination;
 import org.apache.flink.types.Either;
 import org.apache.flink.util.Collector;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
-import java.io.InputStreamReader;
 import java.io.Serializable;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
 
 public class StreamingConnectedComponents {
@@ -56,9 +53,14 @@ public class StreamingConnectedComponents {
 		}
 		DataStream<Tuple2<Long,Set<Long>>> inputStream = env.addSource(source);
 		inputStream
-			.keyBy(0)
+			.keyBy(new KeySelector<Tuple2<Long,Set<Long>>, Long>() {
+				@Override
+				public Long getKey(Tuple2<Long, Set<Long>> value) throws Exception {
+					return value.f0;
+				}
+			})
 			.timeWindow(Time.milliseconds(1))
-			.iterateSync(new MyCoWindowTerminateFunction(),
+			.iterateSync(new MyWindowLoopFunction(),
 				new FixpointIterationTermination(),
 				new MyFeedbackBuilder(),
 				new TupleTypeInfo<Tuple2<Long, Long>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.LONG_TYPE_INFO))
@@ -70,10 +72,15 @@ public class StreamingConnectedComponents {
 		env.execute("Streaming Sync Iteration Example");
 	}
 
-	private static class MyFeedbackBuilder implements FeedbackBuilder {
+	private static class MyFeedbackBuilder implements FeedbackBuilder<Tuple2<Long, Long>, Long> {
 		@Override
-		public KeyedStream feedback(DataStream input) {
-			return input.keyBy(0);
+		public KeyedStream<Tuple2<Long, Long>, Long> feedback(DataStream<Tuple2<Long, Long>> input) {
+			return input.keyBy(new KeySelector<Tuple2<Long, Long>, Long>() {
+				@Override
+				public Long getKey(Tuple2<Long, Long> value) throws Exception {
+					return value.f0;
+				}
+			});
 		}
 	}
 
@@ -159,12 +166,12 @@ public class StreamingConnectedComponents {
 		public void cancel() {}
 	}
 
-	private static class MyCoWindowTerminateFunction implements CoWindowTerminateFunction<Tuple2<Long, Set<Long>>, Tuple2<Long, Long>, Tuple2<Long,Long>, Tuple2<Long, Long>, Tuple, TimeWindow>, Serializable {
+	private static class MyWindowLoopFunction implements WindowLoopFunction<Tuple2<Long, Set<Long>>, Tuple2<Long, Long>, Tuple2<Long,Long>, Tuple2<Long, Long>, Long, TimeWindow>, Serializable {
 		Map<List<Long>,Map<Long, Set<Long>>> neighboursPerContext = new HashMap<>();
 		Map<List<Long>,Map<Long, Long>> componentsPerContext = new HashMap<>();
 
 		@Override
-		public void entry(Tuple key, TimeWindow win, Iterable<Tuple2<Long, Set<Long>>> iterable, Collector<Either<Tuple2<Long, Long>, Tuple2<Long,Long>>> collector) {
+		public void entry(Long key, TimeWindow win, Iterable<Tuple2<Long, Set<Long>>> iterable, Collector<Either<Tuple2<Long, Long>, Tuple2<Long,Long>>> collector) {
 			// save graph
 			Map<Long, Set<Long>> neighbours = neighboursPerContext.get(win.getTimeContext());
 			if(neighbours == null) {
@@ -192,8 +199,7 @@ public class StreamingConnectedComponents {
 		}
 
 		@Override
-		public void step(Tuple key, TimeWindow win, Iterable<Tuple2<Long, Long>> iterable, Collector<Either<Tuple2<Long, Long>, Tuple2<Long,Long>>> collector) {
-			long currentNode = (long) ((Tuple1) key).f0;
+		public void step(Long key, TimeWindow win, Iterable<Tuple2<Long, Long>> iterable, Collector<Either<Tuple2<Long, Long>, Tuple2<Long,Long>>> collector) {
 			Map<Long,Set<Long>> neighbours = neighboursPerContext.get(win.getTimeContext());
 			Map<Long,Long> components = componentsPerContext.get(win.getTimeContext());
 
@@ -202,9 +208,9 @@ public class StreamingConnectedComponents {
 				if(entry.f1 < min) min = entry.f1;
 			}
 
-			if(min < components.get(currentNode)) {
-				components.put(currentNode, min);
-				for(Long neighbour : neighbours.get(currentNode)) {
+			if(min < components.get(key)) {
+				components.put(key, min);
+				for(Long neighbour : neighbours.get(key)) {
 					collector.collect(new Either.Left(new Tuple2<>(neighbour, min)));
 				}
 			}
