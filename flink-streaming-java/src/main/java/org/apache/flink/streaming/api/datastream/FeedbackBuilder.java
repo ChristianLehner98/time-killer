@@ -11,10 +11,9 @@ import java.io.Serializable;
  * - other: arbitrary operations on the feedback stream including nested iterations
  *
  * @param <R> 	  Intermediate type between CoWindowTerminateFunction and FeedbackBuilder
- * @param <F>	  Produced feedback type
  * @param <K>     Key of the feedback type
  */
 
-public interface FeedbackBuilder<R> extends Serializable {
-	<F,K> KeyedStream<F,K> feedback(DataStream<R> input);
+public interface FeedbackBuilder<R, K> extends Serializable {
+	KeyedStream<R,K> feedback(DataStream<R> input);
 }

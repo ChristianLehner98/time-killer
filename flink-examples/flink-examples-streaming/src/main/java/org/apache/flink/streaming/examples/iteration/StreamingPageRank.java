@@ -1,7 +1,7 @@
 package org.apache.flink.streaming.examples.iteration;
 
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
-import org.apache.flink.api.java.tuple.Tuple;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.examples.java.graph.util.PageRankData;
@@ -12,7 +12,8 @@ import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
-import org.apache.flink.streaming.api.functions.windowing.CoWindowTerminateFunction;
+import org.apache.flink.streaming.api.functions.windowing.WindowLoopFunction;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.types.Either;
@@ -61,10 +62,15 @@ public class StreamingPageRank {
 		}
 		DataStream<Tuple2<Long,List<Long>>> inputStream = env.addSource(source);
 		inputStream
-			.keyBy(0)
+			.keyBy(new KeySelector<Tuple2<Long,List<Long>>, Long>() {
+				@Override
+				public Long getKey(Tuple2<Long, List<Long>> value) throws Exception {
+					return value.f0;
+				}
+			})
 			.timeWindow(Time.milliseconds(1))
 			.iterateSyncFor(10,
-				new MyCoWindowTerminateFunction(),
+				new MyWindowLoopFunction(),
 				new MyFeedbackBuilder(),
 				new TupleTypeInfo<Tuple2<Long, Double>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO))
 			.print();
@@ -75,10 +81,15 @@ public class StreamingPageRank {
 		env.execute("Streaming Sync Iteration Example");
 	}
 
-	private static class MyFeedbackBuilder implements FeedbackBuilder {
+	private static class MyFeedbackBuilder implements FeedbackBuilder<Tuple2<Long, Double>, Long> {
 		@Override
-		public KeyedStream feedback(DataStream input) {
-			return input.keyBy(0);
+		public KeyedStream<Tuple2<Long, Double>, Long> feedback(DataStream<Tuple2<Long, Double>> input) {
+			return input.keyBy(new KeySelector<Tuple2<Long, Double>, Long>() {
+				@Override
+				public Long getKey(Tuple2<Long, Double> value) throws Exception {
+					return value.f0;
+				}
+			});
 		}
 	}
 
@@ -95,7 +106,7 @@ public class StreamingPageRank {
 			int parallelTask = getRuntimeContext().getIndexOfThisSubtask();
 
 			for(int i=0; i<numberOfGraphs; i++) {
-				for(Tuple2<Long,List<Long>> entry : getAdjancencyList()) {
+				for(Tuple2<Long,List<Long>> entry : getAdjacencyList()) {
 					if(entry.f0 % parallelism == parallelTask) {
 						ctx.collectWithTimestamp(entry, i);
 					}
@@ -106,7 +117,7 @@ public class StreamingPageRank {
 		@Override
 		public void cancel() {}
 
-		private List<Tuple2<Long,List<Long>>> getAdjancencyList() {
+		private List<Tuple2<Long,List<Long>>> getAdjacencyList() {
 			Map<Long,List<Long>> edges = new HashMap<>();
 			for(Object[] e : PageRankData.EDGES) {
 				List<Long> currentVertexEdges = edges.get((Long) e[0]);
@@ -162,7 +173,7 @@ public class StreamingPageRank {
 		public void cancel() {}
 	}
 
-	private static class MyCoWindowTerminateFunction implements CoWindowTerminateFunction<Tuple2<Long, List<Long>>, Tuple2<Long, Double>, Tuple2<Long,Double>, Tuple2<Long, Double>, Tuple, TimeWindow>, Serializable {
+	private static class MyWindowLoopFunction implements WindowLoopFunction<Tuple2<Long, List<Long>>, Tuple2<Long, Double>, Tuple2<Long,Double>, Tuple2<Long, Double>, Long, TimeWindow>, Serializable {
 		Map<List<Long>,Map<Long, List<Long>>> neighboursPerContext = new HashMap<>();
 		Map<List<Long>,Map<Long,Double>> pageRanksPerContext = new HashMap<>();
 
@@ -171,7 +182,8 @@ public class StreamingPageRank {
 		}
 
 		@Override
-		public void entry(Tuple key, TimeWindow win, Iterable<Tuple2<Long, List<Long>>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
+		public void entry(Long key, TimeWindow win, Iterable<Tuple2<Long, List<Long>>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
+			//System.out.println(win.getTimeContext() + " " + win.getStart());
 			Map<Long, List<Long>> neighbours = neighboursPerContext.get(win.getTimeContext());
 			if(neighbours == null) {
 				neighbours = new HashMap<>();
@@ -197,7 +209,8 @@ public class StreamingPageRank {
 		}
 
 		@Override
-		public void step(Tuple key, TimeWindow win, Iterable<Tuple2<Long, Double>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
+		public void step(Long key, TimeWindow win, Iterable<Tuple2<Long, Double>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long,Double>>> collector) {
+			//System.out.println(win.getTimeContext() + " " + win.getStart());
 			Map<Long,Double> summed = new HashMap<>();
 			for(Tuple2<Long,Double> entry : iterable) {
 				Double current = summed.get(entry.f0);

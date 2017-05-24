@@ -40,10 +40,9 @@ import org.apache.flink.streaming.api.functions.windowing.FoldApplyWindowFunctio
 import org.apache.flink.streaming.api.functions.windowing.PassThroughWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.ReduceApplyWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.CoWindowTerminateFunction;
+import org.apache.flink.streaming.api.functions.windowing.WindowLoopFunction;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.operators.WatermarkResequencializer;
-import org.apache.flink.streaming.api.operators.WindowedStreamWatermarkFiller;
 import org.apache.flink.streaming.api.transformations.OneInputTransformation;
 import org.apache.flink.streaming.api.transformations.ScopeTransformation;
 import org.apache.flink.streaming.api.windowing.assigners.MergingWindowAssigner;
@@ -933,8 +932,8 @@ public class WindowedStream<T, K, W extends Window> {
 
 	public <OUT,F,R> DataStream<OUT> iterateSyncFor(
 		int iterationCount,
-		CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun,
-		FeedbackBuilder<R> feedbackBuilder,
+		WindowLoopFunction<T,F,OUT,R,K,W> coWinTermFun,
+		FeedbackBuilder<R, K> feedbackBuilder,
 		TypeInformation<R> feedbackType) throws Exception {
 		return iterateSync(
 			coWinTermFun,
@@ -944,8 +943,8 @@ public class WindowedStream<T, K, W extends Window> {
 	}
 
 	public <OUT,F,R> DataStream<OUT> iterateSyncDelta(
-		CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun,
-		FeedbackBuilder<R> feedbackBuilder,
+		WindowLoopFunction<T,F,OUT,R,K,W> coWinTermFun,
+		FeedbackBuilder<R, K> feedbackBuilder,
 		TypeInformation<R> feedbackType) throws Exception {
 		return iterateSync(
 			coWinTermFun,
@@ -972,9 +971,9 @@ public class WindowedStream<T, K, W extends Window> {
 	 *                             - TODO can this be automated?
 	 * @return The output DataStream.
 	 */
-	public <OUT,F,R> DataStream<OUT> iterateSync(CoWindowTerminateFunction<T,F,OUT,R,K,W> coWinTermFun,
+	public <OUT,F,R> DataStream<OUT> iterateSync(WindowLoopFunction<T,F,OUT,R,K,W> coWinTermFun,
 								StreamIterationTermination terminationStrategy, 
-								FeedbackBuilder<R> feedbackBuilder, 
+								FeedbackBuilder<R, K> feedbackBuilder, 
 								TypeInformation<R> feedbackType) throws Exception {
 		DataStream<T> scopedStreamInput = new SingleOutputStreamOperator<T>(input.getExecutionEnvironment(),
 			new ScopeTransformation<T>(input.getTransformation(), ScopeTransformation.SCOPE_TYPE.INGRESS));

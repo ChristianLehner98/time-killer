@@ -13,7 +13,7 @@ import org.apache.flink.api.java.typeutils.EitherTypeInfo;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.windowing.CoWindowTerminateFunction;
+import org.apache.flink.streaming.api.functions.windowing.WindowLoopFunction;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
 import org.apache.flink.streaming.api.transformations.CoFeedbackTransformation;
 import org.apache.flink.streaming.api.transformations.TwoInputTransformation;
@@ -34,14 +34,27 @@ import org.apache.flink.util.Collector;
 
 import java.util.Collections;
 
-
+/**
+ * 
+ * IterativeWindowStream represents a windowed stream within the scope of an iteration.
+ * IterativeWindowStreams can be typically used in order to express many types of iterative computation and consist
+ * of an input WindowedStream, a CoWindowTerminateFunction which defines the final type of its output and 
+ * 
+ * 
+ * @param <IN>
+ * @param <IN_W>
+ * @param <F>
+ * @param <K>
+ * @param <R>
+ * @param <S>
+ */
 @Public
 public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 	private DataStream<S> outStream;
 
-	public IterativeWindowStream(WindowedStream<IN, K, IN_W> input, CoWindowTerminateFunction<IN, F, S, R, K, IN_W> coWinTerm, 
+	public IterativeWindowStream(WindowedStream<IN, K, IN_W> input, WindowLoopFunction<IN, F, S, R, K, IN_W> coWinTerm, 
 		StreamIterationTermination terminationStrategy, 
-		FeedbackBuilder<R> feedbackBuilder, 
+		FeedbackBuilder<R, K> feedbackBuilder, 
 		TypeInformation<R> feedbackType, long waitTime) throws Exception {
 		
 		WindowedStream<IN, K, IN_W> windowedStream1 = input;
@@ -51,7 +64,7 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 			feedbackType, waitTime, input.getInput().getTransformation().getScope());
 
 		// create feedback source
-		KeyedStream<F, K> feedbackSourceStream = feedbackBuilder.feedback(new DataStream<R>(input.getExecutionEnvironment(), coFeedbackTransformation));
+		KeyedStream<R, K> feedbackSourceStream = feedbackBuilder.feedback(new DataStream<>(input.getExecutionEnvironment(), coFeedbackTransformation));
 		WindowAssigner assinger = TumblingEventTimeWindows.of(Time.milliseconds(1));
 		WindowedStream<F, K, TimeWindow> windowedStream2 = new WindowedStream<>(feedbackSourceStream, assinger);
 
@@ -61,14 +74,14 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 		outStream = streams.f1;
 	}
 
-	public Tuple2<DataStream<R>, DataStream<S>> applyCoWinTerm(CoWindowTerminateFunction coWinTerm, 
+	public Tuple2<DataStream<R>, DataStream<S>> applyCoWinTerm(WindowLoopFunction coWinTerm, 
 							WindowedStream<IN, K, IN_W> windowedStream1, 
 							WindowedStream<F, K, TimeWindow> windowedStream2,
 							StreamIterationTermination terminationStrategy) throws Exception {
 
-		TypeInformation<S> outTypeInfo = TypeExtractor.createTypeInfo(CoWindowTerminateFunction.class,
-			coWinTerm.getClass(), 2, windowedStream1.getInputType(), windowedStream2.getInputType());
-		TypeInformation<R> intermediateFeedbackTypeInfo = TypeExtractor.createTypeInfo(CoWindowTerminateFunction.class,
+		TypeInformation<S> outTypeInfo = TypeExtractor.createTypeInfo(coWinTerm,
+			WindowLoopFunction.class, coWinTerm.getClass(), 2);
+		TypeInformation<R> intermediateFeedbackTypeInfo = TypeExtractor.createTypeInfo(WindowLoopFunction.class,
 			coWinTerm.getClass(), 1, windowedStream1.getInputType(), windowedStream2.getInputType());
 
 		TwoInputTransformation<IN, F, Either<R, S>> transformation = getTransformation(
@@ -116,7 +129,7 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 	}
 
 	public TwoInputTransformation<IN, F, Either<R, S>> getTransformation(
-		final CoWindowTerminateFunction<IN, F, S, R, K, IN_W> coWinTerm,
+		final WindowLoopFunction<IN, F, S, R, K, IN_W> coWinTerm,
 		WindowedStream<IN, K, IN_W> windowedStream1,
 		WindowedStream<F, K, TimeWindow> windowedStream2,
 		TypeInformation<S> outTypeInfo,
@@ -204,9 +217,9 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 
 	private static class WrappedWindowFunction1<IN, OUT, K, W extends Window> implements WindowFunction<IN, OUT, K, W> {
 
-		CoWindowTerminateFunction coWinTerm;
+		WindowLoopFunction coWinTerm;
 
-		public WrappedWindowFunction1(CoWindowTerminateFunction coWinTerm) {
+		public WrappedWindowFunction1(WindowLoopFunction coWinTerm) {
 			this.coWinTerm = coWinTerm;
 		}
 
@@ -217,9 +230,9 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 
 	private static class WrappedWindowFunction2<IN, OUT, K, W extends TimeWindow> implements WindowFunction<IN, OUT, K, W> {
 
-		CoWindowTerminateFunction coWinTerm;
+		WindowLoopFunction coWinTerm;
 
-		public WrappedWindowFunction2(CoWindowTerminateFunction coWinTerm) {
+		public WrappedWindowFunction2(WindowLoopFunction coWinTerm) {
 			this.coWinTerm = coWinTerm;
 		}
 

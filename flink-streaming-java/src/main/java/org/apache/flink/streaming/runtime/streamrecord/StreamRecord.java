@@ -106,7 +106,7 @@ public final class StreamRecord<T> extends StreamElement implements Serializable
 
 	/** Checks whether this record has a timestamp.
 	 * 
- 	 * @return True if the record has a timestamp, false if not.
+ 	 * @return True if the record has a timestamp, false if not.                                                                                             	
 	 */
 	public boolean hasTimestamp() {
 		return hasTimestamp;
