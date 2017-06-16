@@ -131,11 +131,19 @@ public class StreamingJobGraphGenerator {
 		// set the ExecutionConfig last when it has been finalized
 		jobGraph.setExecutionConfig(streamGraph.getExecutionConfig());
 
-		//add evaluation parameters for reporting
-		jobGraph.getJobConfiguration().setInteger("numWindows", streamGraph.getExecutionConfig().getNumWindows());
-		jobGraph.getJobConfiguration().setLong("winSize", streamGraph.getExecutionConfig().getWindowSize());
 		jobGraph.getJobConfiguration().setInteger("parallelism", streamGraph.getExecutionConfig().getParallelism());
-		jobGraph.getJobConfiguration().setString("metricsOutputDir", streamGraph.getExecutionConfig().getOutputDir());
+
+		//add evaluation parameters for reporting if logging is enabled
+
+		if(streamGraph.getExecutionConfig().isExperimentMetricsEnabled()){
+			jobGraph.getJobConfiguration().setInteger("numWindows", streamGraph.getExecutionConfig().getNumWindows());
+			jobGraph.getJobConfiguration().setLong("winSize", streamGraph.getExecutionConfig().getWindowSize());
+			jobGraph.getJobConfiguration().setString("metricsOutputDir", streamGraph.getExecutionConfig().getOutputDir());
+			jobGraph.getJobConfiguration().setBoolean("experimentMetricsEnabled", true);
+		}
+		else{
+			jobGraph.getJobConfiguration().setBoolean("experimentMetricsEnabled", false);
+		}
 		
 		return jobGraph;
 	}

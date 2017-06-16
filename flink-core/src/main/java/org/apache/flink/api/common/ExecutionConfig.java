@@ -163,6 +163,7 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 
 	// --------------------------------------------------------------------------------------------
 
+	private boolean experimentMetricsEnabled = false;
 	private int numWindows;
 	private long windowSize;
 	private String outputDir;
@@ -172,6 +173,7 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 		this.numWindows = numWindows;
 		this.windowSize = winSize;
 		this.outputDir = outputDir;
+		this.experimentMetricsEnabled = true;
 	}
 
 	public int getNumWindows() {
@@ -181,6 +183,15 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 		return windowSize;
 	}
 	public String getOutputDir() { return outputDir; }
+
+
+	public boolean isExperimentMetricsEnabled() {
+		return experimentMetricsEnabled;
+	}
+
+	public void setExperimentMetricsEnabled(boolean experimentMetricsEnabled) {
+		this.experimentMetricsEnabled = experimentMetricsEnabled;
+	}
 
 	/**
 	 * Enables the ClosureCleaner. This analyzes user code functions and sets fields to null
