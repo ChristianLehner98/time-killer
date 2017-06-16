@@ -37,6 +37,7 @@ import org.apache.flink.api.java.typeutils.runtime.TupleSerializer;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.state.VoidNamespace;
 import org.apache.flink.runtime.state.VoidNamespaceSerializer;
+import org.apache.flink.streaming.api.datastream.IterativeWindowStream;
 import org.apache.flink.streaming.api.operators.Triggerable;
 import org.apache.flink.streaming.api.operators.AbstractUdfStreamOperator;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
@@ -51,6 +52,8 @@ import org.apache.flink.streaming.api.windowing.triggers.TriggerResult;
 import org.apache.flink.streaming.api.windowing.windows.Window;
 import org.apache.flink.streaming.runtime.operators.windowing.functions.InternalWindowFunction;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.Collection;
@@ -85,6 +88,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	extends AbstractUdfStreamOperator<OUT, InternalWindowFunction<ACC, OUT, K, W>>
 	implements OneInputStreamOperator<IN, OUT>, Triggerable<K, W> {
+
+	public final static Logger logger = LoggerFactory.getLogger(WindowOperator.class);
 
 	private static final long serialVersionUID = 1L;
 
@@ -630,6 +635,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 		}
 
 		public TriggerResult onElement(StreamRecord<IN> element) throws Exception {
+			logger.info("WINOP : Received element "+element);
 			return trigger.onElement(
 				element.getValue(),
 				element.getContext(),
@@ -642,6 +648,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 		}
 
 		public TriggerResult onEventTime(List<Long> timeContext, long time) throws Exception {
+			logger.info("WINOP : Received new Event Time "+time);
 			return trigger.onEventTime(timeContext, time, window, this);
 		}
 

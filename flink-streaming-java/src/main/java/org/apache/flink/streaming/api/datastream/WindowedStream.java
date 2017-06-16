@@ -36,11 +36,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.aggregation.AggregationFunction;
 import org.apache.flink.streaming.api.functions.aggregation.ComparableAggregator;
 import org.apache.flink.streaming.api.functions.aggregation.SumAggregator;
-import org.apache.flink.streaming.api.functions.windowing.FoldApplyWindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.PassThroughWindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.ReduceApplyWindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.WindowLoopFunction;
+import org.apache.flink.streaming.api.functions.windowing.*;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.operators.WatermarkResequencializer;
 import org.apache.flink.streaming.api.transformations.OneInputTransformation;
@@ -66,6 +62,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.progress.FixpointIterationTermination;
 import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
 import org.apache.flink.streaming.runtime.tasks.progress.StructuredIterationTermination;
+import org.apache.flink.util.Collector;
 
 
 /**
@@ -975,12 +972,22 @@ public class WindowedStream<T, K, W extends Window> {
 								StreamIterationTermination terminationStrategy, 
 								FeedbackBuilder<R, K> feedbackBuilder, 
 								TypeInformation<R> feedbackType) throws Exception {
-		DataStream<T> scopedStreamInput = new SingleOutputStreamOperator<T>(input.getExecutionEnvironment(),
-			new ScopeTransformation<T>(input.getTransformation(), ScopeTransformation.SCOPE_TYPE.INGRESS));
+		//we pre-window to ensure outer window assigners operation on the right scope
+		KeyedStream<T,K> preWindowedStream = this.apply(new WindowFunction<T, T, K, W>() {
+			@Override
+			public void apply(K k, W window, Iterable<T> input, Collector<T> out) throws Exception {
+				for(T rec: input){
+					out.collect(rec);
+				}
+			}
+		}).name("Pre-Window").setParallelism(getInput().getParallelism()).keyBy(getInput().getKeySelector());
+		
+		//?
 
-		WindowedStream<T,K,W> scopedWindowStream = new WindowedStream<>(
-			new KeyedStream<>(scopedStreamInput, input.getKeySelector(),
-				input.getKeyType()), getWindowAssigner());
+		WindowedStream<T, K, W> scopedWindowStream = new WindowedStream<>(
+			new KeyedStream<>(new SingleOutputStreamOperator<>(preWindowedStream.getExecutionEnvironment(),
+				new ScopeTransformation<>(preWindowedStream.getTransformation(), ScopeTransformation.SCOPE_TYPE.INGRESS)),
+				preWindowedStream.getKeySelector(), preWindowedStream.getKeyType()), getWindowAssigner());
 
 		IterativeWindowStream<T,W,F,K,R,OUT> iterativeStream = new IterativeWindowStream<>(
 			scopedWindowStream, coWinTermFun, terminationStrategy, feedbackBuilder, feedbackType, 30000);

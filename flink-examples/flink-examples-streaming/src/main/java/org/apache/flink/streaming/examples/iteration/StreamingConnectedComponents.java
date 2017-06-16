@@ -2,8 +2,6 @@ package org.apache.flink.streaming.examples.iteration;
 
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.api.java.tuple.Tuple;
-import org.apache.flink.api.java.tuple.Tuple1;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.examples.java.graph.util.ConnectedComponentsData;
@@ -14,6 +12,7 @@ import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
+import org.apache.flink.streaming.api.functions.windowing.LoopContext;
 import org.apache.flink.streaming.api.functions.windowing.WindowLoopFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
@@ -61,7 +60,7 @@ public class StreamingConnectedComponents {
 				}
 			})
 			.timeWindow(Time.milliseconds(1))
-			.iterateSync(new MyWindowLoopFunction(),
+			.iterateSync(new LoopLogic(),
 				new FixpointIterationTermination(),
 				new MyFeedbackBuilder(),
 				new TupleTypeInfo<Tuple2<Long, Long>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.LONG_TYPE_INFO))
@@ -171,24 +170,24 @@ public class StreamingConnectedComponents {
 		public void cancel() {}
 	}
 
-	private static class MyWindowLoopFunction implements WindowLoopFunction<Tuple2<Long, Set<Long>>, Tuple2<Long, Long>, Tuple2<Long,Long>, Tuple2<Long, Long>, Long, TimeWindow>, Serializable {
+	private static class LoopLogic implements WindowLoopFunction<Tuple2<Long, Set<Long>>, Tuple2<Long, Long>, Tuple2<Long,Long>, Tuple2<Long, Long>, Long, TimeWindow> {
 		Map<List<Long>,Map<Long, Set<Long>>> neighboursPerContext = new HashMap<>();
 		Map<List<Long>,Map<Long, Long>> componentsPerContext = new HashMap<>();
 
 		@Override
-		public void entry(Long key, TimeWindow win, Iterable<Tuple2<Long, Set<Long>>> iterable, Collector<Either<Tuple2<Long, Long>, Tuple2<Long,Long>>> collector) {
+		public void entry(LoopContext<Long> ctx, Iterable<Tuple2<Long, Set<Long>>> iterable, Collector<Either<Tuple2<Long, Long>, Tuple2<Long,Long>>> collector) {
 			// save graph
-			Map<Long, Set<Long>> neighbours = neighboursPerContext.get(win.getTimeContext());
+			Map<Long, Set<Long>> neighbours = neighboursPerContext.get(ctx.getContext());
 			if(neighbours == null) {
 				neighbours = new HashMap<>();
-				neighboursPerContext.put(win.getTimeContext(), neighbours);
+				neighboursPerContext.put(ctx.getContext(), neighbours);
 			}
 
 			// init components
-			Map<Long,Long> components = componentsPerContext.get(win.getTimeContext());
+			Map<Long,Long> components = componentsPerContext.get(ctx.getContext());
 			if(components == null) {
 				components = new HashMap<>();
-				componentsPerContext.put(win.getTimeContext(), components);
+				componentsPerContext.put(ctx.getContext(), components);
 			}
 
 			for(Tuple2<Long,Set<Long>> entry : iterable) {
@@ -204,18 +203,18 @@ public class StreamingConnectedComponents {
 		}
 
 		@Override
-		public void step(Long key, TimeWindow win, Iterable<Tuple2<Long, Long>> iterable, Collector<Either<Tuple2<Long, Long>, Tuple2<Long,Long>>> collector) {
-			Map<Long,Set<Long>> neighbours = neighboursPerContext.get(win.getTimeContext());
-			Map<Long,Long> components = componentsPerContext.get(win.getTimeContext());
+		public void step(LoopContext<Long> ctx, Iterable<Tuple2<Long, Long>> iterable, Collector<Either<Tuple2<Long, Long>, Tuple2<Long,Long>>> collector) {
+			Map<Long,Set<Long>> neighbours = neighboursPerContext.get(ctx.getContext());
+			Map<Long,Long> components = componentsPerContext.get(ctx.getContext());
 
 			long min = Long.MAX_VALUE;
 			for(Tuple2<Long,Long> entry : iterable) {
 				if(entry.f1 < min) min = entry.f1;
 			}
 
-			if(min < components.get(key)) {
-				components.put(key, min);
-				for(Long neighbour : neighbours.get(key)) {
+			if(min < components.get(ctx.getKey())) {
+				components.put(ctx.getKey(), min);
+				for(Long neighbour : neighbours.get(ctx.getKey())) {
 					collector.collect(new Either.Left(new Tuple2<>(neighbour, min)));
 				}
 			}
@@ -223,7 +222,7 @@ public class StreamingConnectedComponents {
 		}
 
 		@Override
-		public void onTermination(List<Long> timeContext, Collector<Either<Tuple2<Long, Long>, Tuple2<Long, Long>>> out) {
+		public void onTermination(List<Long> timeContext, long superstep, Collector<Either<Tuple2<Long, Long>, Tuple2<Long, Long>>> out) {
 			for(Map.Entry<Long,Long> component : componentsPerContext.get(timeContext).entrySet()) {
 				out.collect(new Either.Right(new Tuple2(component.getKey(), component.getValue())));
 			}

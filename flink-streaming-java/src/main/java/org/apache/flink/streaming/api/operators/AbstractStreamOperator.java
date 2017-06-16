@@ -66,6 +66,7 @@ import org.apache.flink.runtime.state.VoidNamespaceSerializer;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.runtime.progress.Notifyable;
+import org.apache.flink.streaming.runtime.operators.windowing.TwoWindowTerminateOperator;
 import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.OperatorStateHandles;
@@ -101,6 +102,8 @@ public abstract class AbstractStreamOperator<OUT>
 		implements StreamOperator<OUT>, java.io.Serializable, KeyContext {
 
 
+	public final static Logger logger = LoggerFactory.getLogger(AbstractStreamOperator.class);
+	
 	private static final long serialVersionUID = 1L;
 	
 	/** The logger used by the operator class and its subclasses */
@@ -847,6 +850,8 @@ public abstract class AbstractStreamOperator<OUT>
 	}
 
 	public void processWatermark(Watermark mark) throws Exception {
+		String taskName = getRuntimeContext().getTaskName().length() < 10 ? getRuntimeContext().getTaskName() : getRuntimeContext().getTaskName().substring(0,10); 
+		logger.info(taskName +" - "+getRuntimeContext().getIndexOfThisSubtask()+"  Received - "+ mark);
 		for (HeapInternalTimerService<?, ?> service : timerServices.values()) {
 			service.advanceWatermark(mark.getContext(), mark.getTimestamp());
 		}
@@ -855,6 +860,9 @@ public abstract class AbstractStreamOperator<OUT>
 	}
 
 	public void processWatermark1(Watermark mark) throws Exception {
+		String taskName = getRuntimeContext().getTaskName().length() < 10 ? getRuntimeContext().getTaskName() : getRuntimeContext().getTaskName().substring(0,10);
+		logger.info(taskName +" - "+getRuntimeContext().getIndexOfThisSubtask()+"  Received 1 - "+ mark);
+		
 		input1Watermark = mark.getTimestamp();
 		long newMin = Math.min(input1Watermark, input2Watermark);
 		if (newMin > combinedWatermark) {
@@ -864,6 +872,9 @@ public abstract class AbstractStreamOperator<OUT>
 	}
 
 	public void processWatermark2(Watermark mark) throws Exception {
+		String taskName = getRuntimeContext().getTaskName().length() < 10 ? getRuntimeContext().getTaskName() : getRuntimeContext().getTaskName().substring(0,10);
+		logger.info(taskName +" - "+getRuntimeContext().getIndexOfThisSubtask()+"  Received 2 - "+ mark);
+		
 		input2Watermark = mark.getTimestamp();
 		long newMin = Math.min(input1Watermark, input2Watermark);
 		if (newMin > combinedWatermark) {
@@ -974,4 +985,7 @@ public abstract class AbstractStreamOperator<OUT>
 	public Integer getId() {
 		return config.getVertexID();
 	}
+
+	@Override
+	public void sendMetrics(long windowEnd, List<Long> context) {}
 }

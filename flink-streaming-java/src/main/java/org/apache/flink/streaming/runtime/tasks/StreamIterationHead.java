@@ -69,6 +69,7 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 						Watermark mark = nextElement.asWatermark();
 
 						mark.forwardTimestamp();
+						LOG.info("@HEAD: " + mark);
 						for (RecordWriterOutput<OUT> output : outputs) {
 							output.emitWatermark(mark);
 						}

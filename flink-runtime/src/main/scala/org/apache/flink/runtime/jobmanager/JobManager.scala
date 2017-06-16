@@ -1236,14 +1236,16 @@ class JobManager(
       val actorRef: ActorRef = context.actorOf(Props(new CentralTracker(
         jobGraph.getPathSummaries, jobGraph.getMaxScopeLevel, numberOfGlobalInstances, jobGraph.getProgressBufferInterval())))
       centralTrackers += (jobId -> actorRef)
-      
-      progressMetricsTrackers += (jobId -> context.actorOf(Props(new ProgressMetricsLogger(
-        jobGraph.getJobConfiguration.getInteger("numWindows",0),
-        jobGraph.getJobConfiguration.getInteger("parallelism",0),
-        jobGraph.getJobConfiguration.getLong("winSize",0),
-        jobGraph.getJobConfiguration.getString("metricsOutputDir", "out"),
-        jobGraph.getProgressBufferInterval
-        ))))
+
+      if(jobGraph.getJobConfiguration.getBoolean("experimentMetricsEnabled", false)){
+        progressMetricsTrackers += (jobId -> context.actorOf(Props(new ProgressMetricsLogger(
+          jobGraph.getJobConfiguration.getInteger("numWindows",0),
+          jobGraph.getJobConfiguration.getInteger("parallelism",0),
+          jobGraph.getJobConfiguration.getLong("winSize",0),
+          jobGraph.getJobConfiguration.getString("metricsOutputDir", "out"),
+          jobGraph.getProgressBufferInterval()
+        ))));
+      }
       
       try {
         // Important: We need to make sure that the library registration is the first action,
@@ -1457,9 +1459,13 @@ class JobManager(
   private def cleanupJobActors(jobId:JobID): Unit = {
     centralTrackers(jobId) ! PoisonPill
     centralTrackers -= jobId
-    
-    progressMetricsTrackers(jobId) ! PoisonPill
-    progressMetricsTrackers -= jobId
+
+    progressMetricsTrackers.get(jobId) match {
+      case Some(act) => 
+        act ! PoisonPill
+        progressMetricsTrackers -= jobId
+      case None => None
+    }
   }
   
   /**

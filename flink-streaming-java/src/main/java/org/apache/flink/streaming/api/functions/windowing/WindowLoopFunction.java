@@ -1,6 +1,7 @@
 package org.apache.flink.streaming.api.functions.windowing;
 
 import org.apache.flink.annotation.Public;
+import org.apache.flink.api.common.functions.Function;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.api.windowing.windows.Window;
 import org.apache.flink.types.Either;
@@ -31,8 +32,8 @@ import java.util.List;
  * @param <W_IN>  The Window type if the input
  */
 @Public
-public interface WindowLoopFunction<IN,F_IN,OUT,R,KEY,W_IN extends Window> extends TerminationFunction<Either<R,OUT>>, Serializable {
-	void entry(KEY key, W_IN window, Iterable<IN> input, Collector<Either<R,OUT>> out) throws Exception;
-	void step(KEY key, TimeWindow window, Iterable<F_IN> input, Collector<Either<R,OUT>> out) throws Exception;
-	void onTermination(List<Long> timeContext, Collector<Either<R,OUT>> out) throws Exception;
+public interface WindowLoopFunction<IN,F_IN,OUT,R,KEY,W_IN extends Window> extends Function, Serializable {
+	void entry(LoopContext<KEY> ctx, Iterable<IN> input, Collector<Either<R,OUT>> out) throws Exception;
+	void step(LoopContext<KEY> ctx, Iterable<F_IN> input, Collector<Either<R,OUT>> out) throws Exception;
+	void onTermination(List<Long> timeContext, long superstep, Collector<Either<R,OUT>> out) throws Exception;
 }

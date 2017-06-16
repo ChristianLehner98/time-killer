@@ -154,4 +154,6 @@ public interface StreamOperator<OUT> extends Serializable {
 	void collectInternalProgress(Integer operatorId, List<Long> timestamp, int delta);
 
 	Integer getId();
+	
+	void sendMetrics(long windowEnd, List<Long> context);
 }

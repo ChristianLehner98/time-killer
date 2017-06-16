@@ -163,6 +163,7 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 
 	// --------------------------------------------------------------------------------------------
 
+	private boolean experimentMetricsEnabled = false;
 	private int numWindows;
 	private long windowSize;
 	private String outputDir;
@@ -173,6 +174,7 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 		this.windowSize = winSize;
 		this.outputDir = outputDir;
 		this.progressBufferInterval = progressBufferInterval;
+		this.experimentMetricsEnabled = true;
 	}
 
 	public int getNumWindows() {
@@ -189,6 +191,15 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 
 	public Integer getProgressBufferInterval() {
 		return progressBufferInterval;
+	}
+
+
+	public boolean isExperimentMetricsEnabled() {
+		return experimentMetricsEnabled;
+	}
+
+	public void setExperimentMetricsEnabled(boolean experimentMetricsEnabled) {
+		this.experimentMetricsEnabled = experimentMetricsEnabled;
 	}
 
 	/**
