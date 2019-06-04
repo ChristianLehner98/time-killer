@@ -91,18 +91,18 @@ under the License.
 			<version>${project.version}</version>
 		</dependency>
 
-		<dependency>
-			<groupId>org.apache.flink</groupId>
-			<artifactId>flink-streaming-python_${scala.binary.version}</artifactId>
-			<version>${project.version}</version>
-			<scope>provided</scope>
-		</dependency>
+		<!-- <dependency> -->
+			<!-- <groupId>org.apache.flink</groupId> -->
+			<!-- <artifactId>flink-streaming-python_${scala.binary.version}</artifactId> -->
+			<!-- <version>${project.version}</version> -->
+			<!-- <scope>provided</scope> -->
+		<!-- </dependency> -->
 
-		<dependency>
-			<groupId>org.apache.flink</groupId>
-			<artifactId>flink-scala-shell_${scala.binary.version}</artifactId>
-			<version>${project.version}</version>
-		</dependency>
+		<!-- <dependency> -->
+			<!-- <groupId>org.apache.flink</groupId> -->
+			<!-- <artifactId>flink-scala-shell_${scala.binary.version}</artifactId> -->
+			<!-- <version>${project.version}</version> -->
+		<!-- </dependency> -->
 
 		<dependency>
 			<groupId>org.apache.flink</groupId>
@@ -116,11 +116,11 @@ under the License.
 			<version>${project.version}</version>
 		</dependency>
         
-		<dependency>
-			<groupId>org.apache.flink</groupId>
-			<artifactId>flink-mesos_${scala.binary.version}</artifactId>
-			<version>${project.version}</version>
-		</dependency>
+		<!-- <dependency> -->
+			<!-- <groupId>org.apache.flink</groupId> -->
+			<!-- <artifactId>flink-mesos_${scala.binary.version}</artifactId> -->
+			<!-- <version>${project.version}</version> -->
+		<!-- </dependency> -->
 
 		<dependency>
 			<groupId>org.apache.flink</groupId>
@@ -266,19 +266,19 @@ under the License.
 			<scope>provided</scope>
 		</dependency>
 
-		<dependency>
-			<groupId>org.apache.flink</groupId>
-			<artifactId>flink-cep_${scala.binary.version}</artifactId>
-			<version>${project.version}</version>
-			<scope>provided</scope>
-		</dependency>
+		<!-- <dependency> -->
+			<!-- <groupId>org.apache.flink</groupId> -->
+			<!-- <artifactId>flink-cep_${scala.binary.version}</artifactId> -->
+			<!-- <version>${project.version}</version> -->
+			<!-- <scope>provided</scope> -->
+		<!-- </dependency> -->
 
-		<dependency>
-			<groupId>org.apache.flink</groupId>
-			<artifactId>flink-cep-scala_${scala.binary.version}</artifactId>
-			<version>${project.version}</version>
-			<scope>provided</scope>
-		</dependency>
+		<!-- <dependency> -->
+			<!-- <groupId>org.apache.flink</groupId> -->
+			<!-- <artifactId>flink-cep-scala_${scala.binary.version}</artifactId> -->
+			<!-- <version>${project.version}</version> -->
+			<!-- <scope>provided</scope> -->
+		<!-- </dependency> -->
 
 		<dependency>
 			<groupId>org.apache.flink</groupId>
@@ -294,26 +294,26 @@ under the License.
 			<scope>provided</scope>
 		</dependency>
 
-		<dependency>
-			<groupId>org.apache.flink</groupId>
-			<artifactId>flink-ml_${scala.binary.version}</artifactId>
-			<version>${project.version}</version>
-			<scope>provided</scope>
-		</dependency>
+		<!-- <dependency> -->
+			<!-- <groupId>org.apache.flink</groupId> -->
+			<!-- <artifactId>flink-ml_${scala.binary.version}</artifactId> -->
+			<!-- <version>${project.version}</version> -->
+			<!-- <scope>provided</scope> -->
+		<!-- </dependency> -->
 
-		<dependency>
-			<groupId>org.apache.flink</groupId>
-			<artifactId>flink-table_${scala.binary.version}</artifactId>
-			<version>${project.version}</version>
-			<scope>provided</scope>
-		</dependency>
+		<!-- <dependency> -->
+			<!-- <groupId>org.apache.flink</groupId> -->
+			<!-- <artifactId>flink-table_${scala.binary.version}</artifactId> -->
+			<!-- <version>${project.version}</version> -->
+			<!-- <scope>provided</scope> -->
+		<!-- </dependency> -->
 
-		<dependency>
-			<groupId>org.apache.flink</groupId>
-			<artifactId>flink-sql-client</artifactId>
-			<version>${project.version}</version>
-			<scope>provided</scope>
-		</dependency>
+		<!-- <dependency> -->
+			<!-- <groupId>org.apache.flink</groupId> -->
+			<!-- <artifactId>flink-sql-client</artifactId> -->
+			<!-- <version>${project.version}</version> -->
+			<!-- <scope>provided</scope> -->
+		<!-- </dependency> -->
 
 		<dependency>
 			<groupId>org.apache.flink</groupId>

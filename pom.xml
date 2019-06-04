@@ -74,7 +74,7 @@ under the License.
 		<module>flink-end-to-end-tests</module>
 		<module>flink-test-utils-parent</module>
 		<module>flink-state-backends</module>
-		<!--<module>flink-libraries</module>-->
+		<module>flink-libraries</module>
 		<!--<module>flink-scala-shell</module>-->
 		<module>flink-quickstart</module>
 		<module>flink-contrib</module>
@@ -158,6 +158,13 @@ under the License.
 		<dependency>
 			<groupId>com.google.code.findbugs</groupId>
 			<artifactId>jsr305</artifactId>
+		</dependency>
+		
+		<!--fixing error in compilation, this should probably be done more thoughtfully, but it does not seem to be really important -->
+		<dependency>
+    			<groupId>com.google.collections</groupId>
+    			<artifactId>google-collections</artifactId>
+    			<version>1.0-rc2</version>
 		</dependency>
 
 		<!-- test dependencies -->
