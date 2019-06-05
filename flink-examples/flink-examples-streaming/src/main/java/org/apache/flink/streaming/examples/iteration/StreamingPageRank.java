@@ -31,18 +31,24 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.Serializable;
 import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class StreamingPageRank {
 	StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+	private static Logger LOG = LoggerFactory.getLogger(StreamingPageRank.class);
 
 	public static void main(String[] args) throws Exception {
-		int numWindows = Integer.parseInt(args[0]);
-		long windSize = Long.parseLong(args[1]);
-		int parallelism = Integer.parseInt(args[2]);
-		String outputDir = args[3];
-		String inputDir = args.length > 4 ? args[4] : "";
+		int sleepTimePerElement = Integer.parseInt(args[0]);
+//		int numWindows = Integer.parseInt(args[0]);
+//		long windSize = Long.parseLong(args[1]);
+//		int parallelism = Integer.parseInt(args[2]);
+//		String outputDir = args[3];
+//		String inputDir = args.length > 4 ? args[4] : "";
 
-		StreamingPageRank example = new StreamingPageRank(numWindows, windSize, parallelism, inputDir, outputDir);
+//		StreamingPageRank example = new StreamingPageRank(numWindows, windSize, parallelism, inputDir, outputDir);
+//		since those variables are not used anyways, I just use any values, not a good solution but sufficient for this purpose
+		StreamingPageRank example = new StreamingPageRank(0, 0, 0, "", "", sleepTimePerElement);
 		example.run();
 	}
 
@@ -55,11 +61,11 @@ public class StreamingPageRank {
 	 * @param parallelism
 	 * @throws Exception
 	 */
-	public StreamingPageRank(int numWindows, long windSize, int parallelism, String inputDir, String outputDir) throws Exception {
+	public StreamingPageRank(int numWindows, long windSize, int parallelism, String inputDir, String outputDir, int sleepTimePerElement) throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 		env.setParallelism(2);
 
-		DataStream<Tuple2<Long, List<Long>>> inputStream = env.addSource(new PageRankSampleSrc());
+		DataStream<Tuple2<Long, List<Long>>> inputStream = env.addSource(new PageRankSampleSrc(sleepTimePerElement)).setParallelism(1);
 		WindowedStream<Tuple2<Long, List<Long>>, Long, TimeWindow> winStream =
 
 			inputStream.keyBy(new KeySelector<Tuple2<Long, List<Long>>, Long>() {
@@ -68,13 +74,14 @@ public class StreamingPageRank {
 					return value.f0;
 				}
 			}).timeWindow(Time.milliseconds(1000));
-		
+
 			winStream.iterateSyncFor(4,
 				new MyWindowLoopFunction(),
 				new MyFeedbackBuilder(),
-				new TupleTypeInfo<>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO))
+				new TupleTypeInfo<>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO), 5000 + 10* sleepTimePerElement)
 			.print();
-		env.getConfig().setExperimentConstants(numWindows, windSize, outputDir);
+//		I don't currently use the metrics so I don't need to worry about it either
+//		env.getConfig().setExperimentConstants(numWindows, windSize, outputDir);
 	}
 
 	protected void run() throws Exception {
@@ -143,27 +150,36 @@ public class StreamingPageRank {
 		new Tuple3<>(1l, (List<Long>) Lists.newArrayList(2l, 3l), 1000l),
 		new Tuple3<>(3l, (List<Long>) Lists.newArrayList(1l), 1000l),
 		new Tuple3<>(2l, (List<Long>) Lists.newArrayList(1l), 1000l),
-		new Tuple3<>(2l, (List<Long>) Lists.newArrayList(1l, 3l), 2000l),
-		new Tuple3<>(1l, (List<Long>) Lists.newArrayList(2l), 2000l),
-		new Tuple3<>(3l, (List<Long>) Lists.newArrayList(2l), 2000l),
-		new Tuple3<>(3l, (List<Long>) Lists.newArrayList(2l, 1l), 3000l),
-		new Tuple3<>(2l, (List<Long>) Lists.newArrayList(3l), 3000l),
-		new Tuple3<>(1l, (List<Long>) Lists.newArrayList(3l), 3000l),
-		new Tuple3<>(4l, (List<Long>) Lists.newArrayList(1l), 4000l),
-		new Tuple3<>(1l, (List<Long>) Lists.newArrayList(4l), 4000l),
-		new Tuple3<>(1l, (List<Long>) Lists.newArrayList(2l), 4000l),
-		new Tuple3<>(3l, (List<Long>) Lists.newArrayList(1l), 4000l),
-		new Tuple3<>(5l, (List<Long>) Lists.newArrayList(1l), 5000l)
+		new Tuple3<>(5l, (List<Long>) Lists.newArrayList(4l, 6l), 2000l),
+		new Tuple3<>(4l, (List<Long>) Lists.newArrayList(5l), 2000l),
+		new Tuple3<>(6l, (List<Long>) Lists.newArrayList(5l), 2000l),
+		new Tuple3<>(9l, (List<Long>) Lists.newArrayList(8l, 7l), 3000l),
+		new Tuple3<>(8l, (List<Long>) Lists.newArrayList(9l), 3000l),
+		new Tuple3<>(7l, (List<Long>) Lists.newArrayList(9l), 3000l),
+		new Tuple3<>(13l, (List<Long>) Lists.newArrayList(10l), 4000l),
+		new Tuple3<>(10l, (List<Long>) Lists.newArrayList(13l), 4000l),
+		new Tuple3<>(10l, (List<Long>) Lists.newArrayList(11l), 4000l),
+		new Tuple3<>(12l, (List<Long>) Lists.newArrayList(10l), 4000l),
+		new Tuple3<>(14l, (List<Long>) Lists.newArrayList(15l), 5000l)
 
 	);
 
 
 	private static class PageRankSampleSrc extends RichSourceFunction<Tuple2<Long, List<Long>>> {
 
+		private final long sleepTimePerElement;
+
+		public PageRankSampleSrc(int sleepTimePerElement) {
+			this.sleepTimePerElement = sleepTimePerElement;
+		}
+
 		@Override
 		public void run(SourceContext<Tuple2<Long, List<Long>>> ctx) throws Exception {
 			long curTime = -1;
 			for (Tuple3<Long, List<Long>, Long> next : sampleStream) {
+				Thread.sleep(sleepTimePerElement);
+				System.err.println("sleep time per element: "+ sleepTimePerElement);
+				LOG.info("sleep time per element: {}", sleepTimePerElement);
 				ctx.collectWithTimestamp(new Tuple2<>(next.f0, next.f1), next.f2);
 
 				if (curTime == -1) {
@@ -172,8 +188,8 @@ public class StreamingPageRank {
 				if (curTime < next.f2) {
 					curTime = next.f2;
 					ctx.emitWatermark(new Watermark(curTime - 1));
-
 				}
+
 			}
 		}
 
@@ -217,32 +233,34 @@ public class StreamingPageRank {
 	}
 
 	private static class MyWindowLoopFunction implements WindowLoopFunction<Tuple2<Long, List<Long>>, Tuple2<Long, Double>, Tuple2<Long, Double>, Tuple2<Long, Double>, Long, TimeWindow>, Serializable {
+
 		Map<List<Long>, Map<Long, List<Long>>> neighboursPerContext = new HashMap<>();
 		Map<List<Long>, Map<Long, Double>> pageRanksPerContext = new HashMap<>();
 
 		MapState<Long, List<Long>> persistentGraph = null;
 		MapState<Long, Double> persistentRanks = null;
-		
+
 		private final ListStateDescriptor<Long> listStateDesc =
 			new ListStateDescriptor<>("test", BasicTypeInfo.LONG_TYPE_INFO);
-		
+
 		public List<Long> getNeighbours(List<Long> timeContext, Long pageID) {
 			return neighboursPerContext.get(timeContext).get(pageID);
 		}
 
 		@Override
 		public void entry(LoopContext<Long> ctx, Iterable<Tuple2<Long, List<Long>>> iterable, Collector<Either<Tuple2<Long, Double>, Tuple2<Long, Double>>> collector) throws Exception {
-			
+
 			checkAndInitState(ctx);
-			
-			System.err.println("[state]:: "+ctx.getRuntimeContext().getIndexOfThisSubtask()+", ctx:"+ctx+" NEW ITERATION - EXISTING STATE Keys:"+ persistentGraph.keys() + ", Ranks:"+persistentRanks.keys());
-			
+
+			System.err.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1)+ "> " + "[state]:: "+"ctx:"+ctx+" NEW ITERATION - EXISTING STATE Keys:"+ persistentGraph.keys() + ", Ranks:"+persistentRanks.entries());
+			LOG.debug("{}> [state]:: ctx:{} NEW ITERATION - EXISTING STATE Keys:{}, Ranks:{}", ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx, persistentGraph.keys(), persistentGraph.entries());
+
 			Map<Long, List<Long>> adjacencyList = neighboursPerContext.get(ctx.getContext());
-			
+
 			if (adjacencyList == null) {
 				adjacencyList = new HashMap<>();
 				neighboursPerContext.put(ctx.getContext(), adjacencyList);
-			}                                                      	
+			}
 
 			Map<Long, Double> pageRanks = pageRanksPerContext.get(ctx.getContext());
 			if (pageRanks == null) {
@@ -259,7 +277,8 @@ public class StreamingPageRank {
 			// send rank into feedback loop
 			collector.collect(new Either.Left(new Tuple2<>(ctx.getKey(), 1.0)));
 
-			System.err.println("ENTRY (" + ctx.getKey() + "):: " + Arrays.toString(ctx.getContext().toArray()) + " -> " + adjacencyList);
+			System.err.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1)+ "> " + "ENTRY (" + ctx.getKey() + "):: " + Arrays.toString(ctx.getContext().toArray()) + " -> " + adjacencyList);
+			LOG.debug("{}> ENTRY ({}):: {} -> {}", ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx.getKey(), Arrays.toString(ctx.getContext().toArray()), adjacencyList);
 		}
 
 		private void checkAndInitState(LoopContext<Long> ctx) {
@@ -268,7 +287,7 @@ public class StreamingPageRank {
 			}
 			if(persistentGraph == null){
 				persistentGraph = ctx.getRuntimeContext().getMapState(new MapStateDescriptor<>("graph", LongSerializer.INSTANCE, listStateDesc.getSerializer()));
-				persistentRanks = ctx.getRuntimeContext().getMapState(new MapStateDescriptor<>("ranks", LongSerializer.INSTANCE, DoubleSerializer.INSTANCE));	
+				persistentRanks = ctx.getRuntimeContext().getMapState(new MapStateDescriptor<>("ranks", LongSerializer.INSTANCE, DoubleSerializer.INSTANCE));
 			}
 		}
 
@@ -298,33 +317,37 @@ public class StreamingPageRank {
 					collector.collect(new Either.Left(new Tuple2<>(neighbourID, rankToDistribute)));
 				}
 			}
-			System.err.println("POST-STEP:: ,ctx:"+ctx+ " -- "+ pageRanksPerContext.get(ctx.getContext()));
+			System.err.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1)+ "> " + "POST-STEP:: ctx:"+ctx+ " -- "+ pageRanksPerContext.get(ctx.getContext()));
+			LOG.debug("{}> POST-STEP:: ctx:{} -- {}", ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx, pageRanksPerContext.get(ctx.getContext()));
 		}
 
 		@Override
 		public void onTermination(LoopContext<Long> ctx, Collector<Either<Tuple2<Long, Double>, Tuple2<Long, Double>>> out) throws Exception {
 			Map<Long, Double> vertexStates = pageRanksPerContext.get(ctx.getContext());
-			System.err.println("ON TERMINATION:: ctx: " + ctx + " :: " + vertexStates);
-			
-			
+			System.err.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1)+ "> " + "ON TERMINATION:: ctx: " + ctx + " :: " + vertexStates);
+			LOG.debug("{}> ON TERMINATION:: ctx: {} :: {}", ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx, vertexStates);
+
+
 			if(vertexStates != null){
 				for (Map.Entry<Long, Double> rank : pageRanksPerContext.get(ctx.getContext()).entrySet()) {
 					out.collect(new Either.Right(new Tuple2(rank.getKey(), rank.getValue())));
-				}	
+				}
 			}
 
 			//TEST - BACK UP Snapshot to persistent state
 			checkAndInitState(ctx);
-			
+
 			if(neighboursPerContext.containsKey(ctx.getContext())){
-				System.err.println("[state]:: "+ctx.getRuntimeContext().getIndexOfThisSubtask()+" , ctx:"+ctx+" UPDATING Persistent State");
+				System.err.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1)+ "> " + "[state]:: "+"ctx:"+ctx+" UPDATING Persistent State");
+				LOG.debug("{}> [state]:: ctx:{} UPDATING Persistent State", ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx);
 				persistentGraph.putAll(neighboursPerContext.get(ctx.getContext()));
 				persistentRanks.putAll(pageRanksPerContext.get(ctx.getContext()));
 
-				System.err.println("[state]:: "+ctx.getRuntimeContext().getIndexOfThisSubtask()+" , ctx:"+ctx+" Current State is #Vertices:"+ persistentGraph.keys() + ", #Ranks:"+persistentRanks.values());
+				System.err.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1)+ "> " + "[state]:: "+"ctx:"+ctx+" Current State is #Vertices:"+ persistentGraph.keys() + ", #Ranks:"+persistentRanks.entries());
+				LOG.debug("{}> [state]:: ctx:{} Current State is #Vertices:{}, #Ranks:{}", ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx, persistentGraph.keys(), persistentRanks.entries());
 			}
 
-			
+
 		}
 	}
 }

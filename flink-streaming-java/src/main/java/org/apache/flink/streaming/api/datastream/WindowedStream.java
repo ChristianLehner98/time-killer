@@ -1542,6 +1542,7 @@ public class WindowedStream<T, K, W extends Window> {
 	}
 
 
+	//allow to change the waitTime
 	public <OUT,F,R> DataStream<OUT> iterateSyncFor(
 		int iterationCount,
 		WindowLoopFunction<T,F,OUT,R,K,W> coWinTermFun,
@@ -1551,7 +1552,19 @@ public class WindowedStream<T, K, W extends Window> {
 			coWinTermFun,
 			new StructuredIterationTermination(iterationCount),
 			feedbackBuilder,
-			feedbackType);
+			feedbackType, 15000);
+	}
+
+	public <OUT,F,R> DataStream<OUT> iterateSyncFor(
+		int iterationCount,
+		WindowLoopFunction<T,F,OUT,R,K,W> coWinTermFun,
+		FeedbackBuilder<R, K> feedbackBuilder,
+		TypeInformation<R> feedbackType, long waitTime) throws Exception {
+		return iterateSync(
+			coWinTermFun,
+			new StructuredIterationTermination(iterationCount),
+			feedbackBuilder,
+			feedbackType, waitTime);
 	}
 
 	public <OUT,F,R> DataStream<OUT> iterateSyncDelta(
@@ -1562,7 +1575,18 @@ public class WindowedStream<T, K, W extends Window> {
 			coWinTermFun,
 			new FixpointIterationTermination(),
 			feedbackBuilder,
-			feedbackType);
+			feedbackType, 15000);
+	}
+
+	public <OUT,F,R> DataStream<OUT> iterateSyncDelta(
+		WindowLoopFunction<T,F,OUT,R,K,W> coWinTermFun,
+		FeedbackBuilder<R, K> feedbackBuilder,
+		TypeInformation<R> feedbackType, long waitTime) throws Exception {
+		return iterateSync(
+			coWinTermFun,
+			new FixpointIterationTermination(),
+			feedbackBuilder,
+			feedbackType, waitTime);
 	}
 
 	/**
@@ -1584,9 +1608,9 @@ public class WindowedStream<T, K, W extends Window> {
 	 * @return The output DataStream.
 	 */
 	public <OUT,F,R> DataStream<OUT> iterateSync(WindowLoopFunction<T,F,OUT,R,K,W> coWinTermFun,
-								StreamIterationTermination terminationStrategy, 
-								FeedbackBuilder<R, K> feedbackBuilder, 
-								TypeInformation<R> feedbackType) throws Exception {
+								StreamIterationTermination terminationStrategy,
+								FeedbackBuilder<R, K> feedbackBuilder,
+								TypeInformation<R> feedbackType, long waitTime) throws Exception {
 
 
 		//we pre-window to ensure outer window assigners operation on the right scope
@@ -1605,7 +1629,7 @@ public class WindowedStream<T, K, W extends Window> {
 				preWindowedStream.getKeySelector(), preWindowedStream.getKeyType()), getWindowAssigner());
 
 		IterativeWindowStream<T,W,F,K,R,OUT> iterativeStream = new IterativeWindowStream<>(
-			scopedWindowStream, coWinTermFun, terminationStrategy, feedbackBuilder, feedbackType, 15000);
+			scopedWindowStream, coWinTermFun, terminationStrategy, feedbackBuilder, feedbackType, waitTime);
 
 		DataStream<OUT> outStream = iterativeStream.loop();
 
