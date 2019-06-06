@@ -178,8 +178,8 @@ public class StreamingPageRank {
 			long curTime = -1;
 			for (Tuple3<Long, List<Long>, Long> next : sampleStream) {
 				Thread.sleep(sleepTimePerElement);
-				System.err.println("sleep time per element: "+ sleepTimePerElement);
-				LOG.info("sleep time per element: {}", sleepTimePerElement);
+				System.err.println("sleep time per element: "+ sleepTimePerElement + " ms");
+				LOG.debug("sleep time per element: {} ms", sleepTimePerElement);
 				ctx.collectWithTimestamp(new Tuple2<>(next.f0, next.f1), next.f2);
 
 				if (curTime == -1) {
@@ -281,14 +281,28 @@ public class StreamingPageRank {
 			LOG.debug("{}> ENTRY ({}):: {} -> {}", ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx.getKey(), Arrays.toString(ctx.getContext().toArray()), adjacencyList);
 		}
 
-		private void checkAndInitState(LoopContext<Long> ctx) {
+		private void checkAndInitState(LoopContext<Long> ctx) throws Exception {
+			System.err.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1)+ "> " + "check and init state called");
+			LOG.debug("{}> check and init state called", ctx.getRuntimeContext().getIndexOfThisSubtask() + 1);
 			if(!listStateDesc.isSerializerInitialized()){
 				listStateDesc.initializeSerializerUnlessSet(ctx.getRuntimeContext().getExecutionConfig());
 			}
 			if(persistentGraph == null){
+				System.err.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1)+ "> " + "INITIALIZING persistent state");
+				LOG.debug("{}> INITIALIZING persistent state", ctx.getRuntimeContext().getIndexOfThisSubtask() + 1);
 				persistentGraph = ctx.getRuntimeContext().getMapState(new MapStateDescriptor<>("graph", LongSerializer.INSTANCE, listStateDesc.getSerializer()));
 				persistentRanks = ctx.getRuntimeContext().getMapState(new MapStateDescriptor<>("ranks", LongSerializer.INSTANCE, DoubleSerializer.INSTANCE));
 			}
+
+			if(neighboursPerContext.containsKey(ctx.getContext())){
+					System.err.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1) + "> "
+						+ "AFTER CHECK_AND_INIT_STATE [state]:: " + "ctx:" + ctx + " Current State is #Vertices:"
+						+ persistentGraph.keys() + ", #Ranks:" + persistentRanks.entries());
+					LOG.debug(
+						"{}> AFTER CHECK_AND_INIT_STATE [state]:: ctx:{} Current State is #Vertices:{}, #Ranks:{}",
+						ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx, persistentGraph.keys(),
+						persistentRanks.entries());
+				}
 		}
 
 		@Override
@@ -326,7 +340,6 @@ public class StreamingPageRank {
 			Map<Long, Double> vertexStates = pageRanksPerContext.get(ctx.getContext());
 			System.err.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1)+ "> " + "ON TERMINATION:: ctx: " + ctx + " :: " + vertexStates);
 			LOG.debug("{}> ON TERMINATION:: ctx: {} :: {}", ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx, vertexStates);
-
 
 			if(vertexStates != null){
 				for (Map.Entry<Long, Double> rank : pageRanksPerContext.get(ctx.getContext()).entrySet()) {
