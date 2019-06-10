@@ -1552,7 +1552,7 @@ public class WindowedStream<T, K, W extends Window> {
 			coWinTermFun,
 			new StructuredIterationTermination(iterationCount),
 			feedbackBuilder,
-			feedbackType, 15000);
+			feedbackType);
 	}
 
 	public <OUT,F,R> DataStream<OUT> iterateSyncFor(
@@ -1575,7 +1575,7 @@ public class WindowedStream<T, K, W extends Window> {
 			coWinTermFun,
 			new FixpointIterationTermination(),
 			feedbackBuilder,
-			feedbackType, 15000);
+			feedbackType);
 	}
 
 	public <OUT,F,R> DataStream<OUT> iterateSyncDelta(
@@ -1630,6 +1630,62 @@ public class WindowedStream<T, K, W extends Window> {
 
 		IterativeWindowStream<T,W,F,K,R,OUT> iterativeStream = new IterativeWindowStream<>(
 			scopedWindowStream, coWinTermFun, terminationStrategy, feedbackBuilder, feedbackType, waitTime);
+
+		DataStream<OUT> outStream = iterativeStream.loop();
+
+		ScopeTransformation<OUT> egressTransformation = new ScopeTransformation<>(outStream.getTransformation(), ScopeTransformation.SCOPE_TYPE.EGRESS);
+
+		OneInputTransformation<OUT,OUT> seqWatermarksOutStream = new OneInputTransformation<>(
+			egressTransformation,
+			"WatermarkResequencializer",
+			new WatermarkResequencializer<OUT>(),
+			egressTransformation.getOutputType(),
+			egressTransformation.getParallelism()
+		);
+		return new SingleOutputStreamOperator<>(outStream.environment, seqWatermarksOutStream);
+	}
+
+	/**
+	 * Bulk synchronous iteration
+	 *
+	 * @param <OUT> The type of the iteration output (as produced by the onTermination function of
+	 *                the CoWindowTerminateFunction)
+	 * @param <R> 	The type of the feedback stream produced by the entry and step functions of
+	 *           	the CoWindowTerminateFunction
+	 * @param <F>	The type of the feedback after applying the feedbackBuilder function
+	 * @param CoWindowTerminateFunction contains entry, step and onTermination UDFs
+	 * @param StreamIterationTermination decides per iteration when it shall terminate - examples:
+	 *                                   StructuredIterationTermination ("for loop") or
+	 *                                   FixPointIterationTermination ("delta iteration")
+	 * @param FeedbackBuilder	takes a DataStream<R> and produces a KeyedStream<F,K> (same keying like
+	 *                          input windowed stream) for feedback
+	 * @param TypeInformation Type of the feedback coming out of entry/step of CoWindowTerminationFunction
+	 *                             - TODO can this be automated?
+	 * @return The output DataStream.
+	 */
+	public <OUT,F,R> DataStream<OUT> iterateSync(WindowLoopFunction<T,F,OUT,R,K,W> coWinTermFun,
+		StreamIterationTermination terminationStrategy,
+		FeedbackBuilder<R, K> feedbackBuilder,
+		TypeInformation<R> feedbackType) throws Exception {
+
+
+		//we pre-window to ensure outer window assigners operation on the right scope
+		KeyedStream<T,K> preWindowedStream = this.apply(new WindowFunction<T, T, K, W>() {
+			@Override
+			public void apply(K k, W window, Iterable<T> input, Collector<T> out) throws Exception {
+				for(T rec: input){
+					out.collect(rec);
+				}
+			}
+		}).name("Pre-Window").keyBy(getInput().getKeySelector());
+
+		WindowedStream<T, K, W> scopedWindowStream = new WindowedStream<>(
+			new KeyedStream<>(new SingleOutputStreamOperator<>(preWindowedStream.getExecutionEnvironment(),
+				new ScopeTransformation<>(preWindowedStream.getTransformation(), ScopeTransformation.SCOPE_TYPE.INGRESS)),
+				preWindowedStream.getKeySelector(), preWindowedStream.getKeyType()), getWindowAssigner());
+
+		IterativeWindowStream<T,W,F,K,R,OUT> iterativeStream = new IterativeWindowStream<>(
+			scopedWindowStream, coWinTermFun, terminationStrategy, feedbackBuilder, feedbackType, 15000);
 
 		DataStream<OUT> outStream = iterativeStream.loop();
 
