@@ -51,15 +51,6 @@ public class SaveAndReadPersistentStateExample {
 				}
 			}).timeWindow(Time.milliseconds(1000));
 
-		WindowedStream<Tuple2<Long, Long>, Long, TimeWindow> winStream =
-
-			input.keyBy(new KeySelector<Tuple2<Long, Long>, Long>() {
-				@Override
-				public Long getKey(Tuple2<Long, Long> value) throws Exception {
-					return value.f0;
-				}
-			}).timeWindow(Time.milliseconds(1000));
-
 		DataStream<Tuple2<Long, Long>> results = winInput.iterateSync(
 			new PersistentStateWindowLoopFunction(stateMode, overwriteMode, stateAccessMode),
 			new FixpointIterationTermination(),
