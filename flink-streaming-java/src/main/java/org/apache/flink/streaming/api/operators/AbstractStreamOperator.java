@@ -797,4 +797,27 @@ public abstract class AbstractStreamOperator<OUT>
 
 	@Override
 	public void sendMetrics(long windowEnd, List<Long> context) {}
+
+	@Override
+	public String toString() {
+		return  "\n" + super.toString() + "{" +
+			"\n chainingStrategy=" + chainingStrategy +
+			",\n container=" + container +
+			",\n config=" + config +
+			",\n output=" + output +
+			",\n runtimeContext=" + (runtimeContext == null ? "null" : runtimeContext.toStringOnlyHash()) +
+			",\n stateKeySelector1=" + stateKeySelector1 +
+			",\n stateKeySelector2=" + stateKeySelector2 +
+			",\n keyedStateBackend=" + keyedStateBackend +
+			",\n keyedStateStore=" + keyedStateStore +
+			",\n operatorStateBackend=" + operatorStateBackend +
+			",\n metrics=" + metrics +
+			",\n latencyStats=" + latencyStats +
+			",\n timeServiceManager=" + timeServiceManager +
+			",\n combinedWatermark=" + combinedWatermark +
+			",\n input1Watermark=" + input1Watermark +
+			",\n input2Watermark=" + input2Watermark +
+			",\n scopeLevel=" + scopeLevel +
+			"\n}";
+	}
 }

@@ -187,4 +187,9 @@ public class HeapMapState<K, N, UK, UV>
 
 		return KvStateSerializer.serializeMap(result.entrySet(), dupUserKeySerializer, dupUserValueSerializer);
 	}
+
+	@Override
+	public String toString() {
+		return super.toString() + " with key " + stateTable.getCurrentKey();
+	}
 }

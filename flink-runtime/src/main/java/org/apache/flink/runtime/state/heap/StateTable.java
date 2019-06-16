@@ -190,4 +190,8 @@ public abstract class StateTable<K, N, S> {
 
 	@VisibleForTesting
 	public abstract int sizeOfNamespace(Object namespace);
+
+	public K getCurrentKey() {
+		return keyContext.getCurrentKey();
+	}
 }

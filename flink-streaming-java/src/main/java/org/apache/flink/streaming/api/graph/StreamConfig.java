@@ -577,14 +577,22 @@ public class StreamConfig implements Serializable {
 		builder.append("=======================");
 		builder.append("\nNumber of non-chained inputs: ").append(getNumberOfInputs());
 		builder.append("\nNumber of non-chained outputs: ").append(getNumberOfOutputs());
-		builder.append("\nOutput names: ").append(getNonChainedOutputs(cl));
-		builder.append("\nPartitioning:");
-		for (StreamEdge output : getNonChainedOutputs(cl)) {
-			int outputname = output.getTargetId();
-			builder.append("\n\t").append(outputname).append(": ").append(output.getPartitioner());
+		try {
+			builder.append("\nOutput names: ").append(getNonChainedOutputs(cl));
+			builder.append("\nPartitioning:");
+			for (StreamEdge output : getNonChainedOutputs(cl)) {
+				int outputname = output.getTargetId();
+				builder.append("\n\t").append(outputname).append(": ").append(output.getPartitioner());
+			}
+		} catch(Exception e) {
+			builder.append("\nOutput names: ").append(e.getMessage());
 		}
 
-		builder.append("\nChained subtasks: ").append(getChainedOutputs(cl));
+		try {
+			builder.append("\nChained subtasks: ").append(getChainedOutputs(cl));
+		} catch(Exception e) {
+			builder.append("\nChained subtasks: ").append(e.getMessage());
+		}
 
 		try {
 			builder.append("\nOperator: ").append(getStreamOperator(cl).getClass().getSimpleName());
@@ -594,11 +602,17 @@ public class StreamConfig implements Serializable {
 		}
 		builder.append("\nBuffer timeout: ").append(getBufferTimeout());
 		builder.append("\nState Monitoring: ").append(isCheckpointingEnabled());
-		if (isChainStart() && getChainedOutputs(cl).size() > 0) {
-			builder.append("\n\n\n---------------------\nChained task configs\n---------------------\n");
-			builder.append(getTransitiveChainedTaskConfigs(cl));
-		}
+		try {
+			if (isChainStart() && getChainedOutputs(cl).size() > 0) {
+				builder.append("\n\n\n---------------------\nChained task configs\n---------------------\n");
+				builder.append(getTransitiveChainedTaskConfigs(cl));
+			}
+		} catch(Exception ignored){}
 
 		return builder.toString();
+
+
 	}
+
+
 }

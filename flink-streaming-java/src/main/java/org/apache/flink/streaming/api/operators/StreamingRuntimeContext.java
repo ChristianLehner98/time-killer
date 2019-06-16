@@ -46,6 +46,9 @@ import org.apache.flink.util.Preconditions;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
+
 /**
  * Implementation of the {@link org.apache.flink.api.common.functions.RuntimeContext},
  * for streaming operators.
@@ -60,6 +63,8 @@ public class StreamingRuntimeContext extends AbstractRuntimeUDFContext {
 	private final Environment taskEnvironment;
 
 	private final StreamConfig streamConfig;
+	
+	public final static Logger LOG = LoggerFactory.getLogger(StreamingRuntimeContext.class);
 
 	public StreamingRuntimeContext(AbstractStreamOperator<?> operator,
 									Environment env, Map<String, Accumulator<?, ?>> accumulators) {
@@ -73,6 +78,8 @@ public class StreamingRuntimeContext extends AbstractRuntimeUDFContext {
 		this.operator = operator;
 		this.taskEnvironment = env;
 		this.streamConfig = new StreamConfig(env.getTaskConfiguration());
+		System.err.println("StreamingRuntimeContext constructed: " + toStringOnlyHash());
+		LOG.debug("StreamingRuntimeContext constructed: {}", this);
 	}
 
 	// ------------------------------------------------------------------------
@@ -191,4 +198,16 @@ public class StreamingRuntimeContext extends AbstractRuntimeUDFContext {
 		return streamConfig.getBufferTimeout();
 	}
 
+	@Override
+	public String toString() {
+		return "\n" + super.toString() + "{" +
+			"\n operator=" + operator +
+			", \n taskEnvironment=" + taskEnvironment +
+			", \n streamConfig=" + streamConfig +
+			"\n}";
+	}
+
+	public String toStringOnlyHash() {
+		return getClass().getName() + "@" + Integer.toHexString(System.identityHashCode(this));
+	}
 }
