@@ -32,7 +32,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A demonstration of the problems with the persistent state and why it sems rather useless for general apllications
+ * A demonstration of the problems with the persistent state and why it seems rather useless for general applications
+ * The program itself just adds all values associated with a key. The functionality of this particular algorithm
+ * is irrelevant.
  */
 public class SaveAndReadPersistentStateExample {
 
@@ -97,8 +99,7 @@ public class SaveAndReadPersistentStateExample {
 	private static Logger LOG = LoggerFactory.getLogger(SaveAndReadPersistentStateExample.class);
 	StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-	public SaveAndReadPersistentStateExample(int sleepTimePerElement, StateMode stateMode, OverwriteMode overwriteMode,
-		StateAccessMode stateAccessMode) throws Exception {
+	public SaveAndReadPersistentStateExample(int sleepTimePerElement) throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 		//parallelism 1 only for testing purposes
 		env.setParallelism(1);
@@ -115,7 +116,7 @@ public class SaveAndReadPersistentStateExample {
 
 		//execute the iteration
 		DataStream<Tuple2<Long, Long>> results = winInput.iterateSync(
-			new PersistentStateWindowLoopFunction(stateMode, overwriteMode, stateAccessMode),
+			new PersistentStateWindowLoopFunction(),
 			new FixpointIterationTermination(),
 			new FeedbackBuilder<Tuple2<Long, Long>, Long>() {
 
@@ -141,74 +142,6 @@ public class SaveAndReadPersistentStateExample {
 		env.execute("Persistent State Issue Demonstration");
 	}
 
-
-	public enum StateMode {
-		/**
-		 * a MapState is used for persistent state
-		 */
-		MAPSTATE,
-
-		/**
-		 * persistent state is just simulated with a map, just for testing purposes. Works fine here since state is quite small.
-		 */
-		MAP;
-
-		public static StateMode parse(String mode) {
-			if (mode.equalsIgnoreCase("Map")) {
-				return MAP;
-			} else if (mode.equalsIgnoreCase("MapState")) {
-				return MAPSTATE;
-			} else {
-				return null;
-			}
-		}
-	}
-
-	public enum OverwriteMode {
-
-		/**
-		 * The state is overwritten directly in the entry function for every key
-		 */
-		IN_ENTRY,
-
-		/**
-		 * the state is overwitten at the end of each window in the onTermination function
-		 */
-		IN_ON_TERMINATION;
-
-		public static OverwriteMode parse(String mode) {
-			if (mode.equalsIgnoreCase("entry")) {
-				return IN_ENTRY;
-			} else if (mode.equalsIgnoreCase("onTermination")) {
-				return IN_ON_TERMINATION;
-			} else {
-				return null;
-			}
-		}
-	}
-
-	public enum StateAccessMode {
-
-		/**
-		 * state = ctx.getRuntimeContext().getMapState() is only executed when the state is null
-		 */
-		ONCE,
-
-		/**
-		 * state = ctx.getRuntimeContext().getMapState() is executed every time before the state is accessed
-		 */
-		PER_ACCESS;
-
-		public static StateAccessMode parse(String mode) {
-			if (mode.equalsIgnoreCase("once")) {
-				return ONCE;
-			} else if (mode.equalsIgnoreCase("perAccess")) {
-				return PER_ACCESS;
-			} else {
-				return null;
-			}
-		}
-	}
 
 	private static class PersistentStateSampleSrc extends RichSourceFunction<Tuple2<Long, Long>> {
 
@@ -246,19 +179,8 @@ public class SaveAndReadPersistentStateExample {
 	private static class PersistentStateWindowLoopFunction implements
 		WindowLoopFunction<Tuple2<Long, Long>, Tuple2<Long, Long>, Tuple2<Long, Long>, Tuple2<Long, Long>, Long, TimeWindow> {
 
-		private StateMode stateMode;
-		private OverwriteMode overwriteMode;
-		private StateAccessMode stateAccessMode;
 		private Map<List<Long>, Map<Long, Long>> sumsPerContext = new HashMap<>();
 		private MapState<Long, Long> persistentSumsState = null;
-		private Map<Long, Long> persistentSumsMap = null;
-
-		public PersistentStateWindowLoopFunction(StateMode stateMode, OverwriteMode overwriteMode,
-			StateAccessMode stateAccessMode) {
-			this.stateMode = stateMode;
-			this.overwriteMode = overwriteMode;
-			this.stateAccessMode = stateAccessMode;
-		}
 
 
 		@Override
@@ -282,15 +204,8 @@ public class SaveAndReadPersistentStateExample {
 
 			//load old sum
 			long sum = 0;
-			switch (stateMode) {
-				case MAPSTATE:
-					if (persistentSumsState.contains(ctx.getKey())) {
-						sum = persistentSumsState.get(ctx.getKey());
-					}
-					break;
-				case MAP:
-					sum = persistentSumsMap.getOrDefault(ctx.getKey(), 0L);
-					break;
+			if (persistentSumsState.contains(ctx.getKey())) {
+				sum = persistentSumsState.get(ctx.getKey());
 			}
 
 			//calculate new sum
@@ -298,35 +213,13 @@ public class SaveAndReadPersistentStateExample {
 				sum += entry.f1;
 			}
 
-			//save new some for this window
+			//save new sum for this window
 			sums.put(ctx.getKey(), sum);
 
 			System.err.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1) + "> "
 				+ "ENTRY (" + ctx.getKey() + "):: " + "new entires: " + entries + ", new sum: " + sum);
 			LOG.debug("{}> ENTRY ({}):: new entries: {}, new sum: {}",
 				ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx.getKey(), entries, sum);
-
-			//if persistent state should be overwritten in the entry function, overwrtie persistent state
-			if (overwriteMode.equals(OverwriteMode.IN_ENTRY)) {
-				System.err.println(
-					(ctx.getRuntimeContext().getIndexOfThisSubtask() + 1) + "> " + "[state]:: " + "ctx:" + ctx
-						+ " UPDATING Persistent State");
-				LOG.debug("{}> [state]:: ctx:{} UPDATING Persistent State",
-					ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx);
-				switch (stateMode) {
-					case MAPSTATE:
-						persistentSumsState.put(ctx.getKey(), sum);
-						break;
-					case MAP:
-						persistentSumsMap.put(ctx.getKey(), sum);
-						break;
-				}
-				System.err
-					.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1) + "> " + "[state]:: " + "ctx:"
-						+ ctx + " Current State is:" + getState());
-				LOG.debug("{}> [state]:: ctx:{} Current State is {}",
-					ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx, getState());
-			}
 		}
 
 		@Override
@@ -351,7 +244,7 @@ public class SaveAndReadPersistentStateExample {
 
 			//if persistent state should be overwritten in the onTermination function and there were entries
 			//in this window, overwrite persistent state
-			if (overwriteMode.equals(OverwriteMode.IN_ON_TERMINATION) && sumsPerContext.containsKey(ctx.getContext())) {
+			if (sumsPerContext.containsKey(ctx.getContext())) {
 
 				//TEST - BACK UP Snapshot to persistent state
 				checkAndInitState(ctx);
@@ -362,19 +255,13 @@ public class SaveAndReadPersistentStateExample {
 				LOG.debug("{}> [state]:: ctx:{} UPDATING Persistent State",
 					ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx);
 
-				switch (stateMode) {
-					case MAPSTATE:
-						persistentSumsState.putAll(sumsPerContext.get(ctx.getContext()));
-						break;
-					case MAP:
-						persistentSumsMap.putAll(sumsPerContext.get(ctx.getContext()));
-						break;
-				}
+
+				persistentSumsState.putAll(sumsPerContext.get(ctx.getContext()));
 
 				System.err
 					.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1) + "> " + "[state]:: " + "ctx:"
-						+ ctx + " Current State is:" + getState());
-				LOG.debug("{}> [state]:: ctx:{} Current State is {}",
+						+ ctx + ", Current State is " + getState());
+				LOG.debug("{}> [state]:: ctx:{}, Current State is {}",
 					ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx, getState());
 
 			}
@@ -387,63 +274,32 @@ public class SaveAndReadPersistentStateExample {
 			LOG.debug("{}> check and init state called", ctx.getRuntimeContext().getIndexOfThisSubtask() + 1);
 
 			//if desired or necessary get the state from the runtime context
-			if (stateAccessMode.equals(StateAccessMode.PER_ACCESS) || checkStateIsNull()) {
+			if (persistentSumsState == null) {
 				System.err.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1) + "> "
 					+ "INITIALIZING/LOADING persistent state");
 				LOG.debug("{}> INITIALIZING/LOADING persistent state",
 					ctx.getRuntimeContext().getIndexOfThisSubtask() + 1);
 
-				switch (stateMode) {
-					case MAPSTATE:
-						persistentSumsState = ctx.getRuntimeContext().getMapState(
-							new MapStateDescriptor<>("sums", LongSerializer.INSTANCE, LongSerializer.INSTANCE));
-						System.err.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1)
-							+ "> LOADED PERSISTENT STATE :: ctx:" + ctx + ", MapState:" + persistentSumsState
-							+ ", Current State is "
-							+ getState());
-						LOG.debug(
-							"{}> LOADED PERSISTENT STATE :: ctx:{}, StreamingRuntimeContext:{}, MapState:{}, Current State is {}",
-							ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx, ctx.getRuntimeContext(),
-							persistentSumsState, getState());
-						break;
-					case MAP:
-						persistentSumsMap = persistentSumsMap == null ? new HashMap<>() : persistentSumsMap;
-						System.err.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1) + "> "
-							+ "LOADED PERSISTENT STATE [state]:: " + "ctx:" + ctx + " Current State is:"
-							+ getState());
-						LOG.debug(
-							"{}> LOADED PERSISTENT STATE [state]:: ctx:{} Current State is {}",
-							ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx, getState());
-				}
+
+				persistentSumsState = ctx.getRuntimeContext().getMapState(
+					new MapStateDescriptor<>("sums", LongSerializer.INSTANCE, LongSerializer.INSTANCE));
+				System.err.println((ctx.getRuntimeContext().getIndexOfThisSubtask() + 1)
+					+ "> LOADED PERSISTENT STATE :: ctx:" + ctx + ", Current State is " + getState());
+				LOG.debug(
+					"{}> LOADED PERSISTENT STATE :: ctx:{}, StreamingRuntimeContext:{}, Current State is {}",
+					ctx.getRuntimeContext().getIndexOfThisSubtask() + 1, ctx, ctx.getRuntimeContext(), getState());
 
 			}
 
-		}
-
-		private boolean checkStateIsNull() throws Exception {
-			switch (stateMode) {
-				case MAPSTATE:
-					return persistentSumsState == null;
-				case MAP:
-					return persistentSumsMap == null;
-				default:
-					return true;
-			}
 		}
 
 		private String getState() throws Exception {
 
-			if (checkStateIsNull()) {
+			if (persistentSumsState == null) {
 				return "null";
 			}
-			switch (stateMode) {
-				case MAPSTATE:
-					return persistentSumsState.entries().toString();
-				case MAP:
-					return persistentSumsMap.entrySet().toString();
-				default:
-					return "";
-			}
+
+			return persistentSumsState + ", entries: " + persistentSumsState.entries();
 		}
 	}
 }
