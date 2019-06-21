@@ -20,8 +20,8 @@ public class LoopContext<K> {
 		this.superstep = superstep;
 		this.key = key;
 		this.ctx = ctx;
-		System.err.println("LoopContext constructed: " + this);
-		LOG.debug("LoopContext constructed: {}", this);
+//		System.err.println("LoopContext constructed: " + this);
+//		LOG.debug("LoopContext constructed: {}", this);
 	}
 	
 	public K getKey() {

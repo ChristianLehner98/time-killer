@@ -40,14 +40,6 @@ public class WatermarksExample {
 	private static Logger LOG = LoggerFactory.getLogger(SaveAndReadPersistentStateExample.class);
 	StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-    public static void main(String args[]) throws Exception {
-
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-
-
-
-    }
-
     public WatermarksExample() throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 		//parallelism 1 here only for testing purposes

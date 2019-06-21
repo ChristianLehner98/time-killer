@@ -1,6 +1,7 @@
 package org.apache.flink.streaming.runtime.operators.windowing;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.streaming.api.functions.windowing.LoopContext;
@@ -8,6 +9,7 @@ import org.apache.flink.streaming.api.functions.windowing.WindowLoopFunction;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.Output;
+import org.apache.flink.streaming.api.operators.StreamingRuntimeContext;
 import org.apache.flink.streaming.api.operators.TimestampedCollector;
 import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -30,18 +32,21 @@ public class WindowMultiPassOperator<K, IN1, IN2, ACC2, R, S, W2 extends Window>
 	public final static Logger logger = LoggerFactory.getLogger(WindowMultiPassOperator.class);
 	private final KeySelector<IN1, K> entryKeying;
 	private final KeySelector<IN2, K> feedbackKeying;
-	
-	WindowOperator<K, IN2, ACC2, Either<R,S>, W2> winOp2;
+
+	private WindowOperator<K, IN2, ACC2, Either<R,S>, W2> winOp2;
 	
 	//UDF
-	WindowLoopFunction loopFunction;
-	
-	Set<List<Long>> activeIterations = new HashSet<>();
-	StreamTask<?, ?> containingTask;
+	private WindowLoopFunction<IN1, IN2, S, R, K, W2> loopFunction;
 
-	TimestampedCollector<Either<R,S>> collector;
+	private Set<List<Long>> activeIterations = new HashSet<>();
 
-	Map<List<Long>, Map<K, List<IN1>>> entryBuffer;
+	private StreamTask<?, ?> containingTask;
+
+	private TimestampedCollector<Either<R,S>> collector;
+
+	private Map<List<Long>, Map<K, List<IN1>>> entryBuffer;
+
+	private Map<List<Long>, Set<K>> activeElementsPerContext;
 
 	// MY METRICS
 	private Map<List<Long>, Long> lastWinStartPerContext = new HashMap<>();
@@ -64,6 +69,7 @@ public class WindowMultiPassOperator<K, IN1, IN2, ACC2, R, S, W2 extends Window>
 		winOp2.setup(containingTask, config2, output);
 		this.containingTask = containingTask;
 		this.entryBuffer = new HashMap<>();
+		this.activeElementsPerContext = new HashMap<>();
 	}
 
 	@Override
@@ -100,14 +106,23 @@ public class WindowMultiPassOperator<K, IN1, IN2, ACC2, R, S, W2 extends Window>
 			tmp.put(key, new ArrayList<IN1>());
 		}
 		tmp.get(key).add(element.getValue());
+
+		if(!activeElementsPerContext.containsKey(element.getProgressContext())) {
+			activeElementsPerContext.put(element.getProgressContext(), new HashSet<K>());
+		}
+		activeElementsPerContext.get(element.getProgressContext()).add(key);
 	}
 	
 	public void processElement2(StreamRecord<IN2> element) throws Exception {
 		logger.info(getRuntimeContext().getIndexOfThisSubtask() +":: TWOWIN Received from FEEDBACK - "+ element);
 		winOp2.setCurrentKey(feedbackKeying.getKey(element.getValue()));
-		if(activeIterations.contains(element.getProgressContext())) {
+//		if(activeIterations.contains(element.getProgressContext())) {
 			winOp2.processElement(element);
-		}
+			if(!activeElementsPerContext.containsKey(element.getProgressContext())) {
+				activeElementsPerContext.put(element.getProgressContext(), new HashSet<K>());
+			}
+			activeElementsPerContext.get(element.getProgressContext()).add(feedbackKeying.getKey(element.getValue()));
+//		}
 	}
 	
 	public void processWatermark1(Watermark mark) throws Exception {
@@ -116,6 +131,7 @@ public class WindowMultiPassOperator<K, IN1, IN2, ACC2, R, S, W2 extends Window>
 		if(entryBuffer.containsKey(mark.getContext())){
 			for(Map.Entry<K, List<IN1>> entry : entryBuffer.get(mark.getContext()).entrySet()){
 				collector.setAbsoluteTimestamp(mark.getContext(),0);
+				setCurrentKey(entry.getKey());
 				loopFunction.entry(new LoopContext(mark.getContext(), 0, entry.getKey(), getRuntimeContext()), entry.getValue(), collector);
 			}
 			entryBuffer.remove(mark.getContext()); //entry is done for that context
@@ -123,14 +139,18 @@ public class WindowMultiPassOperator<K, IN1, IN2, ACC2, R, S, W2 extends Window>
 		output.emitWatermark(mark);
 		lastLocalEndPerContext.put(mark.getContext(), System.currentTimeMillis());
 	}
-	
+
 	public void processWatermark2(Watermark mark) throws Exception {
 		logger.info(getRuntimeContext().getIndexOfThisSubtask() +":: TWOWIN Received from FEEDBACK - "+ mark);
 		lastWinStartPerContext.put(mark.getContext(), System.currentTimeMillis());
 		if(mark.iterationDone()) {
 			activeIterations.remove(mark.getContext());
 			if(mark.getContext().get(mark.getContext().size()-1) != Long.MAX_VALUE ) {
-				loopFunction.onTermination(new LoopContext(mark.getContext(), mark.getTimestamp(), null, getRuntimeContext()), collector);
+				for(K key : activeElementsPerContext.getOrDefault(mark.getContext(), new HashSet<>())){
+					setCurrentKey(key);
+					loopFunction.onTermination(new LoopContext<>(mark.getContext(), mark.getTimestamp(), key, getRuntimeContext()), collector);
+				}
+				activeElementsPerContext.remove(mark.getContext());
 			}
 			winOp2.processWatermark(new Watermark(mark.getContext(), Long.MAX_VALUE, false, mark.iterationOnly()));
 		} else {

@@ -3,6 +3,7 @@ package org.apache.flink.streaming.api.datastream;
 
 import org.apache.flink.annotation.Public;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -139,12 +140,14 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 		TypeInformation<R> intermediateFeedbackTypeInfo) throws Exception {
 
 		TypeInformation<Either<R, S>> eitherTypeInfo = new EitherTypeInfo<>(intermediateFeedbackTypeInfo, outTypeInfo);
-		
+
+		WrappedWindowFunction2<F, Either<R, S>, K, TimeWindow> wrappedWindowFunction2 = new WrappedWindowFunction2<>(coWinTerm);
 		Tuple2<String, WindowOperator> stepDiscretizer =
-			getWindowOperator(windowedStream2, new WrappedWindowFunction2<F, Either<R, S>, K, TimeWindow>(coWinTerm), eitherTypeInfo);
+			getWindowOperator(windowedStream2, wrappedWindowFunction2, eitherTypeInfo);
 
 		String opName = "WindowMultiPass(" + stepDiscretizer.f0 + ")"; 
 		WindowMultiPassOperator combinedOperator = new WindowMultiPassOperator(windowedStream1.getInput().getKeySelector(),feedbackSelector, stepDiscretizer.f1, coWinTerm);
+		wrappedWindowFunction2.setWindowMultiPassOperator(combinedOperator);
 		return new TwoInputTransformation<>(
 			windowedStream1.getInput().getTransformation(),
 			windowedStream2.getInput().getTransformation(),
@@ -217,13 +220,19 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 	private static class WrappedWindowFunction2<IN, OUT, K, W extends TimeWindow> extends RichWindowFunction<IN,OUT,K,W> {
 
 		WindowLoopFunction coWinTerm;
+		WindowMultiPassOperator windowMultiPassOperator;
 
 		public WrappedWindowFunction2(WindowLoopFunction coWinTerm) {
 			this.coWinTerm = coWinTerm;
 		}
 
 		public void apply(K key, W window, Iterable<IN> input, Collector<OUT> out) throws Exception {
-			coWinTerm.step(new LoopContext(window.getTimeContext(), window.getEnd(), key, (StreamingRuntimeContext) getRuntimeContext()), input, out);
+			windowMultiPassOperator.setCurrentKey(key);
+			coWinTerm.step(new LoopContext(window.getTimeContext(), window.getEnd(), key, windowMultiPassOperator.getRuntimeContext()), input, out);
+		}
+
+		public void setWindowMultiPassOperator(WindowMultiPassOperator windowMultiPassOperator) {
+			this.windowMultiPassOperator = windowMultiPassOperator;
 		}
 	}
 }

@@ -78,8 +78,8 @@ public class StreamingRuntimeContext extends AbstractRuntimeUDFContext {
 		this.operator = operator;
 		this.taskEnvironment = env;
 		this.streamConfig = new StreamConfig(env.getTaskConfiguration());
-		System.err.println("StreamingRuntimeContext constructed: " + toStringOnlyHash());
-		LOG.debug("StreamingRuntimeContext constructed: {}", this);
+//		System.err.println("StreamingRuntimeContext constructed: " + toStringOnlyHash());
+//		LOG.debug("StreamingRuntimeContext constructed: {}", this);
 	}
 
 	// ------------------------------------------------------------------------
