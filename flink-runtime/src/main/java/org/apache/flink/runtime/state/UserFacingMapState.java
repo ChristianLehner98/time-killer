@@ -95,11 +95,4 @@ class UserFacingMapState<K, V> implements MapState<K, V> {
 		Iterator<Map.Entry<K, V>> original = originalState.iterator();
 		return original != null ? original : emptyState.entrySet().iterator();
 	}
-
-	@Override
-	public String toString() {
-		return "UserFacingMapState{" +
-			"originalState=" + originalState +
-			'}';
-	}
 }
