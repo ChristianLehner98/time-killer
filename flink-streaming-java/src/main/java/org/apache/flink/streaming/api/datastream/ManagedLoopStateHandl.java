@@ -19,10 +19,4 @@ public interface ManagedLoopStateHandl<K, S> {
 	 */
 	ValueState<S> getPersistentLoopState();
 
-	/**
-	 * Interface for informing the runtime about active keys within an iterative process
-	 * @param key
-	 */
-	void markActive(List<Long> context, K key);
-	 
 }

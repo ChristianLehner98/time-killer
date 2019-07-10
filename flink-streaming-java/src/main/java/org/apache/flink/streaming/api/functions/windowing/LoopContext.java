@@ -109,7 +109,6 @@ public class LoopContext<K, S> {
 	public void loopState(S newVal) throws Exception {
 		checkInitialization();
 		managedStateHandle.getWindowLoopState().put(context.get(context.size()-1), newVal);
-		managedStateHandle.markActive(this.context, this.key);
 	}
 
 	/**
@@ -132,7 +131,6 @@ public class LoopContext<K, S> {
 	public void persistentState(S newVal) throws Exception {
 		checkInitialization();
 		managedStateHandle.getPersistentLoopState().update(newVal);
-		managedStateHandle.markActive(this.context, this.key);
 	}
 
 	@Override
