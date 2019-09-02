@@ -181,7 +181,7 @@ public class WindowMultiPassOperator<K, IN1, IN2, R, S, W2 extends Window>
 			for (Map.Entry<K, List<IN1>> entry : entryBuffer.get(mark.getContext()).entrySet()) {
 				collector.setAbsoluteTimestamp(mark.getContext(), 0);
 				this.setCurrentKey(entry.getKey());
-				loopFunction.entry(new LoopContext(mark.getContext(), 0, entry.getKey(), getRuntimeContext(), stateHandl), entry.getValue(), collector);
+				loopFunction.entry(new LoopContext(mark.getContext(), 1, entry.getKey(), getRuntimeContext(), stateHandl), entry.getValue(), collector);
 			}
 			Set<K> tmp = new HashSet<>();
 			tmp.addAll(entryBuffer.get(mark.getContext()).keySet());
