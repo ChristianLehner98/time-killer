@@ -1576,9 +1576,26 @@ public class WindowedStream<T, K, W extends Window> {
 	 * @return The output DataStream.
 	 */
 	public <OUT,F,R> DataStream<OUT> iterateSync(WindowLoopFunction coWinTermFun,
+		StreamIterationTermination terminationStrategy,
+		FeedbackBuilder<R, K> feedbackBuilder,
+		TypeInformation<R> feedbackType) throws Exception {
+		return iterateSync(coWinTermFun, terminationStrategy, feedbackBuilder, feedbackType, 15000);
+	}
+
+	/**
+	 * Bulk synchronous iteration
+	 *
+	 * @param <OUT> The type of the iteration output (as produced by the finalize function of
+	 *                the CoWindowTerminateFunction)
+	 * @param <R> 	The type of the feedback stream produced by the entry and step functions of
+	 *           	the CoWindowTerminateFunction
+	 * @param <F>	The type of the feedback after applying the feedbackBuilder function
+	 * @return The output DataStream.
+	 */
+	public <OUT,F,R> DataStream<OUT> iterateSync(WindowLoopFunction coWinTermFun,
 								StreamIterationTermination terminationStrategy, 
 								FeedbackBuilder<R, K> feedbackBuilder, 
-								TypeInformation<R> feedbackType) throws Exception {
+								TypeInformation<R> feedbackType, long waitTime) throws Exception {
 
 
 		//we pre-window to ensure outer window assigners operation on the right scope
@@ -1597,7 +1614,7 @@ public class WindowedStream<T, K, W extends Window> {
 				preWindowedStream.getKeySelector(), preWindowedStream.getKeyType()), getWindowAssigner());
 
 		IterativeWindowStream iterativeStream = new IterativeWindowStream<>(
-			scopedWindowStream, coWinTermFun, terminationStrategy, feedbackBuilder, feedbackType, 15000);
+			scopedWindowStream, coWinTermFun, terminationStrategy, feedbackBuilder, feedbackType, waitTime);
 
 		DataStream<OUT> outStream = iterativeStream.loop();
 
